@@ -56,7 +56,7 @@ if (convert) contime <- system.time(convert_DICOM(basedir, progdir,
                           verbose=verbose, untar=untar))
 
 
-lis <- includeMatrix(basedir)
+lis <- includeMatrix(basedir, dropstring="ungantry")
 outs <- lis$outs
 mis <- lis$mis
 
@@ -109,7 +109,7 @@ save(outs, mis, file = infofile)
 
 
 print(contime)
-if (skullstrip) system.time(Skull_Strip(basedir, progdir, opts="", verbose=verbose))
+if (skullstrip) system.time(Skull_Strip(basedir, progdir, opts="-f 0.1", verbose=verbose))
 # refdir="/Volumes/DATA/New_Age_Test/265-389"
 # 
 # cd $refdir

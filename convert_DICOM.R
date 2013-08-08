@@ -194,12 +194,14 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE){
 } ###end function
 
 
-Skull_Strip <- function(basedir, progdir, opts = "", verbose=TRUE){
+Skull_Strip <- function(basedir, progdir, CTonly=TRUE, opts = "", verbose=TRUE){
   outdir <- file.path(basedir, "Skull_Stripped")
   if (!file.exists(outdir)) system(sprintf('mkdir -p "%s"', outdir))
 
   niis <- dir(path=basedir, pattern=".nii.gz", 
-    full.names=TRUE, recursive=TRUE)
+    full.names=TRUE, recursive=FALSE)
+  
+  if (CTonly) niis <- niis[grepl("_CT_", niis)]
   ### skull strip  data
   inii <- niis[1]
   for (inii in niis){
@@ -261,7 +263,7 @@ getInfo <- function(txt){
 
 
 
-includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE, drop_string = NULL, verbose=TRUE){
+includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE, dropstring = NULL, verbose=TRUE){
 
 
   #### checking if all got converted and dropping unneded scans
@@ -273,7 +275,7 @@ includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE, drop_string =
   niis <- getBase(niis, ind=2)
   stopifnot(all(niis %in% tars))
   mis <- tars[!(tars %in% niis)]
-  if (!is.null(drop_string)) mis <- mis[!grepl(drop_string, mis)]
+  if (!is.null(dropstring)) mis <- mis[!grepl(dropstring, mis)]
   if (verbose) print(mis)
 
 
