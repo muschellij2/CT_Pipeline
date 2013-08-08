@@ -148,6 +148,7 @@ fi
 
       fslmaths "$OUTDIR/${bbet}" -sub 1024 "$OUTDIR/${bbet}"
       fslmaths "$OUTDIR/${human}" -sub 1024 "$OUTDIR/${human}"
+      # fslmaths "$OUTDIR/${human}" -thr 1024 "$OUTDIR/${human}"
 
       brainvol=`fslstats $OUTDIR/${fpmask} -V | awk '{ print $2/1000 }'`;
       echo "Brain volume is $brainvol"
