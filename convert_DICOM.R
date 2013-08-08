@@ -261,7 +261,7 @@ getInfo <- function(txt){
 
 
 
-includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE){
+includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE, drop_string = NULL, verbose=TRUE){
 
 
   #### checking if all got converted and dropping unneded scans
@@ -273,7 +273,8 @@ includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE){
   niis <- getBase(niis, ind=2)
   stopifnot(all(niis %in% tars))
   mis <- tars[!(tars %in% niis)]
-  print(mis)
+  if (!is.null(drop_string)) mis <- mis[!grepl(drop_string, mis)]
+  if (verbose) print(mis)
 
 
   #############################################

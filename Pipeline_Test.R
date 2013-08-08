@@ -55,10 +55,6 @@ skullstrip <- FALSE
 if (convert) contime <- system.time(convert_DICOM(basedir, progdir, 
                           verbose=verbose, untar=untar))
 
-lis <- includeMatrix(basedir)
-outs <- lis$outs
-mis <- lis$mis
-
 
 lis <- includeMatrix(basedir)
 outs <- lis$outs
