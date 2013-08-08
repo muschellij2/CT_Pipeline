@@ -94,7 +94,7 @@ fi
         file="$zeroed" 
       fi 
 
-
+# This is important because of 2 things - constraining to brain and getting rid of FOV
       h=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_First_Pass_"'${intensity}'"\.nii\.gz"); print }'`
       echo "No Human extraction $file file..";
       fslmaths $file -thr 1024 -uthr 1124 "${OUTDIR}/${h}"
@@ -115,38 +115,40 @@ fi
       echo "Human Extraction $human file..";
       bet2 $file "$OUTDIR/${human}" -f ${intensity}
       
-      echo "Thresholding to range of 1024-1124 $human file..";
-      fslmaths "$OUTDIR/${human}" -thr 1024 -uthr 1124 "$OUTDIR/${j}"
+    #   echo "Thresholding to range of 1024-1124 $human file..";
+    #   fslmaths "$OUTDIR/${human}" -thr 1024 -uthr 1124 "$OUTDIR/${j}"
       
-      echo "Bet 1 Running ${j}"
-      bet2 "$OUTDIR/${j}" "$OUTDIR/${j}" -f ${intensity}
+    #   echo "Bet 1 Running ${j}"
+    #   bet2 "$OUTDIR/${j}" "$OUTDIR/${j}" -f ${intensity}
       
-      echo "Bet 2 Running ${j}"
-      ### this is if we want meshes
-    # bet $j $j -f $intensity -A
-      bet2 "$OUTDIR/${j}" "$OUTDIR/${bbet}" -f ${intensity}
+    #   echo "Bet 2 Running ${j}"
+    #   ### this is if we want meshes
+    # # bet $j $j -f $intensity -A
+    #   bet2 "$OUTDIR/${j}" "$OUTDIR/${bbet}" -f ${intensity}
 
 
 
-    # echo "Translating to 0-100 range"
-      echo "Making Binary Image"
-      fslmaths "$OUTDIR/${j}" -thr 1024 -bin "$OUTDIR/${jmask}"
-      # filling the holes
-      fslmaths "$OUTDIR/${jmask}" -fillh "$OUTDIR/${jmask}"
-    # echo "Making Binary Image"
-    # fslmaths "$j" -thr 0 "$j"
+    # # echo "Translating to 0-100 range"
+    #   echo "Making Binary Image"
+    #   fslmaths "$OUTDIR/${j}" -thr 1024 -bin "$OUTDIR/${jmask}"
+    #   # filling the holes
+    #   fslmaths "$OUTDIR/${jmask}" -fillh "$OUTDIR/${jmask}"
+    # # echo "Making Binary Image"
+    # # fslmaths "$j" -thr 0 "$j"
 
-      fslmaths "$OUTDIR/${bbet}" -thr 1024 -bin "$OUTDIR/${bbetmask}"
-      fslmaths "$OUTDIR/${bbetmask}" -fillh "$OUTDIR/${bbetmask}"
-    # fslmaths "$bbet" -thr 0 "$bbet"
+    #   fslmaths "$OUTDIR/${bbet}" -thr 1024 -bin "$OUTDIR/${bbetmask}"
+    #   fslmaths "$OUTDIR/${bbetmask}" -fillh "$OUTDIR/${bbetmask}"
+    # # fslmaths "$bbet" -thr 0 "$bbet"
 
-    # echo "Translating to 0-100 range"
-      echo "Subtracting 1024 from Image"
-      fslmaths "$OUTDIR/${j}" -sub 1024 "$OUTDIR/${j}"
-    # echo "Making Binary Image"
-    # fslmaths "$j" -thr 0 "$j"
+    # # echo "Translating to 0-100 range"
+    #   echo "Subtracting 1024 from Image"
+    #   fslmaths "$OUTDIR/${j}" -sub 1024 "$OUTDIR/${j}"
+    # # echo "Making Binary Image"
+    # # fslmaths "$j" -thr 0 "$j"
 
-      fslmaths "$OUTDIR/${bbet}" -sub 1024 "$OUTDIR/${bbet}"
+    #   fslmaths "$OUTDIR/${bbet}" -sub 1024 "$OUTDIR/${bbet}"
+
+      
       fslmaths "$OUTDIR/${human}" -sub 1024 "$OUTDIR/${human}"
       # fslmaths "$OUTDIR/${human}" -thr 1024 "$OUTDIR/${human}"
 

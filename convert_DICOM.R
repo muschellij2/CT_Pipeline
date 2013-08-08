@@ -194,7 +194,8 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE){
 } ###end function
 
 
-Skull_Strip <- function(basedir, progdir, CTonly=TRUE, opts = "", verbose=TRUE){
+Skull_Strip <- function(basedir, progdir, CTonly=TRUE, 
+                      dropstring=NULL, opts = "", verbose=TRUE){
   outdir <- file.path(basedir, "Skull_Stripped")
   if (!file.exists(outdir)) system(sprintf('mkdir -p "%s"', outdir))
 
@@ -202,6 +203,12 @@ Skull_Strip <- function(basedir, progdir, CTonly=TRUE, opts = "", verbose=TRUE){
     full.names=TRUE, recursive=FALSE)
   
   if (CTonly) niis <- niis[grepl("_CT_", niis)]
+  ## drop out scans (like CTA)
+  if (!is.null(dropstring) & length(dropstring) > 0){
+    for (istring in 1:length(dropstring)){
+      niis <- niis[!grepl(dropstring[istring], niis)]
+    }
+  }
   ### skull strip  data
   inii <- niis[1]
   for (inii in niis){

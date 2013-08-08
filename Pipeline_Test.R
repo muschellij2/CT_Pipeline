@@ -109,7 +109,8 @@ save(outs, mis, file = infofile)
 
 
 print(contime)
-if (skullstrip) system.time(Skull_Strip(basedir, progdir, opts="-f 0.1", verbose=verbose))
+# , dropstring = c("_CTA_")
+if (skullstrip) system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", verbose=verbose))
 # refdir="/Volumes/DATA/New_Age_Test/265-389"
 # 
 # cd $refdir
