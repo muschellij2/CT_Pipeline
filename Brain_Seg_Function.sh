@@ -61,12 +61,7 @@ fi
       
       stub=`basename $file`
       zeroed=`echo $file | awk '{ sub(/\.nii\.gz/, "_Zeroed_"'${intensity}'"\.nii\.gz"); print }'`
-      j=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_"'${intensity}'"\.nii\.gz"); print }'`
-      jmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_Mask_"'${intensity}'"\.nii\.gz"); print }'`
 
-      bbet=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS2_"'${intensity}'"\.nii\.gz"); print }'`
-      bbetmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS2_Mask_"'${intensity}'"\.nii\.gz"); print }'`
-      
       ### need this because then you can reorient them if you need to
       sform=`fslorient -getsformcode $file`  
 
@@ -115,6 +110,12 @@ fi
       echo "Human Extraction $human file..";
       bet2 $file "$OUTDIR/${human}" -f ${intensity}
       
+    #   j=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_"'${intensity}'"\.nii\.gz"); print }'`
+    #   jmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_Mask_"'${intensity}'"\.nii\.gz"); print }'`
+
+    #   bbet=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS2_"'${intensity}'"\.nii\.gz"); print }'`
+    #   bbetmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS2_Mask_"'${intensity}'"\.nii\.gz"); print }'`
+            
     #   echo "Thresholding to range of 1024-1124 $human file..";
     #   fslmaths "$OUTDIR/${human}" -thr 1024 -uthr 1124 "$OUTDIR/${j}"
       
@@ -148,7 +149,7 @@ fi
 
     #   fslmaths "$OUTDIR/${bbet}" -sub 1024 "$OUTDIR/${bbet}"
 
-      
+
       fslmaths "$OUTDIR/${human}" -sub 1024 "$OUTDIR/${human}"
       # fslmaths "$OUTDIR/${human}" -thr 1024 "$OUTDIR/${human}"
 
