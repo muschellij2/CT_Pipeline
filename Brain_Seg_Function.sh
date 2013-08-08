@@ -73,7 +73,7 @@ fi
       rawmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_No1024_Mask_"'${intensity}'"\.nii\.gz"); print }'`
       fslmaths "${OUTDIR}/${raw}" -bin "${OUTDIR}/${rawmask}"
       fslmaths "$OUTDIR/${rawmask}" -fillh "$OUTDIR/${rawmask}"
-
+      
       echo "Bet 1 Running $raw"
       bet2 "$OUTDIR/$raw" "$OUTDIR/$raw" -f ${intensity}
             

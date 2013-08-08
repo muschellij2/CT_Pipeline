@@ -17,7 +17,7 @@ if (username == "muschellij2"){
 }
 
 # id <- "238-4136"
-id <- "225-510"
+id <- "205-509"
 ss <- as.numeric(strsplit(id, "-")[[1]][2])
 if (ss > 4000){
 	study <- "CLEAR_III"
