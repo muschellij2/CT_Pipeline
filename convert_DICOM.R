@@ -1,0 +1,417 @@
+movefiles <- function(files, indices, outdir, num=6, verbose=TRUE){
+  maxnum <- 10^num
+  if (max(indices) > maxnum) stop("Need new format")
+  for (i in 1:length(files)){
+    ind <- indices[i]
+    fmt <- paste0("%0", num, ".0f.dcm")
+      new <- file.path(outdir, sprintf(fmt, ind))
+      system(sprintf('mv "%s" "%s"', files[i], new))   
+      if (verbose) print(i)
+  }
+}
+
+## find /thisdir -type f -name '*.ogg' -exec mv -i {} /somedir \;
+
+
+runformats <- function(fmts, startind= 0, indir, outdir, verbose=TRUE){
+  istart <- startind
+  for (ifmt in 1:length(fmts)){
+    fmt <- fmts[ifmt]
+    if (verbose) print(paste0("Running format ", fmt))
+    ## get files
+    x <- list.files(path=indir, pattern=fmt, recursive=TRUE, 
+                  full.names=TRUE)  
+    if (length(x) > 0) {
+      ### get new indices
+      runn <- (istart+1):(istart+1+length(x))
+      movefiles(x, runn, outdir=outdir, verbose=verbose)
+      ## re-index the formats
+      istart <- max(runn)
+    }
+
+  }
+  return(istart)
+}
+
+  getfiles <- function(basedir){
+    files <- dir(path=basedir, pattern="dcm|DCM", full.names=TRUE, 
+          recursive=TRUE)
+    paths <- unique(dirname(files))
+    return(list(files=files, paths=paths))
+  }
+
+onedir <- function(basedir, verbose=TRUE){
+    gf <- getfiles(basedir)
+
+
+  ### Moving files into one big directory
+    ### watch out for / ending in basedir
+  if (!all(gf$paths == basedir)){
+    fmts <- c(".dcm", ".DCM", "Image[0-9].*[0-9]$", 
+      "C[0-9].*[0-9]$", "C[0-9].*[A-Z]$")
+    lastind <- runformats(fmts, indir=basedir, 
+      outdir=basedir, verbose=verbose)
+  }
+}
+
+dcmsort <- function(basedir, progdir, sortdir, verbose=TRUE){
+  gf <- getfiles(basedir)
+
+
+  ### need dcmdump in your path - from DCMTK
+  ### sort them out
+  if (length(gf$paths) > 0){
+    if (all(gf$paths == basedir)){
+      if (verbose) cat("Sorting DICOMs \n")
+      cmd <- sprintf('sh "%s"/dcmsort_Final.sh -D "%s" -o "%s" -m -x', progdir,
+                     basedir, sortdir)
+      system(cmd)
+    } else {
+      stop("something is off - need to all have dcms in one file")
+    }
+  }
+}
+
+dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE){
+
+  gf <- getfiles(basedir)
+  files <- gf$files
+  paths <- gf$paths
+
+  ## THEN PIPELINE TEST
+  ipath <- 1
+  lpath <- length(paths)
+
+  ### need dcm2nii in your path! - from MRICRON
+  if (lpath >= 1){
+    if (verbose) cat("Converting to nii \n")
+
+    for (ipath in 1:length(paths)){
+      path <- paths[ipath]
+      system(sprintf('rm "%s"/*.nii.gz', path))
+      res <- system(sprintf('dcm2nii -b "%s"/CT_dcm2nii.ini "%s"', 
+          progdir, path), intern=TRUE)
+      errs <- grepl("Error", res)
+      if (any(errs)){
+              system(sprintf('rm "%s"/*.nii.gz', path))
+              print("Error in DCM2NII")
+              next
+      }        
+      niis <- dir(path=path, pattern=".nii.gz")
+      stub <- basename(path)
+
+      iddir <- file.path(basedir)
+      name <- stub
+      
+      ### copy dicom header info
+      make_txt(path)
+#       dcm <- dir(path=path, pattern="dcm|DCM", full.names=TRUE, recursive=FALSE)[1]    
+#       txtfile <- file.path(dirname(path), paste0(stub, ".txt"))
+#       system(sprintf('dcmdump "%s" > "%s"', dcm, txtfile))
+      
+      
+      if (length(niis) > 1){    
+        # stop("it")
+        # cmd <- 'FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; export FSLDIR FSLOUTPUTTYPE; '
+        # cmd <- paste0(cmd, 'echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh; ', 
+        #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
+        cmd <- c('fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
+        system(sprintf(cmd, iddir, name, path))
+          
+      }
+      if (length(niis) == 1){
+        system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', path, iddir, name))
+      }
+      system(sprintf('rm "%s"/*.nii.gz', path))
+      setwd(dirname(path))
+      #     stop("me")
+      newpath <- file.path(dirname(path), name)
+      system(sprintf('mv "%s" "%s"', path, newpath))
+
+      # setwd(basename(newpath))
+      # tarfile <- paste(newpath, ".tar.gz", sep="")
+      # tar(tarfile, compression="gzip")
+      system(sprintf('tar -cvzf "%s" ./"%s"', paste(newpath, ".tar.gz", sep=""), 
+          basename(newpath)))
+      
+      system(sprintf('rm -R "%s"', newpath))
+    }
+  } # end loop over paths
+
+} ## end dcm2nii
+
+
+#### wrapper to convert an entire directory to sort/move/nifti
+convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE){
+  setwd(basedir)
+
+  sortdir <- file.path(basedir, "Sorted")
+  if (!file.exists(sortdir)) system(sprintf('mkdir -p "%s"', sortdir))
+
+  if (untar){
+    ### unzip all the tar.gz (if you have to redo)
+    if (verbose) cat("Un tarballing data \n")
+    files <- dir(path=basedir, pattern=".tar.gz", full.names=TRUE, 
+          recursive=TRUE)
+    ### untarball the files using R's command
+    if (length(files) > 0){
+      for (ifile in files){
+        dname <- dirname(ifile)
+        untar(ifile, exdir = dname, compressed='gzip')
+        if (verbose) print(ifile)
+      }
+    }
+    files <- dir(path=basedir, pattern=".nii.gz", 
+          full.names=TRUE, recursive=TRUE)
+    file.remove(files)
+  }
+
+
+  ### Moving files into one big directory
+  ### watch out for / ending in basedir
+  onedir(basedir, verbose)
+
+  ## putting into respective folders using dcmdump
+  dcmsort(basedir, progdir, sortdir, verbose)
+
+  ## gantry tilt correction
+  file_gc(basedir, progdir, verbose)
+  
+  ## conversion
+  dcm2nii(basedir, progdir, sortdir, verbose)
+
+  
+  gf <- getfiles(basedir)
+
+  if (verbose) cat("Deleting Empty Directories \n")
+  expaths <- list.dirs(basedir, recursive=TRUE, full.names=TRUE)
+  expaths <- expaths[!(expaths %in% c(sortdir, basedir))]
+  expaths <- expaths[!(expaths %in% gf$paths)]
+  for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
+  for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
+
+
+} ###end function
+
+
+Skull_Strip <- function(basedir, progdir, opts = "", verbose=TRUE){
+  outdir <- file.path(basedir, "Skull_Stripped")
+  if (!file.exists(outdir)) system(sprintf('mkdir -p "%s"', outdir))
+
+  niis <- dir(path=basedir, pattern=".nii.gz", 
+    full.names=TRUE, recursive=TRUE)
+  ### skull strip  data
+  inii <- niis[1]
+  for (inii in niis){
+    cmd <- sprintf('sh "%s"/Brain_Seg_Function.sh -i "%s" -o "%s" %s', 
+      progdir, inii, outdir, opts)
+    res <- system(cmd)
+    if (verbose) print(inii)
+  }
+
+}
+
+
+
+
+
+## get key from header 
+extract <- function(file, key){
+  key <- gsub("(", "\\(", key, fixed=TRUE)
+  key <- gsub(")", "\\)", key, fixed=TRUE)
+  ret=file[grep(key, file)]
+  pkey <- paste0("^", key, ".*\\[(.*)\\].*")
+  ret <- gsub(pkey, "\\1", ret)
+}
+
+### conglomerate info from txt files from dcmdump
+getInfo <- function(txt){
+  xx <- readLines(txt)
+  SeriesDesc <- extract(xx, "(0008,103e)")
+  StudyDesc <- extract(xx, "(0008,1030)")
+  itype <- extract(xx, "(0008,0008)")
+  modal <- extract(xx, "(0008,0060)")
+  SeriesNum <- extract(xx, "(0020,0011)")
+  GantryDetectorTilt <- extract(xx, "(0018,1120)")
+  RotationDirection <- extract(xx, "(0018,1140)")
+  TableHeight <- extract(xx, "(0018,1130)")
+  ConvolutionKernel <- extract(xx, "(0018,1210)")
+  
+  if (length(SeriesDesc) == 0) SeriesDesc <- NA
+  if (length(StudyDesc) == 0) StudyDesc <- NA
+  if (length(itype) == 0) itype <- NA
+  if (length(modal) == 0) modal <- NA
+  if (length(SeriesNum) == 0) SeriesNum <- NA
+  if (length(GantryDetectorTilt) == 0) GantryDetectorTilt <- NA
+  if (length(RotationDirection) == 0) RotationDirection <- NA
+  if (length(TableHeight) == 0) TableHeight <- NA
+  if (length(ConvolutionKernel) == 0) ConvolutionKernel <- NA
+  
+  return(c(SeriesDesc=SeriesDesc, StudyDesc=StudyDesc, itype=itype, Modality=modal,
+           SeriesNum= SeriesNum, GantryDetectorTilt=GantryDetectorTilt,
+           RotationDirection= RotationDirection, TableHeight= TableHeight, 
+           ConvolutionKernel= ConvolutionKernel))
+}
+
+## get the basename for a file, for example getBase("blah.nii.gz", 2) = "blah"
+  getBase <- function(x, ind=1){
+    sapply(strsplit(x, split="\\."), function(xx) 
+      paste(xx[1:(length(xx)-ind)], collapse=".", sep=""))
+  }
+
+
+
+includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE){
+
+
+  #### checking if all got converted and dropping unneded scans
+  tars <- basename(dir(path=basedir, pattern=".tar.gz", full.names=TRUE, recursive=TRUE))
+  niis <- basename(dir(path=basedir, pattern=".nii.gz", full.names=TRUE, recursive=TRUE))
+
+
+  tars <- getBase(tars, ind = 2)
+  niis <- getBase(niis, ind=2)
+  stopifnot(all(niis %in% tars))
+  mis <- tars[!(tars %in% niis)]
+  print(mis)
+
+
+  #############################################
+  ######  Get information from Scans ##########
+  ###### Drop those that aren't needed ########
+  #############################################
+
+  stubs <- basename(niis)
+  stubs <- file.path(basedir, "Sorted", stubs)
+  txts <- paste0(stubs, ".txt")
+
+
+  stubs <- gsub("(.*)\\.txt", "\\1", txts)
+  outs <- sapply(txts, getInfo)
+  outs <- t(outs)
+  rownames(outs) <- NULL
+  outs <- data.frame(outs, stringsAsFactors=FALSE)
+  outs$fname <- txts
+  outs$SeriesNum <- as.numeric(outs$SeriesNum)
+  outs$GantryDetectorTilt <- as.numeric(outs$GantryDetectorTilt)
+  
+  ## take out MRIs, localizers, dose reports, bone, cervical
+  outs$Takeout <- FALSE
+  if (!keepMR) outs$Takeout <- outs$Takeout | outs$Modality %in% "MR"
+  outs$Takeout <- outs$Takeout | grepl("LOCALIZER", outs$itype)
+  outs$Takeout <- outs$Takeout | grepl("SECONDARY", outs$itype)
+  
+  outs$Takeout <- outs$Takeout | grepl("Dose Report", outs$SeriesDesc)
+  ## Bone window scans - or diff convolution filters
+  outs$Takeout <- outs$Takeout | grepl("BONE", outs$SeriesDesc)
+  outs$Takeout <- outs$Takeout | grepl("Bone", outs$SeriesDesc)
+  outs$Takeout <- outs$Takeout | grepl("H60s", outs$ConvolutionKernel)
+
+  outs$Takeout <- outs$Takeout | grepl("CERVICAL", outs$StudyDesc)
+  outs$Takeout <- outs$Takeout | grepl("Patient Protocol", outs$SeriesDesc)
+  outs$Takeout <- outs$Takeout | grepl("SCOUT", outs$SeriesDesc)
+  outs$Takeout <- outs$Takeout | grepl("CENTERING", outs$SeriesDesc)
+  outs$Takeout <- outs$Takeout | grepl("SINUS", outs$SeriesDesc)
+
+  
+  outs$Takeout <- outs$Takeout | outs$SeriesNum > 20
+  
+  outs$Takeout[is.na(outs$Takeout)] <- FALSE
+  if (keepAll) outs$Takeout <- TRUE
+  kept <- outs[! outs$Takeout, ]
+  
+  return(list(outs=outs, mis=mis))
+}
+
+file_gc <- function(basedir, progdir, verbose=TRUE){
+  
+  ###
+  gf <- getfiles(basedir)
+  files <- gf$files
+  paths <- gf$paths
+  
+  ## THEN PIPELINE TEST
+  ipath <- 1
+  lpath <- length(paths)
+  
+  ## THEN PIPELINE TEST
+  ipath <- 1
+  lpath <- length(paths)
+  
+  ### read headers and then the gantry tilt correction
+  if (lpath >= 1){
+    if (verbose) cat("Converting to nii \n")
+    
+    for (ipath in 1:length(paths)){
+      path <- paths[ipath]
+      files <- dir(path=path, pattern="dcm|DCM", full.names=TRUE)
+      hdr <- dicomInfo(fname=files[1], pixelData=FALSE)$hdr
+      row <- grep("GantryDetectorTilt", hdr[, "name"])
+      if (length(row) == 0) next;
+      if (length(row) > 1) {
+        print("Too many gantry tilts!")
+        next
+      }
+      if (length(row) == 1){
+        tilt <- as.numeric(hdr[row, "value"])
+        if (tilt != 0) gantry_correct(indir=path, progdir=progdir, verbose=verbose)
+      }
+    }
+  }
+} # end function
+
+
+### copy dicom header info
+make_txt <- function(path){
+  stub <- basename(path)
+  dcm <- dir(path=path, pattern="dcm|DCM", full.names=TRUE, recursive=FALSE)[1]    
+  txtfile <- file.path(dirname(path), paste0(stub, ".txt"))
+  system(sprintf('dcmdump "%s" > "%s"', dcm, txtfile))
+}
+
+
+### gantry tilt correction - calls in matlab
+gantry_correct <- function(indir, progdir, verbose=TRUE){
+  if (verbose) print(paste0("Gantry correction ", indir))
+  find.matlab <- system("which matlab")
+  cmd <- 'matlab -nodesktop -nosplash -nodisplay -r '  
+  if (find.matlab != 0){
+    cmd <- paste0('/Applications/MATLAB_R2012b.app/bin/', cmd)
+  }
+  ### gantry tilt correction - make new folder
+  ### ranem old folder - zip it and then run matlab script
+  indir <- path.expand(indir)
+  dname <- dirname(indir)
+  folname <- basename(indir)
+  outname <- paste0(folname, "_ungantry")
+  outdir <- file.path(dname, outname)
+  dir.create(outdir)
+  system(sprintf('rm "%s"/*', outdir))
+  system(sprintf('cp "%s"/*.dcm "%s"', indir, outdir))
+  cmd <- paste(cmd, '"try, ')
+  cmd <- paste(cmd, sprintf("addpath('%s');", file.path(progdir, "gantry")))
+  cmd <- paste(cmd, sprintf("DIRlist(1,1).path_in = '%s';", indir))
+  cmd <- paste(cmd, sprintf("DIRlist(1,1).path_out = '%s';", indir))
+  cmd <- paste(cmd, "DIRlist(1,1).status = 'PROGRESS 0';")
+  cmd <- paste(cmd, sprintf("DIRlist(1,1).skip = false;"))
+  cmd <- paste(cmd, sprintf("gantry2_edit(DIRlist);"))
+  cmd <- paste0(cmd, 'end; quit"')
+  x <- system(cmd, ignore.stdout=!verbose )
+  lastchar <- substr(outdir, nchar(outdir), nchar(outdir))
+  while (lastchar == "/"){
+    outdir <- substr(outdir, 1, nchar(outdir)-1)
+    lastchar <- substr(outdir, nchar(outdir), nchar(outdir))
+  }
+  stopifnot( x== 0)
+  
+
+  
+  make_txt(outdir)
+  
+  system(sprintf('tar -cvzf "%s" "%s" --remove-files', paste0(outdir, ".tar.gz"), outdir))  
+  system(sprintf('rmdir "%s"', outdir))  
+  make_txt(indir)
+  
+  return(outdir)
+}
+
