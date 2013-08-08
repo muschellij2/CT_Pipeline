@@ -84,6 +84,8 @@ do
     StudyDesc=$(echo $StudyDesc | awk '{ gsub(" ","_"); print }')
     StudyDesc=$(echo $StudyDesc | awk '{ gsub("\\(0008,1030\\)_LO_\\(no_value_available\\)","unnamed"); print }')
     StudyDesc=$(echo $StudyDesc | awk '{ gsub("/",""); print }')
+    StudyDesc=$(echo $StudyDesc | awk '{ gsub(/[:\47]*/,""); print }')
+    
 
     SeriesDesc=$(cat tmp.txt | grep -e '^(0008,103e)' | sed -e 's/^(0008,103e).*\[\(.*\)\].*/\1/')
     SeriesDesc=$(echo $SeriesDesc | awk '{ gsub(" ","_"); print }')
@@ -91,6 +93,7 @@ do
     SeriesDesc=$(echo $SeriesDesc | awk '{ gsub("\\(no_value_available\\)","unnamed"); print }')
     SeriesDesc=$(echo $SeriesDesc | awk '{ gsub("_#_0,_0_SeriesDescription",""); print }')
     SeriesDesc=$(echo $SeriesDesc | awk '{ gsub("/",""); print }')
+    SeriesDesc=$(echo $SeriesDesc | awk '{ gsub(/[:\47]*/,""); print }')
 
     SeriesDate=$(cat tmp.txt | grep -e '^(0008,0020)' | sed -e 's/^(0008,0020).*\[\(.*\)\].*/\1/')
     SeriesTime=$(cat tmp.txt | grep -e '^(0008,0031)' | sed -e 's/^(0008,0031).*\[\(.*\)\].*/\1/')
