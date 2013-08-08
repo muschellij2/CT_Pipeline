@@ -371,6 +371,7 @@ make_txt <- function(path){
 
 
 ### gantry tilt correction - calls in matlab
+### gantry2_edit script
 gantry_correct <- function(indir, progdir, verbose=TRUE){
   if (verbose) print(paste0("Gantry correction ", indir))
   find.matlab <- system("which matlab")
