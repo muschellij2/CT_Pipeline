@@ -70,6 +70,10 @@ fi
       echo "No 1024 Bet $file file..";
       fslmaths $file -thr 0 -uthr 100 "${OUTDIR}/${raw}"
 
+      rawmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_No1024_Mask_"'${intensity}'"\.nii\.gz"); print }'`
+      fslmaths "${OUTDIR}/${raw}" -bin "${OUTDIR}/${rawmask}"
+      fslmaths "$OUTDIR/${rawmask}" -fillh "$OUTDIR/${rawmask}"
+
       echo "Bet 1 Running $raw"
       bet2 "$OUTDIR/$raw" "$OUTDIR/$raw" -f ${intensity}
             
@@ -115,7 +119,7 @@ fi
 
     #   bbet=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS2_"'${intensity}'"\.nii\.gz"); print }'`
     #   bbetmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS2_Mask_"'${intensity}'"\.nii\.gz"); print }'`
-            
+
     #   echo "Thresholding to range of 1024-1124 $human file..";
     #   fslmaths "$OUTDIR/${human}" -thr 1024 -uthr 1124 "$OUTDIR/${j}"
       
