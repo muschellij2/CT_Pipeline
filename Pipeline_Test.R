@@ -3,55 +3,61 @@ library(oro.dicom)
 library(bitops)
 library(arules)
 
+setup <- function(id){
+  username <- Sys.info()["user"][[1]]
 
-#### setting up if things are on the cluster or not
-username <- Sys.info()["user"][[1]]
+  cluster=FALSE
+  if (username == "muschellij2"){
+    # rootdir <- "/Volumes/DATA/New_Age_Test"
+    rootdir <- "~/CT_Registration"  
+  } else {
+    rootdir <- "/dexter/disk2/smart/stroke_ct/ident"
+    cluster =TRUE;
+  }
 
-cluster=FALSE
-if (username == "muschellij2"){
-  # rootdir <- "/Volumes/DATA/New_Age_Test"
-  rootdir <- "~/CT_Registration"  
-} else {
-  rootdir <- "/dexter/disk2/smart/stroke_ct/ident"
-  cluster =TRUE;
-}
-
-# id <- "238-4136"
-id <- "205-509"
-ss <- as.numeric(strsplit(id, "-")[[1]][2])
-if (ss > 4000){
-	study <- "CLEAR_III"
-	dpath <- file.path("CLEAR", "CLEAR III")
-} else if (ss > 300 & ss < 500){
-	dpath <- study <- "MISTIE"
-} else if (ss > 500 & ss < 4000) {
-	dpath <- study <- "ICES" 
-}
+  ss <- as.numeric(strsplit(id, "-")[[1]][2])
+  if (ss > 4000){
+    study <- "CLEAR_III"
+    dpath <- file.path("CLEAR", "CLEAR III")
+  } else if (ss > 300 & ss < 500){
+    dpath <- study <- "MISTIE"
+  } else if (ss > 500 & ss < 4000) {
+    dpath <- study <- "ICES" 
+  }
 
 
-rootdir <- path.expand(rootdir)
-homedir <- file.path(rootdir, study)
-homedir <- path.expand(homedir)
+  rootdir <<- path.expand(rootdir)
+  homedir <<- file.path(rootdir, study)
+  homedir <<- path.expand(homedir)
 
 #progdir <- file.path(dirname(basedir), "programs")
-progdir <- file.path(rootdir, "programs")
+  progdir <<- file.path(rootdir, "programs")
+  source(file.path(progdir, "convert_DICOM.R"))
+
+  basedir <<- file.path(homedir, id)
+
+}
 
 
-source(file.path(progdir, "convert_DICOM.R"))
+
+#### setting up if things are on the cluster or not
+# id <- "238-4136"
+id <- "225-503"
+setup(id)
 # source(file.path(progdir, "file_functions.R"))
 
 
-basedir <- file.path(homedir, id)
 infofile <- file.path(basedir, "Dropout_Information.Rda")
 file.remove(infofile)
 
 verbose=TRUE
 untar = FALSE
 convert <- TRUE
-skullstrip <- FALSE
+skullstrip <- TRUE
 
 
 ### started 11:55
+contime <- NULL
 if (convert) contime <- system.time(convert_DICOM(basedir, progdir, 
                           verbose=verbose, untar=untar))
 
@@ -110,7 +116,8 @@ save(outs, mis, file = infofile)
 
 print(contime)
 # , dropstring = c("_CTA_")
-if (skullstrip) system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", verbose=verbose))
+if (skullstrip) system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
+  verbose=verbose))
 # refdir="/Volumes/DATA/New_Age_Test/265-389"
 # 
 # cd $refdir

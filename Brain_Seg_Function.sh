@@ -69,14 +69,13 @@ fi
       raw=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_No1024_"'${intensity}'"\.nii\.gz"); print }'`
       echo "No 1024 Bet $file file..";
       fslmaths $file -thr 0 -uthr 100 "${OUTDIR}/${raw}"
-
-      rawmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_No1024_Mask_"'${intensity}'"\.nii\.gz"); print }'`
-      fslmaths "${OUTDIR}/${raw}" -bin "${OUTDIR}/${rawmask}"
-      fslmaths "$OUTDIR/${rawmask}" -fillh "$OUTDIR/${rawmask}"
-      
+   
       echo "Bet 1 Running $raw"
       bet2 "$OUTDIR/$raw" "$OUTDIR/$raw" -f ${intensity}
-            
+      
+      rawmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_No1024_Mask_"'${intensity}'"\.nii\.gz"); print }'`
+      fslmaths "${OUTDIR}/${raw}" -bin "${OUTDIR}/${rawmask}"
+      fslmaths "$OUTDIR/${rawmask}" -fillh "$OUTDIR/${rawmask}"            
 
       minmax=`fslstats $file -R`
       min=`echo "$minmax" | cut -d ' ' -f 1`

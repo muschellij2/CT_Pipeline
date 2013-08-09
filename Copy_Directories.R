@@ -25,7 +25,7 @@ for (iid in ids){
   newid <- iid
   iddir <- file.path(dexdir, newid)
   
-  cmd <- sprintf("ssh %s  mkdir -p %s\n", login, iddir)
+  cmd <- sprintf("ssh %s  mkdir -p %s;\n\n", login, iddir)
   cat(cmd)
 #   system(cmd)
   datadir <- file.path("/Volumes/DATA/Image Archive", dpath)
@@ -40,6 +40,7 @@ for (iid in ids){
     diddir <- file.path(checkdir, dirs[1])
   }
   cat(cmd <- sprintf('%s -rv "%s"/* %s:"%s"\n', func, diddir, login, iddir))
+  cat("\n\n")
 #   system(cmd)
 
 }
