@@ -42,7 +42,7 @@ setup <- function(id){
 
 #### setting up if things are on the cluster or not
 # id <- "238-4136"
-id <- "225-503"
+id <- "225-504"
 setup(id)
 # source(file.path(progdir, "file_functions.R"))
 

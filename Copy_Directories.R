@@ -8,6 +8,7 @@ ids <- c("205-509", "205-517", "205-519", "225-502", "225-503", "225-504",
 # ids <- "225-510"
 # ids <- "100-4087"
 rsync <- FALSE
+makedir <- FALSE
 func <- ifelse(rsync, "rsync", "scp")
 iid <- ids[1]
 for (iid in ids){
@@ -24,8 +25,8 @@ for (iid in ids){
   dexdir <- file.path("/dexter/disk2/smart/stroke_ct/ident", study)
   newid <- iid
   iddir <- file.path(dexdir, newid)
-  
-  cmd <- sprintf("ssh %s  mkdir -p %s;\n\n", login, iddir)
+  cmd <- ""
+  if (makedir) cmd <- sprintf("ssh %s  mkdir -p %s;\n\n", login, iddir)
   cat(cmd)
 #   system(cmd)
   datadir <- file.path("/Volumes/DATA/Image Archive", dpath)
