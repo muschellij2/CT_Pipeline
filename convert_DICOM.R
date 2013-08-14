@@ -40,7 +40,7 @@ runformats <- function(fmts, startind= 0, indir, outdir, verbose=TRUE){
     return(list(files=files, paths=paths))
   }
 
-onedir <- function(basedir, verbose=TRUE){
+onedir <- function(basedir, verbose=TRUE, ...){
     gf <- getfiles(basedir)
 
 
@@ -54,7 +54,7 @@ onedir <- function(basedir, verbose=TRUE){
   }
 }
 
-dcmsort <- function(basedir, progdir, sortdir, dcmsortopt = '', verbose=TRUE){
+dcmsort <- function(basedir, progdir, sortdir, dcmsortopt = '', verbose=TRUE, ...){
   gf <- getfiles(basedir)
 
 
@@ -72,7 +72,7 @@ dcmsort <- function(basedir, progdir, sortdir, dcmsortopt = '', verbose=TRUE){
   }
 }
 
-dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE){
+dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, ...){
 
   gf <- getfiles(basedir)
   files <- gf$files
@@ -333,7 +333,7 @@ includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE, dropstring = 
   return(list(outs=outs, mis=mis))
 }
 
-file_gc <- function(basedir, progdir, verbose=TRUE){
+file_gc <- function(basedir, progdir, verbose=TRUE, ...){
   
   ###
   gf <- getfiles(basedir)
