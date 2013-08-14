@@ -151,7 +151,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE, ...){
   if (untar){
     ### unzip all the tar.gz (if you have to redo)
     if (verbose) cat("Un tarballing data \n")
-    files <- dir(path=basedir, pattern=".tar.gz", full.names=TRUE, 
+    files <- dir(path=basedir, pattern=".tar.gz$", full.names=TRUE, 
           recursive=TRUE)
     ### untarball the files using R's command
     if (length(files) > 0){
