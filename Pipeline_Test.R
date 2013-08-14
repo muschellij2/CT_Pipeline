@@ -51,15 +51,15 @@ infofile <- file.path(basedir, "Dropout_Information.Rda")
 file.remove(infofile)
 
 verbose=TRUE
-untar = FALSE
+untar = TRUE
 convert <- TRUE
 skullstrip <- TRUE
-dcmsortopt <- ''
+dcmsortopt <- '-s'
 
 ### started 11:55
 contime <- NULL
 if (convert) contime <- system.time(convert_DICOM(basedir, progdir, 
-                          verbose=verbose, untar=untar))
+                          verbose=verbose, untar=untar, dcmsortopt=dcmsortopt))
 
 
 lis <- includeMatrix(basedir, dropstring="ungantry")
