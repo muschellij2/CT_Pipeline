@@ -54,7 +54,7 @@ onedir <- function(basedir, verbose=TRUE){
   }
 }
 
-dcmsort <- function(basedir, progdir, sortdir, verbose=TRUE){
+dcmsort <- function(basedir, progdir, sortdir, dcmsortopt = '', verbose=TRUE){
   gf <- getfiles(basedir)
 
 
@@ -63,8 +63,8 @@ dcmsort <- function(basedir, progdir, sortdir, verbose=TRUE){
   if (length(gf$paths) > 0){
     if (all(gf$paths == basedir)){
       if (verbose) cat("Sorting DICOMs \n")
-      cmd <- sprintf('sh "%s"/dcmsort_Final.sh -D "%s" -o "%s" -m -x', progdir,
-                     basedir, sortdir)
+      cmd <- sprintf('sh "%s"/dcmsort_Final.sh -D "%s" -o "%s" -m -x %s', progdir,
+                     basedir, sortdir, dcmsortopt)
       system(cmd)
     } else {
       stop("something is off - need to all have dcms in one file")
@@ -142,7 +142,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE){
 
 
 #### wrapper to convert an entire directory to sort/move/nifti
-convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE){
+convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE, ...){
   setwd(basedir)
 
   sortdir <- file.path(basedir, "Sorted")
@@ -169,16 +169,16 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE){
 
   ### Moving files into one big directory
   ### watch out for / ending in basedir
-  onedir(basedir, verbose)
+  onedir(basedir, verbose, ...)
 
   ## putting into respective folders using dcmdump
-  dcmsort(basedir, progdir, sortdir, verbose)
+  dcmsort(basedir, progdir, sortdir, verbose, ...)
 
   ## gantry tilt correction
-  file_gc(basedir, progdir, verbose)
+  file_gc(basedir, progdir, verbose, ...)
   
   ## conversion
-  dcm2nii(basedir, progdir, sortdir, verbose)
+  dcm2nii(basedir, progdir, sortdir, verbose, ...)
 
   
   gf <- getfiles(basedir)

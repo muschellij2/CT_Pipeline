@@ -54,7 +54,7 @@ verbose=TRUE
 untar = FALSE
 convert <- TRUE
 skullstrip <- TRUE
-
+dcmsortopt <- ''
 
 ### started 11:55
 contime <- NULL
