@@ -51,14 +51,15 @@ infofile <- file.path(basedir, "Dropout_Information.Rda")
 file.remove(infofile)
 
 verbose=TRUE
-untar = TRUE
+untar = FALSE
 convert <- TRUE
 skullstrip <- TRUE
 dcmsortopt <- '-s'
 
 ### started 11:55
 contime <- NULL
-if (convert) contime <- system.time(convert_DICOM(basedir, progdir, 
+if (convert) {
+  contime <- system.time(convert_DICOM(basedir, progdir, 
                           verbose=verbose, untar=untar, dcmsortopt=dcmsortopt))
 
 
@@ -75,7 +76,7 @@ if (length(dropniis) > 0){
 }
 
 save(outs, mis, file = infofile)
-
+}
 
 # ss <- strsplit(outs$itype, "\\\\")
 
