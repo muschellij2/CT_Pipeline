@@ -14,11 +14,12 @@ function usage {
   echo "          -m Move instead of copy"
   echo "          -x Exclude Localizers"
   echo "          -h This page"
+  echo "          -s Series Date/Time instead of Series Date/Time"
 }
 
 cmd="cp";
 exclude='';
-while getopts "hD:o:mx" flag
+while getopts "hD:o:mxs" flag
 do
   case "$flag" in
     D)
@@ -32,7 +33,10 @@ do
       ;;
     x)
       exclude='true'
-      ;;      
+      ;;   
+    s)
+      study='true'
+      ;;            
     h|?)
       usage
       exit 2
@@ -120,7 +124,12 @@ do
     # PNAME="${PID}_${StudyDate}_${NUMBER}_${Modality}_${UUID}_${SeriesDesc}"
     # PNAME="${PID}_${StudyDate}_${NUMBER}_${Modality}_${SID}_${SNUM}_${SeriesDesc}"
     # PNAME="${PID}_${StudyDate}_${NUMBER}_${Modality}_${SID}_${SNUM}_${StudyDesc}_${SeriesDesc}"
-    PNAME="${PID}_${SeriesDate}_${SENUMBER}_${Modality}_${SNUM}_${StudyDesc}_${SeriesDesc}"
+    DATER="${SeriesDate}_${SENUMBER}"
+    if [[ ! -z "${study}" ]]; then
+        DATER="${StudyDate}_${NUMBER}"
+    fi
+
+    PNAME="${PID}_${DATER}_${Modality}_${SNUM}_${StudyDesc}_${SeriesDesc}"
     PNAME=$(echo $PNAME | awk '{ gsub(" ","_"); print }')
 
     if [[ ! -z "${exclude}" ]]; then
@@ -135,6 +144,7 @@ do
           PNAME="LOCALIZER_${PNAME}"
         fi
     fi
+
 
       # echo "Exclude is $exclude"
       # echo "$PNAME"

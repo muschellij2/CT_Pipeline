@@ -9,11 +9,12 @@ setup <- function(id){
   cluster=FALSE
   if (username == "muschellij2"){
     # rootdir <- "/Volumes/DATA/New_Age_Test"
-    rootdir <- "~/CT_Registration"  
+    rootdir <- "~/CT_Registration"
   } else {
     rootdir <- "/dexter/disk2/smart/stroke_ct/ident"
     cluster =TRUE;
   }
+    rootdir <- path.expand(rootdir)
 
   ss <- as.numeric(strsplit(id, "-")[[1]][2])
   if (ss > 4000){
@@ -39,10 +40,9 @@ setup <- function(id){
 }
 
 
-
 #### setting up if things are on the cluster or not
 # id <- "238-4136"
-id <- "225-504"
+id <- "301-520"
 setup(id)
 # source(file.path(progdir, "file_functions.R"))
 
@@ -73,6 +73,18 @@ if (length(dropniis) > 0){
   dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
   for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
 }
+
+save(outs, mis, file = infofile)
+
+
+# ss <- strsplit(outs$itype, "\\\\")
+
+
+
+print(contime)
+# , dropstring = c("_CTA_")
+if (skullstrip) system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
+  verbose=verbose))
 
 
 # outs <- sapply(txts, getInfo)
@@ -106,18 +118,7 @@ if (length(dropniis) > 0){
 # kept[ , c("itype", "SeriesDesc", "fname")]
 
 
-save(outs, mis, file = infofile)
 
-
-# ss <- strsplit(outs$itype, "\\\\")
-
-
-
-
-print(contime)
-# , dropstring = c("_CTA_")
-if (skullstrip) system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
-  verbose=verbose))
 # refdir="/Volumes/DATA/New_Age_Test/265-389"
 # 
 # cd $refdir
