@@ -426,7 +426,7 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   
 
   
-  make_txt(outdir)
+  make_txt(indir)
   
   system(sprintf('tar -czf "%s" "%s" --remove-files', paste0(outdir, ".tar.gz"), outdir))  
   system(sprintf('rmdir "%s"', outdir))  
