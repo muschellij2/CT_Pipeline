@@ -1,1 +1,1 @@
-R CMD BATCH mycommands.R
+R CMD BATCH Pipeline_Test.R
