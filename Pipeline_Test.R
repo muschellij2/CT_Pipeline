@@ -39,53 +39,107 @@ setup <- function(id){
 
 }
 
-
 #### setting up if things are on the cluster or not
 # id <- "238-4136"
-id <- "301-520"
-setup(id)
-# source(file.path(progdir, "file_functions.R"))
-
-
-infofile <- file.path(basedir, "Dropout_Information.Rda")
-file.remove(infofile)
+ids <- c("205-509", "205-517", "205-519", "225-502", "225-503", "225-504", 
+"225-505", "225-506", "225-507", "225-510", "225-511", "225-515", 
+"225-522", "225-523", "225-524", "232-512", "232-513", "232-514", 
+"232-516", "232-521", "232-526", "289-518", "289-525", "301-520")
 
 verbose=TRUE
 untar = FALSE
 convert <- TRUE
 skullstrip <- TRUE
-dcmsortopt <- '-s'
+regantry <- TRUE
+untgantry <- TRUE
+runall <- FALSE
 
-### started 11:55
-contime <- NULL
-if (convert) {
-  contime <- system.time(convert_DICOM(basedir, progdir, 
-                          verbose=verbose, untar=untar, dcmsortopt=dcmsortopt))
+### initial setup
+iid <- 19
+id <- ids[iid]
+setup(id)
 
+zeroed <- dir(path=homedir, pattern= ".*Zeroed.*\\.nii\\.gz", recursive=TRUE, full.names=TRUE)
+for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', zeroed[ifile]))
 
-  lis <- includeMatrix(basedir, dropstring="ungantry")
-  outs <- lis$outs
-  mis <- lis$mis
-
-  dropniis <- outs$fname[outs$Takeout]
-  dropniis <- getBase(basename(dropniis), 1)
-
-  if (length(dropniis) > 0){
-    dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
-    for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
-  }
-
-  save(outs, mis, file = infofile)
+if (regantry){
+  ### re-run gantry tilt on the data
+    files <- dir(path=homedir, pattern="_ungantry.tar.gz$", full.names=TRUE, 
+        recursive=TRUE)
+    if (untgantry) {
+      ifile <- files[1]
+      ### untarball the files using R's command
+      if (length(files) > 0){
+        for (ifile in files){
+          dname <- dirname(ifile)
+          untar(ifile, exdir = dname, compressed='gzip')
+          if (verbose) print(ifile)
+        }
+      }
+    } # untarball gantry
+    fnames <- basename(files)  
+    gantniis <- gsub("_ungantry.tar.gz", ".nii.gz", fnames, fixed=TRUE)
+    gantniis <- file.path(dirname(dirname(files)), gantniis)
 }
 
-# ss <- strsplit(outs$itype, "\\\\")
+#### loop through IDS and convert them to nii, gantry tilted
+### 301-520 needs to use Study Date/Time instead of Series Date/Time
+for (iid in 1:length(ids)){
+  id <- ids[iid]
+  setup(id)
+  # source(file.path(progdir, "file_functions.R"))
+  dcmsortopt <- ifelse(id =="301-520", '-s ', "")
+
+
+  infofile <- file.path(basedir, "Dropout_Information.Rda")
+  file.remove(infofile)
 
 
 
-print(contime)
-# , dropstring = c("_CTA_")
-if (skullstrip) system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
-  verbose=verbose))
+  ### started 11:55
+  contime <- NULL
+  if (convert) {
+    ### convert the dicoms
+    contime <- system.time(convert_DICOM(basedir, progdir, 
+                            verbose=verbose, untar=untar, dcmsortopt=dcmsortopt))
+
+    ## dropout the niis that are not needed
+    lis <- includeMatrix(basedir, dropstring="ungantry", error=TRUE)
+    outs <- lis$outs
+    mis <- lis$mis
+
+    dropniis <- outs$fname[outs$Takeout]
+    dropniis <- getBase(basename(dropniis), 1)
+
+    if (length(dropniis) > 0){
+      dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
+      for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
+    }
+
+    save(outs, mis, file = infofile)
+  }
+}
+
+
+if (skullstrip){
+  if (runall) {
+    system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
+      verbose=verbose))
+  } else if (regantry){
+  ### skull strip the gantry tilt files only
+    nniis <- length(gantniis)
+    # nniis <- 300
+    start <- 301
+    for (ifile in start:nniis){
+      nii <- gantniis[ifile]
+      iddir <- dirname(dirname(nii))
+      outdir <- file.path(iddir, "Skull_Stripped")
+      Skull_Strip_file(img=nii, progdir=progdir, outdir=outdir, opts="-f 0.1", verbose=verbose)
+    }
+  } else {
+    stop("Don't konw who to run - not runall and not just run gantry")
+  }
+}
 
 
 # outs <- sapply(txts, getInfo)

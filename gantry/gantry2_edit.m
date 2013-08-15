@@ -98,9 +98,9 @@ for d = 1 : length(DIRlist)
             if q == 1
                 first = INFO.SliceLocation;
                 % only want to shift forward shifts
-                sgn = sign(INFO.GantryDetectorTilt);
-                offset = -sgn * INFO.SliceThickness;
-                init_offset = offset;
+%                 sgn = sign(INFO.GantryDetectorTilt);
+%                 offset = -sgn * INFO.SliceThickness;
+                init_offset = 0;
             else offset = round(tan(convang(INFO.GantryDetectorTilt,'deg','rad')) * (INFO.SliceLocation - first) / INFO.PixelSpacing(2,1)) + init_offset;
             end
 %             disp(INFO.GantryDetectorTilt);

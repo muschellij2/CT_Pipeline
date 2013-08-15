@@ -131,7 +131,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, ...){
       # setwd(basename(newpath))
       # tarfile <- paste(newpath, ".tar.gz", sep="")
       # tar(tarfile, compression="gzip")
-      system(sprintf('tar -cvzf "%s" ./"%s"', paste(newpath, ".tar.gz", sep=""), 
+      system(sprintf('tar -czf "%s" ./"%s"', paste(newpath, ".tar.gz", sep=""), 
           basename(newpath)))
       
       system(sprintf('rm -R "%s"', newpath))
@@ -273,17 +273,23 @@ getInfo <- function(txt){
 
 
 
-includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE, dropstring = NULL, verbose=TRUE){
+includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE, 
+  dropstring = NULL, verbose=TRUE, error=TRUE){
 
+  sortdir <- file.path(basedir, "Sorted")
 
   #### checking if all got converted and dropping unneded scans
-  tars <- basename(dir(path=basedir, pattern=".tar.gz", full.names=TRUE, recursive=TRUE))
-  niis <- basename(dir(path=basedir, pattern=".nii.gz", full.names=TRUE, recursive=TRUE))
+  tars <- basename(dir(path=sortdir, pattern=".tar.gz", full.names=TRUE, recursive=FALSE))
+  niis <- basename(dir(path=basedir, pattern=".nii.gz", full.names=TRUE, recursive=FALSE))
 
 
   tars <- getBase(tars, ind = 2)
   niis <- getBase(niis, ind=2)
-  stopifnot(all(niis %in% tars))
+  if (error) {
+    checker <- (niis %in% tars)
+    if (!all(checker)) print(niis[!checker])
+    stopifnot(all(checker))
+  }
   mis <- tars[!(tars %in% niis)]
   if (!is.null(dropstring)) mis <- mis[!grepl(dropstring, mis)]
   if (verbose) print(mis)
@@ -422,7 +428,7 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   
   make_txt(outdir)
   
-  system(sprintf('tar -cvzf "%s" "%s" --remove-files', paste0(outdir, ".tar.gz"), outdir))  
+  system(sprintf('tar -czf "%s" "%s" --remove-files', paste0(outdir, ".tar.gz"), outdir))  
   system(sprintf('rmdir "%s"', outdir))  
   make_txt(indir)
   
