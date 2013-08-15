@@ -212,15 +212,18 @@ Skull_Strip <- function(basedir, progdir, CTonly=TRUE,
   ### skull strip  data
   inii <- niis[1]
   for (inii in niis){
-    cmd <- sprintf('sh "%s"/Brain_Seg_Function.sh -i "%s" -o "%s" %s', 
-      progdir, inii, outdir, opts)
-    res <- system(cmd)
-    if (verbose) print(inii)
+    Skull_Strip_file(img=inii, progdir=progdir, outdir=outdir, opts=opts, verbose=verbose)
   }
 
 }
 
-
+Skull_Strip_file <- function(img, progdir, outdir, opts = "", verbose=TRUE){
+    cmd <- sprintf('sh "%s"/Brain_Seg_Function.sh -i "%s" -o "%s" %s', 
+      progdir, img, outdir, opts) 
+    res <- system(cmd)
+    if (verbose) print(img)
+    return(res)  
+}
 
 
 

@@ -1,4 +1,4 @@
-function gantry2_edit(varargin)
+function gantry2_edit_orig(varargin)
 
 if nargin < 1
     DIRlist(1,1).path_in = uigetdir('C:\','SELECT INPUT DIRECTORY');
@@ -98,8 +98,11 @@ for d = 1 : length(DIRlist)
             if q == 1
                 first = INFO.SliceLocation;
                 % only want to shift forward shifts
-                sgn = sign(INFO.GantryDetectorTilt);
-                offset = -sgn * INFO.SliceThickness;
+                if (INFO.GantryDetectorTilt > 0)
+                    offset = INFO.ImagePositionPatient(1);
+                else
+                    offset = 0;
+                end
                 init_offset = offset;
             else offset = round(tan(convang(INFO.GantryDetectorTilt,'deg','rad')) * (INFO.SliceLocation - first) / INFO.PixelSpacing(2,1)) + init_offset;
             end

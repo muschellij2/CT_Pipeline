@@ -63,19 +63,19 @@ if (convert) {
                           verbose=verbose, untar=untar, dcmsortopt=dcmsortopt))
 
 
-lis <- includeMatrix(basedir, dropstring="ungantry")
-outs <- lis$outs
-mis <- lis$mis
+  lis <- includeMatrix(basedir, dropstring="ungantry")
+  outs <- lis$outs
+  mis <- lis$mis
 
-dropniis <- outs$fname[outs$Takeout]
-dropniis <- getBase(basename(dropniis), 1)
+  dropniis <- outs$fname[outs$Takeout]
+  dropniis <- getBase(basename(dropniis), 1)
 
-if (length(dropniis) > 0){
-  dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
-  for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
-}
+  if (length(dropniis) > 0){
+    dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
+    for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
+  }
 
-save(outs, mis, file = infofile)
+  save(outs, mis, file = infofile)
 }
 
 # ss <- strsplit(outs$itype, "\\\\")
