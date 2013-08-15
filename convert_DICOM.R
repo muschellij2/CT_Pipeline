@@ -416,7 +416,7 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   cmd <- paste(cmd, sprintf("DIRlist(1,1).skip = false;"))
   cmd <- paste(cmd, sprintf("gantry2_edit(DIRlist);"))
   cmd <- paste0(cmd, 'end; quit"')
-  x <- system(cmd, ignore.stdout=!verbose )
+  x <- system(cmd, ignore.stdout = !verbose )
   lastchar <- substr(outdir, nchar(outdir), nchar(outdir))
   while (lastchar == "/"){
     outdir <- substr(outdir, 1, nchar(outdir)-1)
@@ -426,10 +426,11 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   
 
   
-  make_txt(indir)
+  make_txt(outdir)
   
   system(sprintf('tar -czf "%s" "%s" --remove-files', paste0(outdir, ".tar.gz"), outdir))  
   system(sprintf('rmdir "%s"', outdir))  
+  
   make_txt(indir)
   
   return(outdir)

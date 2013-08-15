@@ -67,7 +67,8 @@ for (id in ids){
     fname <- basename(ifol)
     if (fname %in% c("dexter", "Redo")) {
       dexfiles <- list.files(path=ifol, recursive=TRUE)
-      if (length(dexfiles) == 0) system(sprintf('rm -r "%s"', ifol))
+      # if (length(dexfiles) == 0) 
+        system(sprintf('rm -r "%s"', ifol))
     }
   }
   print(id)

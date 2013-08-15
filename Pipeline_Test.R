@@ -55,12 +55,22 @@ untgantry <- TRUE
 runall <- FALSE
 
 ### initial setup
-iid <- 19
+iid <- 2
 id <- ids[iid]
 setup(id)
 
 zeroed <- dir(path=homedir, pattern= ".*Zeroed.*\\.nii\\.gz", recursive=TRUE, full.names=TRUE)
 for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', zeroed[ifile]))
+
+# zeroed <- dir(path=homedir, pattern= ":.*.gz", recursive=TRUE, full.names=TRUE)
+# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', zeroed[ifile]))
+
+# zeroed <- dir(path=homedir, pattern= ":.*.txt", recursive=TRUE, full.names=TRUE)
+# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', zeroed[ifile]))
+
+# zeroed <- dir(path=homedir, pattern= "'.*.tar.gz", recursive=TRUE, full.names=TRUE)
+# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', zeroed[ifile]))
+
 
 if (regantry){
   ### re-run gantry tilt on the data
@@ -118,10 +128,12 @@ for (iid in 1:length(ids)){
 
     save(outs, mis, file = infofile)
   }
+  
 }
 
 
 if (skullstrip){
+
   if (runall) {
     system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
       verbose=verbose))
@@ -139,6 +151,7 @@ if (skullstrip){
   } else {
     stop("Don't konw who to run - not runall and not just run gantry")
   }
+
 }
 
 
