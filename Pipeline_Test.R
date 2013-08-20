@@ -49,13 +49,13 @@ ids <- c("205-509", "205-517", "205-519", "225-502", "225-503", "225-504",
 verbose=TRUE
 untar = FALSE
 convert <- TRUE
-skullstrip <- TRUE
-regantry <- TRUE
-untgantry <- TRUE
+skullstrip <- FALSE
+regantry <- FALSE
+untgantry <- FALSE
 runall <- FALSE
 
 ### initial setup
-iid <- 2
+iid <- 1
 id <- ids[iid]
 setup(id)
 
@@ -105,7 +105,6 @@ for (iid in 1:length(ids)){
   file.remove(infofile)
 
 
-
   ### started 11:55
   contime <- NULL
   if (convert) {
@@ -132,16 +131,27 @@ for (iid in 1:length(ids)){
 }
 
 
+for (iid in 1:length(ids)){
+  id <- ids[iid]
+  setup(id)
+  if (skullstrip){
+
+    if (runall) {
+      system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
+        verbose=verbose))
+
+    }
+  }  
+}
+
+
 if (skullstrip){
 
-  if (runall) {
-    system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
-      verbose=verbose))
-  } else if (regantry){
+  if (regantry){
   ### skull strip the gantry tilt files only
     nniis <- length(gantniis)
     # nniis <- 300
-    start <- 301
+    start <- 1
     for (ifile in start:nniis){
       nii <- gantniis[ifile]
       iddir <- dirname(dirname(nii))

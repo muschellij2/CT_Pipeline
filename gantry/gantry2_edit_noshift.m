@@ -1,4 +1,4 @@
-function gantry2_edit(varargin)
+function gantry2_edit_noshift(varargin)
 
 if nargin < 1
     DIRlist(1,1).path_in = uigetdir('C:\','SELECT INPUT DIRECTORY');
@@ -94,6 +94,7 @@ for d = 1 : length(DIRlist)
                 end
 %                  show(DIRlist);
             end
+            disp(q);
             INFO = dicominfo([DIRlist(d,1).path_in '/' DIRlist(d,1).files(q,1).name]);
             if q == 1
                 first = INFO.SliceLocation;
@@ -105,17 +106,15 @@ for d = 1 : length(DIRlist)
             else offset = round(tan(convang(INFO.GantryDetectorTilt,'deg','rad')) * (INFO.SliceLocation - first) / INFO.PixelSpacing(2,1)) + init_offset;
             end
 %             disp(INFO.GantryDetectorTilt);
-            IN = dicomread(INFO.Filename);
-            shift = 0;
+            INFO.TransferSyntaxUID = deblank(INFO.TransferSyntaxUID);
+            IN = dicomread(INFO);
             if INFO.GantryDetectorTilt > 0
                 mtx = [1 0 0;0 1 0;0 -offset 1];
-                shift = round(INFO.GantryDetectorTilt);
             elseif INFO.GantryDetectorTilt < 0
                 mtx = [1 0 0;0 1 0;0 offset 1];
-                shift = round(INFO.GantryDetectorTilt);
             end
             tform = maketform('affine',mtx);
-            OUT = imtransform(IN,tform,'XData', [1 double(INFO.Columns)],'YData',[1+mtx(2,3)+shift double(INFO.Rows)+mtx(2,3)+shift]);
+            OUT = imtransform(IN,tform,'XData', [1 double(INFO.Columns)],'YData',[1+mtx(2,3) double(INFO.Rows)+mtx(2,3)]);
             INFO.GantryDetectorTilt = 0;
             if DIRlist(1,1).path_out == 0
                 dicomwrite(OUT, [DIRlist(d,1).path_in '/' DIRlist(d,1).files(q,1).name], INFO);

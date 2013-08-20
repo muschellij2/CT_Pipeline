@@ -244,6 +244,7 @@ getInfo <- function(txt){
   itype <- extract(xx, "(0008,0008)")
   modal <- extract(xx, "(0008,0060)")
   SeriesNum <- extract(xx, "(0020,0011)")
+  StudyID <- extract(xx, "(0020,0010)")
   GantryDetectorTilt <- extract(xx, "(0018,1120)")
   RotationDirection <- extract(xx, "(0018,1140)")
   TableHeight <- extract(xx, "(0018,1130)")
@@ -251,6 +252,7 @@ getInfo <- function(txt){
   
   if (length(SeriesDesc) == 0) SeriesDesc <- NA
   if (length(StudyDesc) == 0) StudyDesc <- NA
+  if (length(StudyID) == 0) StudyID <- NA
   if (length(itype) == 0) itype <- NA
   if (length(modal) == 0) modal <- NA
   if (length(SeriesNum) == 0) SeriesNum <- NA
@@ -262,7 +264,7 @@ getInfo <- function(txt){
   return(c(SeriesDesc=SeriesDesc, StudyDesc=StudyDesc, itype=itype, Modality=modal,
            SeriesNum= SeriesNum, GantryDetectorTilt=GantryDetectorTilt,
            RotationDirection= RotationDirection, TableHeight= TableHeight, 
-           ConvolutionKernel= ConvolutionKernel))
+           ConvolutionKernel= ConvolutionKernel, StudyID=StudyID))
 }
 
 ## get the basename for a file, for example getBase("blah.nii.gz", 2) = "blah"
@@ -300,7 +302,7 @@ includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE,
   ###### Drop those that aren't needed ########
   #############################################
 
-  stubs <- basename(niis)
+  stubs <- basename(tars)
   stubs <- file.path(basedir, "Sorted", stubs)
   txts <- paste0(stubs, ".txt")
 
@@ -313,6 +315,7 @@ includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE,
   outs$fname <- txts
   outs$SeriesNum <- as.numeric(outs$SeriesNum)
   outs$GantryDetectorTilt <- as.numeric(outs$GantryDetectorTilt)
+  outs$StudyID <- as.numeric(outs$StudyID)
   
   ## take out MRIs, localizers, dose reports, bone, cervical
   outs$Takeout <- FALSE
@@ -331,7 +334,8 @@ includeMatrix <- function(basedir, keepAll = FALSE, keepMR = TRUE,
   outs$Takeout <- outs$Takeout | grepl("SCOUT", outs$SeriesDesc)
   outs$Takeout <- outs$Takeout | grepl("CENTERING", outs$SeriesDesc)
   outs$Takeout <- outs$Takeout | grepl("SINUS", outs$SeriesDesc)
-
+  if (!is.null(dropstring)) 
+    outs$Takeout <- outs$Takeout | grepl(dropstring, outs$SeriesDesc)
   
   outs$Takeout <- outs$Takeout | outs$SeriesNum > 20
   

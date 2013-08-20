@@ -1,1 +1,2 @@
-R CMD BATCH Pipeline_Test.R
+#!/bin/bash 
+R --no-save < Pipeline_Test.R

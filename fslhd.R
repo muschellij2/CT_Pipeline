@@ -1,10 +1,33 @@
 fslhd <- function(file, intern=TRUE){
 	cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
-			"export FSLDIR FSLOUTPUTTYPE; echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
+			"export FSLDIR FSLOUTPUTTYPE; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
 	cmd <- paste(cmd, sprintf('/usr/local/fsl/bin/fslhd "%s"', file))
 	system(cmd, intern=intern)
 }
 
+fslhd.parse <- function(hd){
+  ss <- strsplit(hd, split=" ")
+  ss <- lapply(ss, function(x) x[!x %in% ""])
+  ss <- lapply(ss, function(x){
+    if (grepl("_xyz", x[1])) 
+      x <- c(x[1], paste(x[2:length(x)], sep="", collapse= " "))
+    if (grepl("form_name", x[1])) 
+      x <- c(x[1], paste(x[2:length(x)], sep="", collapse= "-"))
+    return(x)
+  })
+  ss.len <- sapply(ss, length)
+  ss <- ss[ss.len > 0]
+  ss.len <- sapply(ss, length)
+  stopifnot(all(ss.len %in% c(1,2)))
+  ss <- lapply(ss, function(x){
+    if (length(x) == 1) x <- c(x, NA)
+    x
+  })
+  ss <- do.call("rbind", ss)
+  rownames(ss) <- ss[,1]
+  ss <- data.frame(value=ss[,2, drop=FALSE], stringsAsFactors=FALSE)
+  return(ss)
+}
 
 
 getForms <- function(file){
