@@ -102,7 +102,7 @@ if (rethresh){
     stub <- gsub("\\.nii$", "", stub, fixed=FALSE)
     
     outdir <- dirname(ifname)
-    outfile <- file.path(outdir, paste0(stub, "_", addstub))
+    outfile <- file.path(outdir, paste0(stub))
     
     flirt.wrap(image=ifname, rigid=TRUE, run=TRUE, ref=ref.img, 
                mask=mask)

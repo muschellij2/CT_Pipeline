@@ -48,11 +48,11 @@ ids <- c("205-509", "205-517", "205-519", "225-502", "225-503", "225-504",
 
 verbose=TRUE
 untar = FALSE
-convert <- TRUE
-skullstrip <- FALSE
+convert <- FALSE
+skullstrip <- TRUE
 regantry <- FALSE
 untgantry <- FALSE
-runall <- FALSE
+runall <- TRUE
 
 ### initial setup
 iid <- 1
@@ -110,7 +110,8 @@ for (iid in 1:length(ids)){
   if (convert) {
     ### convert the dicoms
     contime <- system.time(convert_DICOM(basedir, progdir, 
-                            verbose=verbose, untar=untar, dcmsortopt=dcmsortopt))
+                            verbose=verbose, untar=untar, dcmsortopt=dcmsortopt, 
+                            dcm2niicmd="dcm2nii_2009"))
 
     ## dropout the niis that are not needed
     lis <- includeMatrix(basedir, dropstring="ungantry", error=TRUE)
@@ -131,6 +132,7 @@ for (iid in 1:length(ids)){
 }
 
 
+#### skull stripping
 for (iid in 1:length(ids)){
   id <- ids[iid]
   setup(id)

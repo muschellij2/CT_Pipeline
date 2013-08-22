@@ -96,7 +96,7 @@ flirt.wrap <- function(image, rigid=TRUE, cost="mutualinfo",
   img <- gsub("\\.nii$", "", img, fixed=FALSE)
   stub <- basename(img)
   path <- dirname(img)
-  if (mask) stub <- paste0(stub, "_mask")
+  # if (mask) stub <- paste0(stub, "_mask")
   
   outfile <- file.path(path, paste0("rigid_", stub))
   outmat <- paste0(outfile, ".mat")

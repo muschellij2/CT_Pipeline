@@ -72,7 +72,7 @@ dcmsort <- function(basedir, progdir, sortdir, dcmsortopt = '', verbose=TRUE, ..
   }
 }
 
-dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, ...){
+dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, dcm2niicmd = "dcm2nii", ...){
 
   gf <- getfiles(basedir)
   files <- gf$files
@@ -89,10 +89,10 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, ...){
     for (ipath in 1:length(paths)){
       path <- paths[ipath]
       system(sprintf('rm "%s"/*.nii.gz', path))
-      res <- system(sprintf('dcm2nii -b "%s"/CT_dcm2nii.ini "%s"', 
-          progdir, path), intern=TRUE)
+      res <- system(sprintf('%s -b "%s"/CT_dcm2nii.ini "%s"', dcm2niicmd,
+          progdir, path), intern=FALSE)
       errs <- grepl("Error", res)
-      if (any(errs)){
+      if (res!= 0){
               system(sprintf('rm "%s"/*.nii.gz', path))
               print("Error in DCM2NII")
               next
@@ -153,6 +153,12 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE, ...){
     if (verbose) cat("Un tarballing data \n")
     files <- dir(path=basedir, pattern=".tar.gz$", full.names=TRUE, 
           recursive=TRUE)
+    gants <- grepl("_ungantry", files)
+    if (any(gants)){
+        gants <- files[gants]
+        rm.files <- gsub("_ungantry", "", gants)
+        files <- files[! files %in% rm.files]
+    }
     ### untarball the files using R's command
     if (length(files) > 0){
       for (ifile in files){
@@ -409,7 +415,7 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   folname <- basename(indir)
   outname <- paste0(folname, "_ungantry")
   outdir <- file.path(dname, outname)
-  dir.create(outdir)
+  if (!file.exists(outdir)) dir.create(outdir)
   system(sprintf('rm "%s"/*', outdir))
   system(sprintf('cp "%s"/*.dcm "%s"', indir, outdir))
   cmd <- paste(cmd, '"try, ')
@@ -431,12 +437,100 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
 
   
   make_txt(outdir)
+  gd <- getwd()
+  setwd(dirname(outdir))
+  bn <- basename(outdir)
   
-  system(sprintf('tar -czf "%s" "%s" --remove-files', paste0(outdir, ".tar.gz"), outdir))  
+  system(sprintf('tar -czf "%s" ./"%s" --remove-files', paste0(outdir, ".tar.gz"), bn))  
   system(sprintf('rmdir "%s"', outdir))  
   
+  setwd(gd)
   make_txt(indir)
   
   return(outdir)
 }
+
+
+dcm2nii_worker <- function(path, outfile="output", ...){
+        dcm <- readDICOM(path=path, recursive=FALES, verbose=verbose)
+      dcmNifti <- dicom2nifti(dcm, datatype=4, mode="integer")
+
+      vals <- t(sapply(dcm$hdr, function(x){
+        int <- x[x[, "name"] == "RescaleIntercept", "value"]
+        slope <- x[x[, "name"] == "RescaleSlope", "value"]
+        return(c(int=int, slope=slope))
+      }))
+      class(vals) <- "numeric"
+      vals <- data.frame(vals)
+      uniq <- sapply(vals, function(x) length(unique(x)))
+      stopifnot(all(uniq==1))
+      vals <- apply(vals, 2, unique)
+      dcmNifti@scl_slope <- vals["slope"]
+      dcmNifti@scl_inter <- vals["int"]
+      dcmNifti@descrip <- paste0("written by R - ", dcmNifti@descrip)
+      outfile <- gsub("\\.gz$", "", outfile)
+      outfile <- gsub("\\.nii$", "", outfile)
+      writeNIfTI(nim=dcmNifti, file=file.path(path, outfile))
+}
+
+
+Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
+
+  gf <- getfiles(basedir)
+  files <- gf$files
+  paths <- gf$paths
+
+  ## THEN PIPELINE TEST
+  ipath <- 1
+  lpath <- length(paths)
+
+  ### need dcm2nii in your path! - from MRICRON
+  if (lpath >= 1){
+    if (verbose) cat("Converting to nii using R \n")
+
+    for (ipath in 1:length(paths)){
+      path <- paths[ipath]
+      res <- system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
+      
+      dcm2nii_worker(path)
+
+      niis <- dir(path=path, pattern=".nii.gz")
+      stub <- basename(path)
+
+      iddir <- file.path(basedir)
+      name <- stub
+      
+      ### copy dicom header info
+      make_txt(path)
+      
+      if (length(niis) > 1){    
+        # stop("it")
+        # cmd <- 'FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; export FSLDIR FSLOUTPUTTYPE; '
+        # cmd <- paste0(cmd, 'echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh; ', 
+        #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
+        cmd <- c('fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
+        system(sprintf(cmd, iddir, name, path), ignore.stdout = !verbose)
+          
+      }
+      if (length(niis) == 1){
+        system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', path, iddir, name), 
+          ignore.stdout = !verbose)
+      }
+      system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
+      setwd(dirname(path))
+      #     stop("me")
+      newpath <- file.path(dirname(path), name)
+      system(sprintf('mv "%s" "%s"', path, newpath), ignore.stdout = !verbose)
+
+      # setwd(basename(newpath))
+      # tarfile <- paste(newpath, ".tar.gz", sep="")
+      # tar(tarfile, compression="gzip")
+      system(sprintf('tar -czf "%s" ./"%s"', paste(newpath, ".tar.gz", sep=""), 
+          basename(newpath)), ignore.stdout = !verbose)
+      
+      system(sprintf('rm -R "%s"', newpath), ignore.stdout = !verbose)
+    }
+  } # end loop over paths
+
+} ## end Rdcm2nii
 
