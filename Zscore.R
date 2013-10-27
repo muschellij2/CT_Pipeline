@@ -49,6 +49,7 @@ zscore2 <- function(mat, margin=3){
     }
     slice
   })
+  ret <- aperm(ret, c(2, 3, 1))
   ret
 }
 

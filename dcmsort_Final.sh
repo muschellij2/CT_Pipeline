@@ -45,6 +45,8 @@ do
 done
 
 
+# DICOMDIR=$(printf '%q' "$DICOMDIR")
+# OUTDIR=$(printf '%q' "$OUTDIR")
 
 if [ -z "${DICOMDIR}" ]; then
   echo "DICOMDIR is required"
@@ -57,11 +59,11 @@ if [ -z "${OUTDIR}" ]; then
   usage
   exit 3
 else
-  mkdir -p ${OUTDIR}
+  mkdir -p "${OUTDIR}"
 fi
 
 # Select each file in given DICOM directory.
-for d in ${DICOMDIR}/*.dcm
+for d in "${DICOMDIR}"/*.dcm
 do
   ## checking for directories
   if [[ -d $d ]]; then
@@ -69,9 +71,9 @@ do
   elif [[ -f $d ]]; then
       # echo "$PASSED is a file"
 
-    echo "${d}"
-    
-    dcmdump ${d} > tmp.txt
+    echo "${d}"    
+
+    dcmdump "${d}" > tmp.txt
     
     PID=$(cat tmp.txt | grep -e '^(0010,0020)' | sed -e 's/^(0010,0020).*\[\(.*\)\].*/\1/')
     StudyDate=$(cat tmp.txt | grep -e '^(0008,0020)' | sed -e 's/^(0008,0020).*\[\(.*\)\].*/\1/')
@@ -150,11 +152,12 @@ do
       # echo "$PNAME"
       # exit 1
 
-    DESTDIR=${OUTDIR}/${PNAME}
-    if [ ! -d ${DESTDIR} ]; then
-      mkdir ${DESTDIR}
+    DESTDIR="${OUTDIR}/${PNAME}"
+    # $(printf '%q' "$DICOMDIR")
+    if [ ! -d "${DESTDIR}" ]; then
+      mkdir "${DESTDIR}"
     fi
-    $cmd ${d} ${DESTDIR}/
+    $cmd "${d}" "${DESTDIR}"/
     rm tmp.txt
     
   fi    

@@ -88,11 +88,17 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, dcm2niicmd = "dcm2n
 
     for (ipath in 1:length(paths)){
       path <- paths[ipath]
-      system(sprintf('rm "%s"/*.nii.gz', path))
+      x = system(sprintf('rm "%s"/*.nii.gz', path), intern=TRUE)
+      intern=TRUE
       res <- system(sprintf('%s -b "%s"/CT_dcm2nii.ini "%s"', dcm2niicmd,
-          progdir, path), intern=FALSE)
-      errs <- grepl("Error", res)
-      if (res!= 0){
+          progdir, path), intern=TRUE)
+      if (intern) {
+        errs <- any(grepl("Error", res))
+      } else {
+        errs <- res != 0
+      }
+      stopifnot(length(errs) == 1)
+      if (  errs ){
               system(sprintf('rm "%s"/*.nii.gz', path))
               print("Error in DCM2NII")
               next

@@ -35,7 +35,7 @@ setup <- function(id){
   basedir <<- file.path(homedir, id)
   
 }
-id <- "205-509"
+id <- "205-517"
 setup(id)
 source(file.path(progdir, "fslthresh.R"))
 
@@ -56,6 +56,7 @@ masks <- c(FALSE, TRUE)
 scenarios <- expand.grid(cutoffs=cutoffs, mask=masks)
 iscen <- 1
 
+### This is to threshold the values again
 rethresh <- FALSE
 
 iscen = as.integer(Sys.getenv("SGE_TASK_ID"))

@@ -48,14 +48,15 @@ ids <- c("205-509", "205-517", "205-519", "225-502", "225-503", "225-504",
 
 verbose=TRUE
 untar = FALSE
-convert <- FALSE
-skullstrip <- TRUE
+convert <- TRUE
+skullstrip <- FALSE
 regantry <- FALSE
 untgantry <- FALSE
 runall <- TRUE
 
 ### initial setup
-iid <- 1
+# iid <- length(ids)
+iid <- 2
 id <- ids[iid]
 setup(id)
 
@@ -95,6 +96,7 @@ if (regantry){
 #### loop through IDS and convert them to nii, gantry tilted
 ### 301-520 needs to use Study Date/Time instead of Series Date/Time
 for (iid in 1:length(ids)){
+
   id <- ids[iid]
   setup(id)
   # source(file.path(progdir, "file_functions.R"))
