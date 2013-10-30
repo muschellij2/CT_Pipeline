@@ -5,7 +5,8 @@
 # Output: Skull stripped images
 # Use of output: intensity -based normalization of CT
 ################################
-rootdir="/Volumes/Seagate Backup Plus Drive/Image_Processing"
+# rootdir="/Volumes/DATA_LOCAL/Image_Processing"
+rootdir="/dexter/disk2/smart/stroke_ct/ident"
 basedir="${rootdir}/Test_5"
 progdir="${rootdir}/programs"
 

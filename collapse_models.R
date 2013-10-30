@@ -12,7 +12,7 @@ library(plyr)
 library(AnalyzeFMRI)
 library(car)
 library(ROCR)
-basedir <- "/Volumes/Seagate Backup Plus Drive/Image_Processing/Test_5"
+basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
 progdir <- file.path(dirname(basedir), "programs")
 source(file.path(progdir, "Zscore.R"))
@@ -27,34 +27,49 @@ colnames(mat) <- c("img", "roi")
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
 
-N <- nrow(mat)
+nfiles <- nrow(mat)
 irow <- 1
 rda <- paste0(mat$img[irow], ".rda")
 load(file=rda)
 df$fname <- mat$img[irow]
 all.df <- df
 
-for (irow in 2:N){
+for (irow in 2:nfiles){
   rda <- paste0(mat$img[irow], ".rda")
   load(file=rda) 
   df$fname <- mat$img[irow]
   all.df <- rbind(all.df, df)
 }
 
+
 df <- all.df
 all.df <- NULL
   perc <- 0.1
-  N <- nrow(df)
-  samp <- sample(1:N, floor(N*perc), replace=FALSE)
+  indices <- 1:nrow(df)
+  scan.to.drop <- nfiles
+  dropscan <- mat$img[scan.to.drop]
+
+  drop.ind <- which(df$fname %in% dropscan )
+  indices <- indices[ -drop.ind ]
+
+  N <- length(indices)
+  samp <- sample(indices, floor(N*perc), replace=FALSE)
   
   train <- df[samp,]
-  test <- df[ !(1:N %in% samp), ]
+  test <- df[ !(1:nrow(df) %in% samp), ]
 
   mod <- glm(y ~ . - fname, data=train, family=binomial)
   summary(mod)
   
-  test$pred <- predict(mod, newdata=test, type="response")
-  sum(train$y)
+  mod$data <- NULL
+  rda <- file.path(basedir, "Collaped_Model.rda")
+  save(list = c("mod", 
+            "scan.to.drop", 
+            "dropscan"),
+            file=rda)
+
+  #test$pred <- predict(mod, newdata=test, type="response")
+  #sum(train$y)
   
   
   ##########################
@@ -96,18 +111,25 @@ all.df <- NULL
   pred <- pred + intercept
   pred <- exp(pred)/(1+exp(pred))
 
+  tt <- NULL
   #### predictions are made!
   test$pred <- pred
+  pred <- NULL
 
-
+  ### data set where the scans were fit on
+  within.test <- test[ !test$fname %in% dropscan, ]
   ### getting ROC Curve 
-  rpred <- prediction(predictions=pred, labels=test$y)
+  rpred <- prediction(predictions=within.test$pred, 
+    labels=within.test$y)
   rperf <- performance(rpred, "tpr", "fpr")
 
-  outdir <- file.path(dirname(mat$img[irow]), "prob_maps")  
-  fname <- "All_Images"
+  outdir <- file.path(basedir, "prob_maps")  
+  fname <- "All_Images_NoDropScan"
   pdf(file.path(outdir, paste0(fname, ".pdf")))
     plot(rperf, main=fname)
+    abline(v=0.05, col="red")
+    abline(v=0.1, col="blue")    
+    abline(h=0.9)        
   dev.off()
 
   #### getting scan-specific ROC Curve
@@ -121,11 +143,18 @@ all.df <- NULL
   rperfs <- lapply(rpreds, performance, "tpr", "fpr")
 
   fname <- "All_Images_PerScan_ROC"
-  pdf(file.path(outdir, paste0(fname, ".pdf")))
-    plot(rperfs[[1]], col=1)
-    for (iscan in 1:length(rperfs)){
-      plot(rperfs[[iscan]], add=TRUE, col=iscan)
-    }
 
+  pdf(file.path(outdir, paste0(fname, ".pdf")))
+    iscan <- 1
+    lwd <- ifelse(iscan == scan.to.drop, 3, 1)
+
+    plot(rperfs[[iscan]], col=1, lwd=lwd)
+    for (iscan in 1:length(rperfs)){
+      lwd <- ifelse(iscan == scan.to.drop, 3, 1)
+      plot(rperfs[[iscan]], add=TRUE, col=iscan, lwd=lwd)
+    }
+    abline(v=0.05, col="red")
+    abline(v=0.1, col="blue")
+    abline(h=0.9)    
   dev.off()
 

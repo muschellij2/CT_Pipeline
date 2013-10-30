@@ -10,7 +10,7 @@ library(plyr)
 library(AnalyzeFMRI)
 library(car)
 library(ROCR)
-basedir <- "/Volumes/Seagate Backup Plus Drive/Image_Processing/Test_5"
+basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
 progdir <- file.path(dirname(basedir), "programs")
 source(file.path(progdir, "Zscore.R"))
@@ -43,6 +43,9 @@ for (irow in 2:N){
 rownames(mods) <- names(coefs)
 colnames(mods) <- basename(mat$img)
 
+outdir <- file.path(basedir, "prob_maps")  
+
+pdf(file.path(outdir, "Coefficient_Image.pdf"))
 image(t(mods), yaxt='n')
 l <- length(coefs) 
 L <- 1+2/l
@@ -51,3 +54,4 @@ at <- seq(0, 1, by=L/(l+1))
 axis(2, at=at, labels = FALSE)
 text(y = at, par("usr")[1], labels = names(coefs), 
     srt = 0, pos = 2, xpd = TRUE, cex=0.75)
+dev.off()
