@@ -33,12 +33,16 @@ rda <- paste0(mat$img[irow], ".rda")
 load(file=rda)
 df$fname <- mat$img[irow]
 all.df <- df
-
+rm(list="df")
+gc()
 for (irow in 2:nfiles){
   rda <- paste0(mat$img[irow], ".rda")
   load(file=rda) 
   df$fname <- mat$img[irow]
   all.df <- rbind(all.df, df)
+  rm(list="df")
+  for (i in 1:10) gc()
+  print(irow) 
 }
 
 
@@ -58,7 +62,7 @@ all.df <- NULL
   train <- df[samp,]
   test <- df[ !(1:nrow(df) %in% samp), ]
 
-  mod <- glm(y ~ . - fname, data=train, family=binomial)
+  mod <- glm(y ~ . - fname - mask, data=train, family=binomial)
   summary(mod)
   
   mod$data <- NULL
