@@ -3,6 +3,7 @@ get.stuff <- function(mod){
     var.classes <- attr(mod$terms, "dataClasses")
     var.classes <- var.classes[var.used]
   }
+
 pred.prob <- function(model, test){
 
   var.classes <- get.stuff(model)
@@ -23,16 +24,35 @@ pred.prob <- function(model, test){
     coefs["(Intercept)"], 
     0)
   coefs <- coefs[ !names(coefs) %in% "(Intercept)" ]
-  tt <- test[, names(coefs)]
+  tt <- test
 
   ### getting predictions - prob slower than matrix multiplication
   ### but more control
-  for (icoef in names(coefs)){
-    tt[, icoef] <- coefs[names(coefs) == icoef] * tt[, icoef]
-    print(icoef)
+  if ("data.table" %in% class(tt)){
+      expr <- paste0(coefs, "*", names(coefs), collapse="+" )
+      expr <- parse(text=expr)
+      tt <- tt[, eval(expr)]
+  } else {
+      for (icoef in names(coefs)){
+        tt[, icoef] <- coefs[names(coefs) == icoef] * tt[, icoef]
+        print(icoef)
+      }
+      tt<- rowSums(tt)
   }
-  pred <- rowSums(tt)
-  pred <- pred + intercept
+  pred <- tt + intercept
   pred <- exp(pred)/(1+exp(pred))
   return(pred)
 }
+
+scrape.mod <- function(x) {
+    x$data <- NULL
+    x$residuals <- NULL
+    x$fitted.values <- NULL
+    x$prior.weights <- NULL
+    x$model <- NULL
+    x$linear.predictors <- NULL
+    x$weights <- NULL
+    x$effects <- NULL
+    x$qr <- NULL
+    x
+  }

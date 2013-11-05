@@ -1,3 +1,11 @@
+################################
+# Written 2013Oct29
+# Author: John Muschelli
+# Purpose: Make NIfTI files from DICOMS
+# Output: NIfTI images for images and ROIs, and slicethickness image
+# Slice thickness image can be used for volume weighting
+################################
+
 rm(list=ls())
 library(oro.dicom)
 basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
@@ -18,7 +26,7 @@ get.slice <- function(hdr){
 
 iid <- 1
 
-iid <- which(grepl("102-391", ids))
+iid <- which(grepl("101-308", ids))
 
 # for (iid in 1:length(ids)){
 	# testdir <- file.path(basedir, "100-362")
@@ -26,7 +34,7 @@ iid <- which(grepl("102-391", ids))
 
 	setwd(testdir)
 	dirs <- list.dirs(path=testdir, recursive=FALSE)
-	idir <- 2
+	idir <- 1
 
 
 	for (idir in 1:2) {
@@ -48,10 +56,25 @@ iid <- which(grepl("102-391", ids))
 		dcm <- readDICOM(path="./", recursive=FALSE)
 		# hdr <- dcm$hdr[[1]]
 
-
-
 		nim <- dicom2nifti(dcm, rescale=TRUE, reslice=FALSE)
 		writeNIfTI(nim, file.path(basedir, folname) )
+
+		### Create Slice Thickness Image
+		if (idir %in% 1){
+			for (idcm in 1:length(dcm$hdr)){
+				thickness <- thick[idcm]
+				dims <- dim(dcm$img[[idcm]])
+				img <- array(thickness, dim=dims)
+				dcm$img[[idcm]] <- img
+			}
+			nim <- dicom2nifti(dcm, rescale=TRUE, reslice=FALSE)
+			filename <- file.path(basedir, 
+				"Slice_Thickness",
+				folname)
+			nim@scl_inter <- 0
+			writeNIfTI(nim, filename )				
+
+		}
 	}
 
 # }

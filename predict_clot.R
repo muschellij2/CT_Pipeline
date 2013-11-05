@@ -11,11 +11,15 @@ library(plyr)
 library(AnalyzeFMRI)
 library(car)
 library(ROCR)
+library(ggplot2)
 basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
-progdir <- file.path(dirname(basedir), "programs")
+rootdir <- dirname(basedir)
+progdir <- file.path(rootdir, "programs")
 source(file.path(progdir, "Zscore.R"))
 source(file.path(progdir, "List_Moment_Generator.R"))
+source(file.path(progdir, "pred.prob.R"))
+source(file.path(progdir, "fslhd.R"))
 
 files <- list.files(path=basedir, pattern="*.nii.gz", full.names=TRUE)
 stubs <- gsub(".nii.gz", "", files, fixed=TRUE)
@@ -37,87 +41,21 @@ imgs <- unlist(mat)
 imgs <- paste0(imgs, ".nii.gz")
 stopifnot(all(file.exists(imgs)))
 
-irow <- grep("101307", mat$img)
-
+# irow <- grep("102323", mat$img)
 irow <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+
+if (is.na(irow)) irow <- 1
 
 # for (irow in 1:nrow(mat)){
   ## manual segmentation
-  truth <- readNIfTI(mat$roi[irow], reorient=FALSE)
-  
   img1 <- readNIfTI(mat$img[irow], reorient=FALSE)
-  # system.time(zs <- zscore2(img1))
-  system.time(izax <- zscore(img1))
-  system.time(izcor <- zscore(img1, margin=2))
-  system.time(izsag <- zscore(img1, margin=1))
-
+  fname <- basename(mat$img[irow])
 
   ss.mask <- readNIfTI(mat$ss.img[irow], reorient=FALSE)
   mask <- ss.mask > 0
 
-  zero100 <- img1 >= 0 & img1 <= 100
-### masking out non-brain 
-  ss.img <- img1
-  ss.img[!mask] <- 0
-
-  system.time(mom <- image_moment(img1, mask=zero100, 
-      nvox= 1, moment=c(1, 2, 3)))
-  mom <- lapply(mom, function(x) {
-    ind <- which(is.na(x), arr.ind=TRUE)
-    x[ind] <- 0
-    x
-  })
-### these averages are only with brain tissue - not overall
-  system.time(zax <- zscore(ss.img))
-  system.time(zcor <- zscore(ss.img, margin=2))
-  system.time(zsag <- zscore(ss.img, margin=1))  
-  
-
-
-  df <- data.frame(val=img1[zero100],
-                   zax=zax[zero100], 
-                   zcor=zcor[zero100],
-                   zsag=zsag[zero100],
-                   izax=izax[zero100], 
-                   izcor=izcor[zero100],
-                   izsag=izsag[zero100],
-                   mean=mom[[1]][zero100],
-                   sd=mom[[2]][zero100],                   
-                   skew=mom[[3]][zero100],                    
-                   mask=mask[zero100],
-                   y = truth[zero100])
-
-  # df <- data.frame(val=img1[mask],
-  #                  zax=zax[mask], 
-  #                  zcor=zcor[mask],
-  #                  zsag=zsag[mask],
-  #                  izax=izax[mask], 
-  #                  izcor=izcor[mask],
-  #                  izsag=izsag[mask],
-  #                  y = truth[mask])
-  # df <- data.frame(val=img1,
-  #                  zax=c(zax), 
-  #                  zcor=c(zcor),
-  #                  zsag=c(zsag),
-  #                  izax=c(izax), 
-  #                  izcor=c(izcor),
-  #                  izsag=c(izsag),
-  #                  mask=c(mask),
-  #                  y = c(truth))  
-  # df <- data.frame(val=c(img1),
-  #                  izax=c(izax), 
-  #                  izcor=c(izcor),
-  #                  izsag=c(izsag),
-  #                  y = c(truth))   
-  df$over40 <- df$val >= 40
-  
-  # over0 <- img1 > 0
-  # system.time(smooth <- GaussSmoothArray(img1, mask=over0))
-  # system.time(smooth <- GaussSmoothArray(img1, mask=mask))
-  system.time(smooth <- GaussSmoothArray(img1, mask=zero100))
-  # df$smooth <- smooth[mask]
-  # df$smooth <- c(smooth)
-  df$smooth <- smooth[zero100]
+  rda <- paste0(mat$img[irow], "_Data.rda")
+  load(rda)
 
   perc <- 0.1
   N <- nrow(df)
@@ -126,20 +64,27 @@ irow <- as.numeric(Sys.getenv("SGE_TASK_ID"))
   train <- df[samp,]
   test <- df[ !(1:N %in% samp), ]
   print(sum(train$y))
-  mod <- glm(y ~ . - mask, data=train, family=binomial)
+  mod <- glm(y ~ val + zax + 
+    izax + izcor + izsag + 
+    mean + sd + skew +
+    over40 +
+    smooth1 + smooth3 + smooth5 + smooth10,
+    data=train, family=binomial)
   summary(mod)
 
-  mod2 <- glm(y ~ . - mask - zcor -zsag, 
-    data=train, family=binomial)
+  step.mod <- stepAIC(mod)
 
-  mod3 <- glm(y ~ . - mask - smooth, 
-    data=train, family=binomial)
+  # mod2 <- glm(y ~ . - zcor -zsag, 
+  #   data=train, family=binomial)
 
-  mod4 <- glm(y ~ . - mask - smooth - zcor - zsag, 
-    data=train, family=binomial)
+  # mod3 <- glm(y ~ ., 
+  #   data=train, family=binomial)
 
-  mod5 <- glm(y ~ . - mask - mean - sd - skew, 
-    data=train, family=binomial)
+  # mod4 <- glm(y ~ . - zcor - zsag, 
+  #   data=train, family=binomial)
+
+  # mod5 <- glm(y ~ . - mean - sd - skew, 
+  #   data=train, family=binomial)
 
   # mod2 <- glm(y ~ . - val, data=train, family=binomial)
   # summary(mod2)
@@ -156,13 +101,16 @@ irow <- as.numeric(Sys.getenv("SGE_TASK_ID"))
     }
     return(rperf)
   }
-  mods <- list(mod, mod2, mod3, mod4, mod5)
+  # mods <- list(mod, mod2, mod3, mod4, mod5, step.mod)
+  mods <- list(mod, step.mod)
   mods <- lapply(mods, function(x) {
     x$data <- NULL
     x
   })
+  # preds <- lapply(mods, function(model) 
+    # predict(model, newdata=test, type="response") )
   preds <- lapply(mods, function(model) 
-    predict(model, newdata=test, type="response") )
+    pred.prob(model, test) )  
   rpreds <- lapply(preds, function(pred) 
     prediction(predictions=pred, labels=test$y) )  
   rperfs <-  lapply(rpreds, function(rpred) 
@@ -180,8 +128,11 @@ irow <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
   ### make ROC Curve
   outdir <- file.path(dirname(mat$img[irow]), "prob_maps")  
-  fname <- basename(mat$img[irow])
   pdf(file.path(outdir, paste0(fname, ".pdf")))
+  plot(rperfs[[1]])
+  for (imod in seq_along(rperfs)){
+    plot(rperfs[[imod]], add=TRUE, col=imod)
+  }
   for (imod in seq_along(rperfs)){
     plot(rperfs[[imod]], main=fname)
     abline(v=0.05, col="red")
@@ -201,16 +152,15 @@ irow <- as.numeric(Sys.getenv("SGE_TASK_ID"))
   dev.off()
   
   ### save results to rda  - clear data to free up space
-  mod$data <- NULL
+  # mod$data <- NULL
   pimg <- img1
-  # pimg@.Data[!mask] <- 0
+  pimg@.Data[!mask] <- 0
   all.pred <- predict(mod, newdata=df, type="response")
-  all.pred <- array(all.pred, dim=dim(pimg@.Data))
-  # pimg@.Data[mask] <- all.pred
-  pimg@.Data <- all.pred
-  rda <- paste0(mat$img[irow], ".rda")
+  #all.pred <- array(all.pred, dim=dim(pimg@.Data))
+  pimg@.Data[mask] <- all.pred
+  # pimg@.Data <- all.pred
+  rda <- paste0(mat$img[irow], "_Models.rda")
   save(list = c("mods", 
-            "df", 
             "samp", 
             "perc"),
             file=rda)
@@ -222,9 +172,9 @@ irow <- as.numeric(Sys.getenv("SGE_TASK_ID"))
   pimg@cal_min <- rimg[1]
   pimg@scl_inter <- 0
 #   pimg@data_type <- "double"
-  pimg2 <- nifti(pimg, datatype=16)
-  pimg2@vox_offset
-  writeNIfTI(pimg2, filename=pfname)
+  # pimg2 <- nifti(pimg, datatype=16)
+  # pimg2@vox_offset
+  writeNIfTI(pimg, filename=pfname)
   print(irow)
   
 # }

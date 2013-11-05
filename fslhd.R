@@ -1,7 +1,25 @@
-fslhd <- function(file, intern=TRUE){
-	cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
+fslsmooth <- function(file, mask=NULL, outfile=NULL, 
+	sigma=10, intern=TRUE, local=FALSE){
+	cmd <- NULL
+	if (local) cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
 			"export FSLDIR FSLOUTPUTTYPE; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
-	cmd <- paste(cmd, sprintf('/usr/local/fsl/bin/fslhd "%s"', file))
+
+	cmd <- paste(cmd, sprintf('fslmaths "%s"', file))
+	if (! is.null(mask)) cmd <- paste(cmd, sprintf(' -mas "%s"', mask))
+	if (is.null(outfile)) {
+		outfile <- gsub("\\.gz$", "", file)
+		outfile <- gsub("\\.nii$", "", outfile)
+		outfile <- sprintf("%s_%s", outfile, sigma)
+	}
+	cmd <- paste(cmd, sprintf(' -s %s "%s"', sigma, outfile))
+	system(cmd, intern=intern)
+}
+
+fslhd <- function(file, intern=TRUE){
+	cmd <- NULL
+	if (local) cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
+			"export FSLDIR FSLOUTPUTTYPE; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
+	cmd <- paste(cmd, sprintf('fslhd "%s"', file))
 	system(cmd, intern=intern)
 }
 
@@ -98,8 +116,9 @@ check_sform_file <- function(file, value=0){
 
 
 fslrange <- function(file, intern=TRUE){
-  cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
-               "export FSLDIR FSLOUTPUTTYPE; echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
-  cmd <- paste(cmd, sprintf('/usr/local/fsl/bin/fslstats "%s"  -R', file))
-  system(cmd, intern=intern)
+	cmd <- NULL
+	if (local) cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
+			"export FSLDIR FSLOUTPUTTYPE; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
+	cmd <- paste(cmd, sprintf('fslstats "%s"  -R', file))
+  	system(cmd, intern=intern)
 }

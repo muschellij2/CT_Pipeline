@@ -12,10 +12,15 @@ library(plyr)
 library(AnalyzeFMRI)
 library(car)
 library(ROCR)
+library(ggplot2)
+library(data.table)
 basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
 progdir <- file.path(dirname(basedir), "programs")
 source(file.path(progdir, "Zscore.R"))
+source(file.path(progdir, "List_Moment_Generator.R"))
+source(file.path(progdir, "pred.prob.R"))
+
 
 files <- list.files(path=basedir, pattern="*.nii.gz", full.names=TRUE)
 stubs <- gsub(".nii.gz", "", files, fixed=TRUE)
@@ -27,31 +32,24 @@ colnames(mat) <- c("img", "roi")
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
 
+## all combinations
 nfiles <- nrow(mat)
-irow <- 1
-rda <- paste0(mat$img[irow], ".rda")
+combos <- combn(nrow(mat), floor(nrow(mat)/2))
+subset <- sample(1:ncol(combos), 1)
+ind <- 1:nfiles
+train.ind <- ind %in% combos[, subset]
+test.ind <- !train.ind
+
+  rda <- paste0(mat$img[1], "_Models.rda")
+  load(file=rda)
+  run.mods <- mods
+
+rda <- file.path(basedir, "Collaped_Data.rda")
 load(file=rda)
-df$fname <- mat$img[irow]
-all.df <- df
-rm(list="df")
-gc()
-for (irow in 2:nfiles){
-  rda <- paste0(mat$img[irow], ".rda")
-  load(file=rda) 
-  df$fname <- mat$img[irow]
-  all.df <- rbind(all.df, df)
-  rm(list="df")
-  for (i in 1:10) gc()
-  print(irow) 
-}
 
-
-df <- all.df
-all.df <- NULL
   perc <- 0.1
   indices <- 1:nrow(df)
-  scan.to.drop <- nfiles
-  dropscan <- mat$img[scan.to.drop]
+  dropscan <- mat$img[test.ind]
 
   drop.ind <- which(df$fname %in% dropscan )
   indices <- indices[ -drop.ind ]
@@ -62,13 +60,41 @@ all.df <- NULL
   train <- df[samp,]
   test <- df[ !(1:nrow(df) %in% samp), ]
 
-  mod <- glm(y ~ . - fname - mask, data=train, family=binomial)
-  summary(mod)
-  
-  mod$data <- NULL
+
+  col.mods <- lapply(run.mods, function(mod){
+    cmod <- glm(formula=mod$formula, data=train, family=binomial)
+    cmod <- scrape.mod(cmod)
+    cmod
+    })
+
+  # mod <- glm(y ~ . - fname, data=train, family=binomial, model=FALSE)
+  # summary(mod)
+  # mod <- scrape.mod(mod)
+
+  # mod2 <- glm(y ~ . -fname - zcor -zsag, 
+  #   data=train, family=binomial)
+  # mod2 <- scrape.mod(mod2)
+
+  # mod3 <- glm(y ~ . -fname - smooth, 
+  #   data=train, family=binomial)
+  # mod3 <- scrape.mod(mod3)
+
+  # mod4 <- glm(y ~ . -fname - smooth - zcor - zsag, 
+  #   data=train, family=binomial)
+  # mod4 <- scrape.mod(mod4)
+
+  # mod5 <- glm(y ~ . -fname - mean - sd - skew, 
+  #   data=train, family=binomial)
+  # mod5 <- scrape.mod(mod5)
+
+  # mods <- list(mod, mod2, mod3, mod4, mod5)
+
+  # mod2 <- mod3 <- mod4 <- mod5 <- NULL
+  mods <- lapply(col.mods, scrape.mod)
   rda <- file.path(basedir, "Collaped_Model.rda")
-  save(list = c("mod", 
-            "scan.to.drop", 
+  save(list = c("mods", 
+            "train.ind",
+            "samp", 
             "dropscan"),
             file=rda)
 
@@ -80,85 +106,182 @@ all.df <- NULL
   ###Getting predictions####
   ##Faster than predict#####
   ##########################
-  get.stuff <- function(mod){
-    var.used <- attr(mod$terms, "term.labels")
-    var.classes <- attr(mod$terms, "dataClasses")
-    var.classes <- var.classes[var.used]
-  }
-  var.classes <- get.stuff(mod)
+  # get.stuff <- function(mod){
+  #   var.used <- attr(mod$terms, "term.labels")
+  #   var.classes <- attr(mod$terms, "dataClasses")
+  #   var.classes <- var.classes[var.used]
+  # }
+  # var.classes <- get.stuff(mod)
 
 
-  ### checking to see if we used factors or not in the model
-  stopifnot(all(var.classes %in% c('numeric', 'logical')))
-  coefs <- coef(mod)
-  have.log <- var.classes %in% "logical"
-  if (any(have.log)){
-    vars <- names(var.classes)[have.log]
-    for (ivar in vars){
-      names(coefs) <- gsub(paste0(ivar, "TRUE"), ivar, names(coefs))
-    }
-  }
-  ## just getting the intercept - not needed in matrix mult
-  intercept <- ifelse("(Intercept)" %in% names(coefs), 
-    coefs["(Intercept)"], 
-    0)
-  coefs <- coefs[ !names(coefs) %in% "(Intercept)" ]
-  tt <- test[, names(coefs)]
+  # ### checking to see if we used factors or not in the model
+  # stopifnot(all(var.classes %in% c('numeric', 'logical')))
+  # coefs <- coef(mod)
+  # have.log <- var.classes %in% "logical"
+  # if (any(have.log)){
+  #   vars <- names(var.classes)[have.log]
+  #   for (ivar in vars){
+  #     names(coefs) <- gsub(paste0(ivar, "TRUE"), ivar, names(coefs))
+  #   }
+  # }
+  # ## just getting the intercept - not needed in matrix mult
+  # intercept <- ifelse("(Intercept)" %in% names(coefs), 
+  #   coefs["(Intercept)"], 
+  #   0)
+  # coefs <- coefs[ !names(coefs) %in% "(Intercept)" ]
+  # tt <- test[, names(coefs)]
 
-  ### getting predictions - prob slower than matrix multiplication
-  ### but more control
-  for (icoef in names(coefs)){
-    tt[, icoef] <- coefs[names(coefs) == icoef] * tt[, icoef]
-    print(icoef)
-  }
-  pred <- rowSums(tt)
-  pred <- pred + intercept
-  pred <- exp(pred)/(1+exp(pred))
+  # ### getting predictions - prob slower than matrix multiplication
+  # ### but more control
+  # for (icoef in names(coefs)){
+  #   tt[, icoef] <- coefs[names(coefs) == icoef] * tt[, icoef]
+  #   print(icoef)
+  # }
+  # pred <- rowSums(tt)
+  # pred <- pred + intercept
+  # pred <- exp(pred)/(1+exp(pred))
 
-  tt <- NULL
-  #### predictions are made!
-  test$pred <- pred
-  pred <- NULL
+################################################################
+  # # tt <- NULL
+  # #### predictions are made!
+  # preds <- sapply(mods, pred.prob, test=test )
+  # nmods <- ncol(preds)
+  # cn <- colnames(preds) <- paste0("mod", 1:nmods)
+  # test <- cbind(test, preds)
 
-  ### data set where the scans were fit on
-  within.test <- test[ !test$fname %in% dropscan, ]
-  ### getting ROC Curve 
-  rpred <- prediction(predictions=within.test$pred, 
-    labels=within.test$y)
-  rperf <- performance(rpred, "tpr", "fpr")
+  # test <- test[, c("fname", "y", cn), with=FALSE]
+  # test <- as.data.frame(test, stringsAsFactors=FALSE)
+  # # test$pred <- pred.prob(mod, test)
+  # # pred <- NULL
 
-  outdir <- file.path(basedir, "prob_maps")  
-  fname <- "All_Images_NoDropScan"
-  pdf(file.path(outdir, paste0(fname, ".pdf")))
-    plot(rperf, main=fname)
-    abline(v=0.05, col="red")
-    abline(v=0.1, col="blue")    
-    abline(h=0.9)        
-  dev.off()
+  # # ### data set where the scans were fit on
+  # # within.test <- test[ !test$fname %in% dropscan, ]
+  # # ### getting ROC Curve 
+  # # rpred <- prediction(predictions=within.test$pred, 
+  # #   labels=within.test$y)
+  # # rperf <- performance(rpred, "tpr", "fpr")
 
-  #### getting scan-specific ROC Curve
-  nfiles <- nrow(mat)
-  rpreds <- vector("list", length=nfiles)
-  for (ifname in 1:nfiles){
-    tt <- test[ test$fname %in% mat$img[ifname], ]
-    rpreds[[ifname]] <- prediction(predictions=tt$pred, labels=tt$y)
-    print(ifname)
-  }
-  rperfs <- lapply(rpreds, performance, "tpr", "fpr")
+  # # fname <- "All_Images_NoDropScan"
+  # # pdf(file.path(outdir, paste0(fname, ".pdf")))
+  # #   plot(rperf, main=fname)
+  # #   abline(v=0.05, col="red")
+  # #   abline(v=0.1, col="blue")    
+  # #   abline(h=0.9)        
+  # # dev.off()
 
-  fname <- "All_Images_PerScan_ROC"
+  # #### getting scan-specific ROC Curve
+  # # dropscan 
+  # outdir <- file.path(basedir, "prob_maps")  
 
-  pdf(file.path(outdir, paste0(fname, ".pdf")))
-    iscan <- 1
-    lwd <- ifelse(iscan == scan.to.drop, 3, 1)
+  # oos <- test[ test$fname %in% dropscan, ]
 
-    plot(rperfs[[iscan]], col=1, lwd=lwd)
-    for (iscan in 1:length(rperfs)){
-      lwd <- ifelse(iscan == scan.to.drop, 3, 1)
-      plot(rperfs[[iscan]], add=TRUE, col=iscan, lwd=lwd)
-    }
-    abline(v=0.05, col="red")
-    abline(v=0.1, col="blue")
-    abline(h=0.9)    
-  dev.off()
+  # fname <- "Out_of_Sample_ROC"
+  # pdf(file.path(outdir, paste0(fname, ".pdf")))
+  # imod <- 1
+  # for (imod in 1:length(mods)){
+  #   modcol <- paste0("mod", imod)
 
+  #   ndrop <- length(dropscan)
+
+  #   rpreds <- vector("list", length=ndrop)
+  #   for (ifname in 1:ndrop){
+  #     tt <- oos[ oos$fname %in% dropscan[ifname], ]
+  #     rpreds[[ifname]] <- prediction(predictions=tt[, modcol], 
+  #       labels=tt$y)
+  #     print(ifname)
+  #   }
+  #   rperfs <- lapply(rpreds, performance, "tpr", "fpr")
+
+  #   iscan <- 1
+  #   # lwd <- ifelse(iscan == scan.to.drop, 3, 1)
+  #   lwd <- 1
+  #   # par(mfrow=c(2, 1))
+  #   par(mfrow=c(1, 2))
+  #   plot(rperfs[[iscan]], col=1, lwd=lwd)
+  #   for (iscan in 1:length(rperfs)){
+  #     plot(rperfs[[iscan]], add=TRUE, col=iscan)
+  #   }
+  #   abline(v=0.05, col="red")
+  #   abline(v=0.1, col="blue")
+  #   abline(h=0.9)
+
+
+  #   plot(rperfs[[iscan]], col=1, lwd=lwd, xlim=c(0, 0.1))
+  #   for (iscan in 1:length(rperfs)){
+  #     plot(rperfs[[iscan]], add=TRUE, col=iscan, xlim=c(0, 0.1))
+  #   }
+  #   abline(v=0.05, col="red")
+  #   abline(v=0.1, col="blue")
+  #   abline(h=0.9)
+  # }
+  
+  # dev.off()
+
+  # ### in sample 
+  # insamp <- test[ !test$fname %in% dropscan, ]
+
+  # fname <- "In_Sample_ROC"
+  # pdf(file.path(outdir, paste0(fname, ".pdf")))
+  # imod <- 1
+  # for (imod in 1:length(mods)){
+  #   modcol <- paste0("mod", imod)
+
+  #   ndrop <- length(dropscan)
+
+  #   rpreds <- vector("list", length=ndrop)
+  #   for (ifname in 1:ndrop){
+  #     tt <- insamp[ insamp$fname %in% dropscan[ifname], ]
+  #     rpreds[[ifname]] <- prediction(predictions=tt[, modcol], 
+  #       labels=tt$y)
+  #     print(ifname)
+  #   }
+  #   rperfs <- lapply(rpreds, performance, "tpr", "fpr")
+
+  #   iscan <- 1
+  #   # lwd <- ifelse(iscan == scan.to.drop, 3, 1)
+  #   lwd <- 1
+  #   # par(mfrow=c(2, 1))
+  #   par(mfrow=c(1, 2))
+  #   plot(rperfs[[iscan]], col=1, lwd=lwd)
+  #   for (iscan in 1:length(rperfs)){
+  #     plot(rperfs[[iscan]], add=TRUE, col=iscan)
+  #   }
+  #   abline(v=0.05, col="red")
+  #   abline(v=0.1, col="blue")
+  #   abline(h=0.9)
+
+
+  #   plot(rperfs[[iscan]], col=1, lwd=lwd, xlim=c(0, 0.1))
+  #   for (iscan in 1:length(rperfs)){
+  #     plot(rperfs[[iscan]], add=TRUE, col=iscan, xlim=c(0, 0.1))
+  #   }
+  #   abline(v=0.05, col="red")
+  #   abline(v=0.1, col="blue")
+  #   abline(h=0.9)
+  # }
+  
+  # dev.off()  
+################################################################
+
+
+
+# rpreds <- vector("list", length=ndrop)
+#   for (ifname in 1:ndrop){
+#     tt <- test[ test$fname %in% mat$img[ifname], ]
+#     rpreds[[ifname]] <- prediction(predictions=tt$pred, labels=tt$y)
+#     print(ifname)
+#   }
+#   rperfs <- lapply(rpreds, performance, "tpr", "fpr")
+
+#   iscan <- 1
+#   lwd <- ifelse(iscan == scan.to.drop, 3, 1)
+
+#   plot(rperfs[[iscan]], col=1, lwd=lwd)
+#   for (iscan in 1:length(rperfs)){
+#     lwd <- ifelse(iscan == scan.to.drop, 3, 1)
+#     plot(rperfs[[iscan]], add=TRUE, col=iscan, lwd=lwd)
+#   }
+#   abline(v=0.05, col="red")
+#   abline(v=0.1, col="blue")
+#   abline(h=0.9)    
+#   dev.off()
