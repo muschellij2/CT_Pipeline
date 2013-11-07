@@ -25,7 +25,7 @@ colnames(mat) <- c("img", "roi")
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
 
-mat$ss.img <- paste0(mat$img, "_SS_No1024_Mask_0.1")
+mat$ss.img <- paste0(mat$img, "_SS_First_Pass_Mask_0.1")
 mat$ss.img <- file.path(dirname(mat$ss.img), 
   "Skull_Stripped", 
   basename(mat$ss.img))
@@ -36,79 +36,47 @@ imgs <- paste0(imgs, ".nii.gz")
 stopifnot(all(file.exists(imgs)))
 
 
-## all combinations
-nfiles <- nrow(mat)
-combos <- combn(nrow(mat), floor(nrow(mat)/2))
-subset <- sample(1:ncol(combos), 1)
-ind <- 1:nfiles
-
-rda <- file.path(basedir, "Collaped_Data.rda")
+rda <- file.path(basedir, "First_Train_Data.rda")
 load(file=rda)
 
-rda <- file.path(basedir, "Collaped_Model.rda")
-load(file=rda)
+nscen <- nrow(scenarios)
+auc <- rep(NA, length=nscen)
 
-# test.ind <- !train.ind
+ifold <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-train <- df[samp,]
-# test <- df[ !(1:nrow(df) %in% samp), ]
+if (is.na(ifold)) ifold <- 2
 
-seed <- 20131105
-set.seed(seed)
-## create valid/train data set
-train.indices <- which(train.ind)
-ntrain <- length(train.indices)
-valid.ind <- sample(train.indices, floor(ntrain/2))
-
-valid.fnames <- mat$img[valid.ind]
-valid.ind <- which( train$fname %in% valid.fnames )
-
-valid <- train[ valid.ind, ]
-train <- train[ -valid.ind, ]
+### number of folds is number of cores
+nfolds <- 75
+folds <-c(sapply(1:nfolds, rep, length=ceiling(nscen/nfolds)))
+folds <- folds[1:nscen]
 
 train <- as.data.frame(train)
-valid <- as.data.frame(valid)
 
-### get all combos of variables
-cols <- colnames(train)[!colnames(train) %in% c("y", "fname")]
-ncols <- length(cols)
-scen <- lapply(1:ncols, function(x) c(FALSE, TRUE))
-scenarios <- expand.grid(scen)
-# irow <- grep("102323", mat$img)
-iscen <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iscen)) iscen <- 1
-
-colnames(scenarios) <- cols
 nscen <- nrow(scenarios)
-# mods <- vector(mode="list", length=nscen)
-# for (iscen in 1:nscen){
+
+scen.ind <- which(folds == ifold)
+# all.mod <- 	mod <- glm(y ~ ., 
+# 		data=train[, c(cols, "y"), drop=FALSE], 
+# 		family=binomial)
+# coefs <- coef(all.mod)
+mods <- vector(mode="list", length=nscen)
+for (iscen in scen.ind){
 	## get the variables for the model
 	scen <- scenarios[iscen, ]
 	vnames <- colnames(scen)[as.logical(scen)]
 	vars <- cols[ cols %in% vnames ]
+	# start.coef <- coefs[c("(Intercept)", vars)]
 	vars <- c("y", vars)
-	mod <- glm(y ~ ., 
+	system.time(mod <- glm(y ~ ., 
 		data=train[, vars, drop=FALSE], 
-		family=binomial)
+		family=binomial))	
 	mod <- scrape.mod(mod)
-	rda <- file.path(basedir, "Models", paste0("Model", iscen, ".rda"))
-	save(list = c("seed", "mod", "cols"), file=rda)
-	# mods[[iscen]] <- mod
-	# print(iscen)
-# }
+	mods[[iscen]] <- mod
+	print(iscen)
+}
 
-
-
-
-# valid.preds <- sapply(mods, function(mod){
-# 	predict(mod, newdata=valid)
-# 	})
-
-# Xy <- train[, cols, with=FALSE]
-# Xy$y <- train$y
-# Xy <- as.data.frame(Xy)
-
-# bg <- bestglm(Xy=Xy, family=binomial, IC="CV")
-
+rda <- file.path(basedir, "Models", paste0("Model_Fold_", ifold, ".rda"))
+save(list = c("seed", "mods", "cols"), file=rda)
 

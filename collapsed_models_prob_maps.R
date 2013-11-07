@@ -40,7 +40,7 @@ colnames(mat) <- c("img", "roi")
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
 
-mat$ss.img <- paste0(mat$img, "_SS_No1024_Mask_0.1")
+mat$ss.img <- paste0(mat$img, "_SS_First_Pass_Mask_0.1")
 mat$ss.img <- file.path(dirname(mat$ss.img), 
   "Skull_Stripped", 
   basename(mat$ss.img))

@@ -23,35 +23,45 @@ source(file.path(progdir, "fslhd.R"))
 
 files <- list.files(path=basedir, pattern="*.nii.gz", full.names=TRUE)
 stubs <- gsub(".nii.gz", "", files, fixed=TRUE)
-mat <- matrix(stubs, ncol=2, byrow=TRUE)
+stubs <- stubs[!grepl("Zero", stubs)]
+stubs <- stubs[grepl("ROI", stubs)]
+mat <- matrix(stubs, ncol=1, byrow=FALSE)
 mat <- data.frame(mat, stringsAsFactors=FALSE)
 
+mat[, 2] <- gsub("_ROI", "", mat[,1])
 ### make sure the data only has images and ROIS
-colnames(mat) <- c("img", "roi")
+colnames(mat) <- c("roi", "img")
+mat <- mat[, c("img", "roi")]
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
 
-mat$ss.img <- paste0(mat$img, "_SS_No1024_Mask_0.1")
+mat$ss.img <- paste0(mat$img, "_SS_First_Pass_Mask_0.1")
 mat$ss.img <- file.path(dirname(mat$ss.img), 
   "Skull_Stripped", 
   basename(mat$ss.img))
 
 ### test to see if all files exist
-imgs <- unlist(mat)
-imgs <- paste0(imgs, ".nii.gz")
-stopifnot(all(file.exists(imgs)))
+# imgs <- unlist(mat)
+# imgs <- paste0(imgs, ".nii.gz")
+# stopifnot(all(file.exists(imgs)))
 
 # irow <- grep("102323", mat$img)
 
 irow <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(irow)) irow <- 1
+if (is.na(irow)) irow <- 4
+
+### test to see if all files exist
+check <- mat[irow,]
+check <- paste0(check, ".nii.gz")
+stopifnot(all(file.exists(check)))
 
 # for (irow in 1:nrow(mat)){
   ## manual segmentation
   truth <- readNIfTI(mat$roi[irow], reorient=FALSE)
   
-  true.mask <- truth == 1
+  true.mask <- truth > 0
+  stopifnot(all(truth %in% c(0, 1)))
 
   img1 <- readNIfTI(mat$img[irow], reorient=FALSE)
 

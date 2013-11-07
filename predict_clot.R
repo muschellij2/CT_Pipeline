@@ -23,19 +23,22 @@ source(file.path(progdir, "fslhd.R"))
 
 files <- list.files(path=basedir, pattern="*.nii.gz", full.names=TRUE)
 stubs <- gsub(".nii.gz", "", files, fixed=TRUE)
-mat <- matrix(stubs, ncol=2, byrow=TRUE)
+stubs <- stubs[!grepl("Zero", stubs)]
+stubs <- stubs[grepl("ROI", stubs)]
+mat <- matrix(stubs, ncol=1, byrow=FALSE)
 mat <- data.frame(mat, stringsAsFactors=FALSE)
 
+mat[, 2] <- gsub("_ROI", "", mat[,1])
 ### make sure the data only has images and ROIS
-colnames(mat) <- c("img", "roi")
+colnames(mat) <- c("roi", "img")
+mat <- mat[, c("img", "roi")]
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
 
-mat$ss.img <- paste0(mat$img, "_SS_No1024_Mask_0.1")
+mat$ss.img <- paste0(mat$img, "_SS_First_Pass_Mask_0.1")
 mat$ss.img <- file.path(dirname(mat$ss.img), 
   "Skull_Stripped", 
   basename(mat$ss.img))
-
 ### test to see if all files exist
 imgs <- unlist(mat)
 imgs <- paste0(imgs, ".nii.gz")
@@ -46,8 +49,15 @@ irow <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
 if (is.na(irow)) irow <- 1
 
+### test to see if all files exist
+check <- mat[irow,]
+check <- paste0(check, ".nii.gz")
+stopifnot(all(file.exists(check)))
+
 # for (irow in 1:nrow(mat)){
   ## manual segmentation
+  outdir <- file.path(dirname(mat$img[irow]), "prob_maps")  
+
   img1 <- readNIfTI(mat$img[irow], reorient=FALSE)
   fname <- basename(mat$img[irow])
 
@@ -103,9 +113,8 @@ if (is.na(irow)) irow <- 1
   }
   # mods <- list(mod, mod2, mod3, mod4, mod5, step.mod)
   mods <- list(mod, step.mod)
-  mods <- lapply(mods, function(x) {
-    x$data <- NULL
-    x
+  mods <- lapply(mods, function(mod) {
+    scrape.mod(mod)
   })
   # preds <- lapply(mods, function(model) 
     # predict(model, newdata=test, type="response") )
@@ -127,7 +136,6 @@ if (is.na(irow)) irow <- 1
   colnames(aucs) <- fprs
 
   ### make ROC Curve
-  outdir <- file.path(dirname(mat$img[irow]), "prob_maps")  
   pdf(file.path(outdir, paste0(fname, ".pdf")))
   plot(rperfs[[1]])
   for (imod in seq_along(rperfs)){
@@ -147,30 +155,33 @@ if (is.na(irow)) irow <- 1
         round(aucs[2, "0.1"], 3)), 
       col="blue") 
     vars <- attr(mods[[imod]]$terms, "term.labels")  
-    text(1, seq(.8, 0.2, length=length(vars)), vars)
+    text(.8, seq(.8, 0.2, length=length(vars)), vars)
   }
   dev.off()
   
-  ### save results to rda  - clear data to free up space
-  # mod$data <- NULL
-  pimg <- img1
-  pimg@.Data[!mask] <- 0
-  all.pred <- predict(mod, newdata=df, type="response")
-  #all.pred <- array(all.pred, dim=dim(pimg@.Data))
-  pimg@.Data[mask] <- all.pred
-  # pimg@.Data <- all.pred
   rda <- paste0(mat$img[irow], "_Models.rda")
   save(list = c("mods", 
             "samp", 
             "perc"),
             file=rda)
-  
+
+  ### save results to rda  - clear data to free up space
+  # mod$data <- NULL
+  all.pred <- pred.prob(mod, test=df)
+  pimg <- img1
+  pimg@.Data[!mask] <- 0
+  #all.pred <- array(all.pred, dim=dim(pimg@.Data))
+  pimg@.Data[mask] <- all.pred
+  # pimg@.Data <- all.pred
+
   ### make a probability map (datatype=16 means float)
   pfname <- file.path(outdir, fname)
   rimg <- range(pimg)
   pimg@cal_max <- rimg[2]
   pimg@cal_min <- rimg[1]
   pimg@scl_inter <- 0
+  pimg@datatype <- 16
+  pimg@bitpix <- 32
 #   pimg@data_type <- "double"
   # pimg2 <- nifti(pimg, datatype=16)
   # pimg2@vox_offset

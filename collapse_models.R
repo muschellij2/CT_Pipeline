@@ -24,13 +24,23 @@ source(file.path(progdir, "pred.prob.R"))
 
 files <- list.files(path=basedir, pattern="*.nii.gz", full.names=TRUE)
 stubs <- gsub(".nii.gz", "", files, fixed=TRUE)
-mat <- matrix(stubs, ncol=2, byrow=TRUE)
+stubs <- stubs[!grepl("Zero", stubs)]
+stubs <- stubs[grepl("ROI", stubs)]
+mat <- matrix(stubs, ncol=1, byrow=FALSE)
 mat <- data.frame(mat, stringsAsFactors=FALSE)
 
+mat[, 2] <- gsub("_ROI", "", mat[,1])
 ### make sure the data only has images and ROIS
-colnames(mat) <- c("img", "roi")
+colnames(mat) <- c("roi", "img")
+mat <- mat[, c("img", "roi")]
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
+
+mat$ss.img <- paste0(mat$img, "_SS_First_Pass_Mask_0.1")
+mat$ss.img <- file.path(dirname(mat$ss.img), 
+  "Skull_Stripped", 
+  basename(mat$ss.img))
+
 
 ## all combinations
 nfiles <- nrow(mat)

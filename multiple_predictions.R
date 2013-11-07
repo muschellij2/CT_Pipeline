@@ -8,80 +8,72 @@
 
 rm(list=ls())
 library(data.table)
+library(ROCR)
+# library(pROC)
 basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
 progdir <- file.path(dirname(basedir), "programs")
-source(file.path(progdir, "Zscore.R"))
-source(file.path(progdir, "List_Moment_Generator.R"))
+# source(file.path(progdir, "Zscore.R"))
+# source(file.path(progdir, "List_Moment_Generator.R"))
 source(file.path(progdir, "pred.prob.R"))
 
-files <- list.files(path=basedir, pattern="*.nii.gz", full.names=TRUE)
-stubs <- gsub(".nii.gz", "", files, fixed=TRUE)
-mat <- matrix(stubs, ncol=2, byrow=TRUE)
-mat <- data.frame(mat, stringsAsFactors=FALSE)
-
-### make sure the data only has images and ROIS
-colnames(mat) <- c("img", "roi")
-test <- gsub("_ROI", "", mat$roi)
-stopifnot(all(test == mat$img))
-
-mat$ss.img <- paste0(mat$img, "_SS_No1024_Mask_0.1")
-mat$ss.img <- file.path(dirname(mat$ss.img), 
-  "Skull_Stripped", 
-  basename(mat$ss.img))
-
-### test to see if all files exist
-imgs <- unlist(mat)
-imgs <- paste0(imgs, ".nii.gz")
-stopifnot(all(file.exists(imgs)))
-
-
-## all combinations
-nfiles <- nrow(mat)
-combos <- combn(nrow(mat), floor(nrow(mat)/2))
-subset <- sample(1:ncol(combos), 1)
-ind <- 1:nfiles
-
-rda <- file.path(basedir, "Collaped_Data.rda")
-load(file=rda)
-
-rda <- file.path(basedir, "Collaped_Model.rda")
-load(file=rda)
-
-# test.ind <- !train.ind
+# # test.ind <- !train.ind
 
 # train <- df[samp,]
-test <- df[ !(1:nrow(df) %in% samp), ]
 
-seed <- 20131105
-set.seed(seed)
-## create valid/train data set
-train.indices <- which(train.ind)
-ntrain <- length(train.indices)
-valid.ind <- sample(train.indices, floor(ntrain/2))
+rda <- file.path(basedir, "First_Train_Data.rda")
+load(file=rda)
 
-valid.fnames <- mat$img[valid.ind]
-valid.ind <- which( train$fname %in% valid.fnames )
 
-valid <- train[ valid.ind, ]
-train <- train[ -valid.ind, ]
+# test <- df[ !(1:nrow(df) %in% samp), ]
 
-train <- as.data.frame(train)
-valid <- as.data.frame(valid)
-
-### get all combos of variables
-cols <- colnames(train)[!colnames(train) %in% c("y", "fname")]
-ncols <- length(cols)
-scen <- lapply(1:ncols, function(x) c(FALSE, TRUE))
-scenarios <- expand.grid(scen)
 # irow <- grep("102323", mat$img)
-iscen <- 1
+iscen <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+
+if (is.na(iscen)) iscen <- 1
 
 nscen <- nrow(scenarios)
-mods <- vector(length=nscen, mode="list")
+mods <- matrix(0, ncol=length(cols)+1, nrow=nscen)
+colnames(mods) <- c("(Intercept)", cols)
+
 for (iscen in 1:nscen){
+# system.time({
 	rda <- file.path(basedir, "Models", paste0("Model", iscen, ".rda"))
 	load(file=rda)
-	mods[[iscen]] <- mod
-	preds <- pred.prob(mod=mod, test=test)
+	# coef(mod)
+
+	var.classes <- get.stuff(mod)
+
+
+	### checking to see if we used factors or not in the model
+	stopifnot(all(var.classes %in% c('numeric', 'logical')))
+	coefs <- coef(mod)
+	have.log <- var.classes %in% "logical"
+	if (any(have.log)){
+	vars <- names(var.classes)[have.log]
+	for (ivar in vars){
+	  names(coefs) <- gsub(paste0(ivar, "TRUE"), ivar, names(coefs))
+	}
+	}
+
+	mods[iscen, names(coefs)] <- coefs
+	print(iscen)
 }
+
+
+	rda <- file.path(basedir, "Models", paste0("Aggregate_Model.rda"))
+	save(list="mods", file=rda)
+	# mods[[iscen]] <- mod
+# })
+
+
+# 	system.time(preds <- pred.prob(mod=mod, test=valid))
+# 	# system.time(p2 <- predict(mod, newdata=valid))
+# 	rpreds <- prediction(preds, valid$y)
+# 	perf <- performance(rpreds, "auc")
+# 	auc <- as.numeric(perf@y.values)
+# 	print(iscen)
+# # }
+# 	rda <- file.path(basedir, "Models", paste0("AUC", iscen, ".rda"))
+# 	save(list = c("auc", "preds"), file=rda)
+# 	

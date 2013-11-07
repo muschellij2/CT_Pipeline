@@ -28,16 +28,20 @@ pred.prob <- function(model, test){
 
   ### getting predictions - prob slower than matrix multiplication
   ### but more control
-  if ("data.table" %in% class(tt)){
-      expr <- paste0(coefs, "*", names(coefs), collapse="+" )
-      expr <- parse(text=expr)
-      tt <- tt[, eval(expr)]
+  if (length(coefs) > 0){
+    if ("data.table" %in% class(tt)){
+        expr <- paste0(coefs, "*", names(coefs), collapse="+" )
+        expr <- parse(text=expr)
+        tt <- tt[, eval(expr)]
+    } else {
+        for (icoef in names(coefs)){
+          tt[, icoef] <- coefs[names(coefs) == icoef] * tt[, icoef, drop=FALSE]
+          print(icoef)
+        }
+        tt<- rowSums(tt[, names(coefs), drop=FALSE])
+    }
   } else {
-      for (icoef in names(coefs)){
-        tt[, icoef] <- coefs[names(coefs) == icoef] * tt[, icoef]
-        print(icoef)
-      }
-      tt<- rowSums(tt)
+    tt <- rep(0, nrow(tt))
   }
   pred <- tt + intercept
   pred <- exp(pred)/(1+exp(pred))

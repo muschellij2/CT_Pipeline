@@ -14,6 +14,9 @@ dirs <- list.dirs(basedir, recursive=FALSE, full.names=FALSE)
 ptpat <- "\\d\\d\\d-(\\d|)\\d\\d\\d"
 ids <- grep(paste0(ptpat, "$"), dirs, value=TRUE)
 
+# Sys.setenv("EXIT_CODE"="100")
+# Sys.setenv("EXIT_STATUS"="100")
+
 
 get.tilt <- function(hdr){
   tilt <- as.numeric(hdr$value[ hdr$name %in% "GantryDetectorTilt"])
@@ -24,17 +27,20 @@ get.slice <- function(hdr){
   tilt <- as.numeric(hdr$value[ hdr$name %in% "SliceThickness"])
 }
 
-iid <- 1
+iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-iid <- which(grepl("101-308", ids))
+if (!is.na(iid)) ids <- ids[iid]
 
-# for (iid in 1:length(ids)){
+iid <-1
+# iid <- which(grepl("101-308", ids))
+
+for (iid in 1:length(ids)){
 	# testdir <- file.path(basedir, "100-362")
 	testdir <- ids[iid]
 
 	setwd(testdir)
 	dirs <- list.dirs(path=testdir, recursive=FALSE)
-	idir <- 1
+	idir <- 2
 
 
 	for (idir in 1:2) {
@@ -57,6 +63,12 @@ iid <- which(grepl("101-308", ids))
 		# hdr <- dcm$hdr[[1]]
 
 		nim <- dicom2nifti(dcm, rescale=TRUE, reslice=FALSE)
+		if (idir == 2){
+			nim <- nim + nim@scl_inter
+			nim@cal_max <- nim@cal_max + nim@scl_inter
+			nim@cal_min <- nim@cal_min + nim@scl_inter
+			nim@scl_inter <- 0
+		}	
 		writeNIfTI(nim, file.path(basedir, folname) )
 
 		### Create Slice Thickness Image
@@ -77,4 +89,7 @@ iid <- which(grepl("101-308", ids))
 		}
 	}
 
-# }
+}
+
+Sys.setenv("exit_code"="0")
+# Sys.setenv("exit_code"="0")

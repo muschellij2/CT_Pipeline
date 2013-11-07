@@ -1,5 +1,7 @@
+
 fslsmooth <- function(file, mask=NULL, outfile=NULL, 
 	sigma=10, intern=TRUE, local=FALSE){
+	
 	cmd <- NULL
 	if (local) cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
 			"export FSLDIR FSLOUTPUTTYPE; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
@@ -11,8 +13,22 @@ fslsmooth <- function(file, mask=NULL, outfile=NULL,
 		outfile <- gsub("\\.nii$", "", outfile)
 		outfile <- sprintf("%s_%s", outfile, sigma)
 	}
-	cmd <- paste(cmd, sprintf(' -s %s "%s"', sigma, outfile))
+	cmd <- paste(cmd, sprintf(' -s %s "%s";', sigma, outfile))
+
+	### tempfile for mask.stub
+	mask.stub <- basename(mask)
+	mask.stub <- gsub("\\.gz$", "", mask.stub)
+	mask.stub <- gsub("\\.nii$", "", mask.stub)
+	mask.stub <- file.path(dirname(mask), mask.stub)
+	mask.blur <- sprintf("%s_%s", mask.stub, sigma)
+ 	cmd <- paste(cmd, sprintf('fslmaths "%s" -s %s "%s";', 
+ 		mask, sigma, mask.blur))
+ 	cmd <- paste(cmd, sprintf('fslmaths "%s" -div "%s" -mas "%s" "%s";', 
+ 		outfile, mask.blur, mask, outfile))
+
+# fslmaths  'FLAIRnorm_blur1_10.nii.gz' -div 'csfmask_blur1_10.nii.gz'   -mas 'csfmask.nii.gz'  'FLAIR_blur1_10_div.nii.gz'
 	system(cmd, intern=intern)
+	system(sprintf('rm "%s"', mask.blur))
 }
 
 fslhd <- function(file, intern=TRUE){
