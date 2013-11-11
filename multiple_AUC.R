@@ -14,14 +14,21 @@ library(caTools)
 basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
 progdir <- file.path(dirname(basedir), "programs")
-source(file.path(progdir, "pred.prob.R"))
-
+# source(file.path(progdir, "pred.prob.R"))
+# source(file.path(progdir, "myperf.R"))
 
 rda <- file.path(basedir, "First_Train_Data.rda")
 load(file=rda)
+rm(list="train")
 
 rda <- file.path(basedir, "Models", paste0("Aggregate_Model.rda"))
 load(file=rda)
+
+xmod.mat <- mod.mat
+mods <- mod.mat
+cn <- colnames(mods)
+cn <- cn[ !(cn %in% "converged")]
+mods <- mods[,cn]
 
 nscen <- nrow(scenarios)
 auc <- rep(NA, length=nscen)
@@ -36,50 +43,57 @@ folds <- folds[1:nscen]
 # 	nrow=nscen)
 # colnames(mods) <- c("(Intercept)", cols)
 
+cn <- colnames(mods)
+cn <- cn[ !(cn %in% "converged")]
 v <- as.data.frame(valid)
 v$"(Intercept)" <- 1
-v <- v[, colnames(mods)]
+v <- v[, cn]
 v <- as.matrix(v)
 
 ### 
 mods <- t(mods)
-y <- valid$y
+yy <- y <- valid$y
 
-y1 <- y == 1
-y0 <- !y1
+rm(list=c("valid", "scenarios"))
+
+
 
 ifold <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(ifold)) ifold <- 1
+if (is.na(ifold)) ifold <- 2
 
 # for (ifold in unique(folds)){
 	mod.ind <- folds == ifold
 	mod.mat <- mods[, mod.ind]
-	preds <- v %*% mod.mat
+	conv <- xmod.mat[mod.ind, "converged"]
+	# mod.mat <- mod.mat[, 1:10]
+	system.time(preds <- v %*% mod.mat)
+
+	rm(list=c("v", "mod.mat", "mods"))
 
 
-	# system.time({
-	# 	i <- 1	
-	# 	auc <- apply(preds, 2, function(pred) {
-	# 		print(i)
-	# 		i <<- i + 1
-	# 		colAUC(pred, y, alg="ROC")
-	# 	})	
-	# })
-
+	# y <- list(y)
 	fpr.stop <- .1
+	auc <- matrix(nrow=ncol(preds), ncol=2)
+
 	system.time({
-		i <- 1	
-		auc <- apply(preds, 2, function(pred) {
-			print(i)
-			i <<- i + 1			
-			rpred <- prediction(pred, y)
-			rperf <- performance(rpred, "auc", fpr.stop=fpr.stop)
-			pauc <- as.numeric(rperf@y.values)/fpr.stop
-			rperf <- performance(rpred, "auc")
-			full.auc <- as.numeric(rperf@y.values)
-			c(full.auc, pauc)
-		})	
+		# i <- 1	
+		# auc <- apply(preds, 2, function(pred) {
+		for (icol in 1:ncol(preds)){
+			# print(i)
+			# i <<- i + 1		
+			if (conv[icol] == 1){
+				pred <- preds[, icol]
+				rpred <- prediction(pred, y)
+				rperf <- performance(rpred, "auc", fpr.stop=fpr.stop)
+				pauc <- as.numeric(rperf@y.values)/fpr.stop
+				rperf <- performance(rpred, "auc")
+				full.auc <- as.numeric(rperf@y.values)
+				auc[icol,] <- c(full.auc, pauc)
+			} 
+			print(icol)
+		}
+		# })
 	})
 
 
@@ -90,6 +104,3 @@ rda <- file.path(basedir, "Models", paste0("AUC_Fold_", ifold, ".rda"))
 save(list=c("auc", "folds", "ifold"), file=rda)
 
 
-	
-	# print(iscen)
-# # }

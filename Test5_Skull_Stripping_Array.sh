@@ -30,7 +30,9 @@ done;
 echo ${array[0]}
 
 ind=`expr $SGE_TASK_ID - 1`
+echo "ind is $ind"
 f=${array[$ind]}			
+echo "f is $f"
 sh "${progdir}/Brain_Seg_Function.sh" -i "$f" -o "$refdir/Skull_Stripped" -f 0.1
 
 

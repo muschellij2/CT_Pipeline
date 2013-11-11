@@ -42,6 +42,7 @@ mat$ss.img <- file.path(dirname(mat$ss.img),
   basename(mat$ss.img))
 
 
+set.seed(20131106)
 ## all combinations
 nfiles <- nrow(mat)
 combos <- combn(nrow(mat), floor(nrow(mat)/2))
@@ -50,9 +51,17 @@ ind <- 1:nfiles
 train.ind <- ind %in% combos[, subset]
 test.ind <- !train.ind
 
-  rda <- paste0(mat$img[1], "_Models.rda")
+all.mods <- list()
+for (irow in 1:nrow(mat)){
+  rda <- paste0(mat$img[irow], "_Models.rda")
   load(file=rda)
-  run.mods <- mods
+  all.mods <- c(all.mods, mods)
+  print(irow)
+}
+formulas <- sapply(all.mods, formula)
+uforms <- unique(formulas)
+
+# run.mods <- mods
 
 rda <- file.path(basedir, "Collaped_Data.rda")
 load(file=rda)
@@ -71,8 +80,9 @@ load(file=rda)
   test <- df[ !(1:nrow(df) %in% samp), ]
 
 
-  col.mods <- lapply(run.mods, function(mod){
-    cmod <- glm(formula=mod$formula, data=train, family=binomial)
+  col.mods <- lapply(uforms, function(form){
+    print("model running")
+    cmod <- glm(formula=form, data=train, family=binomial)
     cmod <- scrape.mod(cmod)
     cmod
     })

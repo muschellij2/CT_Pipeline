@@ -76,6 +76,8 @@ stopifnot(all(file.exists(check)))
       xlab("Value") + ylab("Density") + 
       ggtitle(paste0("Distribution of values for Hemorrhage\n", fname)) 
     g2 <- g + geom_line(stat="density")
+    print(g)
+    print(g2)
   dev.off()
   # system.time(zs <- zscore2(img1))
   system.time(izax <- zscore(img1))

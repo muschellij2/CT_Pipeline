@@ -7,7 +7,8 @@ get.stuff <- function(mod){
 pred.prob <- function(model, test){
 
   var.classes <- get.stuff(model)
-
+  coefs <- model$coef
+  names(coefs) <- model$vars
 
   ### checking to see if we used factors or not in the model
   stopifnot(all(var.classes %in% c('numeric', 'logical')))
@@ -48,7 +49,37 @@ pred.prob <- function(model, test){
   return(pred)
 }
 
-scrape.mod <- function(x) {
+### just get the coefficients (without the factor crap)
+scrape.mod <- function(x){
+
+  var.used <- attr(x$terms, "term.labels")
+  add.int <- "(Intercept)" %in% x$names
+  if (add.int) var.used <- c("(Intercept)", var.used)
+
+  cn <- x$names
+  if (!x$converged) {
+    coefs <- rep(NA, length(cn))
+  } else {
+    coefs <- coef(mod)
+  }
+  names(coefs) <- var.used
+
+  l <- list(coefficients=coefs, null.deviance=NA, deviance=NA, aic=NA, 
+    converged=x$converged)
+  return(l)
+}
+
+scrape.mod.glm <- function(x){
+  cn <- names(x)
+  cn <- cn[! cn %in% c("coefficients", 
+    "null.deviance", 
+    "deviance",
+    "aic")]
+  for (icn in cn) x[icn] <- NULL
+  x
+}
+
+scrape.mod.sub <- function(x) {
     x$data <- NULL
     x$residuals <- NULL
     x$fitted.values <- NULL
@@ -58,5 +89,6 @@ scrape.mod <- function(x) {
     x$weights <- NULL
     x$effects <- NULL
     x$qr <- NULL
+    x$y <- NULL
     x
   }

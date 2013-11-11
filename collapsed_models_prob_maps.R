@@ -32,11 +32,15 @@ get.volume <- function(img, thick.img){
 
 files <- list.files(path=basedir, pattern="*.nii.gz", full.names=TRUE)
 stubs <- gsub(".nii.gz", "", files, fixed=TRUE)
-mat <- matrix(stubs, ncol=2, byrow=TRUE)
+stubs <- stubs[!grepl("Zero", stubs)]
+stubs <- stubs[grepl("ROI", stubs)]
+mat <- matrix(stubs, ncol=1, byrow=FALSE)
 mat <- data.frame(mat, stringsAsFactors=FALSE)
 
+mat[, 2] <- gsub("_ROI", "", mat[,1])
 ### make sure the data only has images and ROIS
-colnames(mat) <- c("img", "roi")
+colnames(mat) <- c("roi", "img")
+mat <- mat[, c("img", "roi")]
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
 
@@ -146,6 +150,8 @@ for (irow in 1:nimgs){
 	  pimg@cal_max <- rimg[2]
 	  pimg@cal_min <- rimg[1]
 	  pimg@scl_inter <- 0
+  	  pimg@datatype <- 16
+  	  pimg@bitpix <- 32	  
 	#   pimg@data_type <- "double"
 	  # pimg2 <- nifti(pimg, datatype=16)
 	  # pimg2@vox_offset

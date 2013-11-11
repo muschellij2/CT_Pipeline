@@ -78,7 +78,7 @@ stopifnot(all(file.exists(check)))
     izax + izcor + izsag + 
     mean + sd + skew +
     over40 +
-    smooth1 + smooth3 + smooth5 + smooth10,
+    smooth1 + smooth3 + smooth5 + smooth10 + smooth20,
     data=train, family=binomial)
   summary(mod)
 

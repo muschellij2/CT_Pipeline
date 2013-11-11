@@ -13,10 +13,11 @@ function usage {
   echo "          -o Output directory"
   echo "          -f Fraction used in Skull stripping"
   echo "          -h This page"
+  echo "          -g Create the ss images from filled masks (will range outside (0, 100)"  
 #  echo "          NEED TO ADD opts for which to do"
 }
-
-while getopts "hi:o:f:" flag
+fill='';
+while getopts "hi:o:f:g:" flag
 do
   case "$flag" in
     i)
@@ -27,6 +28,9 @@ do
       ;;
     f)
       intensity=$OPTARG
+      ;;      
+    g)
+      fill="fill";
       ;;      
     h|?)
       usage
@@ -77,6 +81,11 @@ fi
       rawmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_No1024_Mask_"'${intensity}'"\.nii\.gz"); print }'`
       fslmaths "${OUTDIR}/${raw}" -bin "${OUTDIR}/${rawmask}"
       fslmaths "$OUTDIR/${rawmask}" -fillh "$OUTDIR/${rawmask}"            
+# filled image    
+    if [[ ! -z "${fill}" ]]; then
+        echo "Filling Image from filled mask"
+        fslmaths "${OUTDIR}/${raw}" -mas "$OUTDIR/${rawmask}" "${OUTDIR}/${raw}"
+    fi
 
       minmax=`fslstats $file -R`
       min=`echo "$minmax" | cut -d ' ' -f 1`
@@ -106,6 +115,11 @@ fi
       fpmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_First_Pass_Mask_"'${intensity}'"\.nii\.gz"); print }'`
       fslmaths "${OUTDIR}/${h}" -bin "${OUTDIR}/${fpmask}"
       fslmaths "$OUTDIR/${fpmask}" -fillh "$OUTDIR/${fpmask}"
+# filled image
+    if [[ ! -z "${fill}" ]]; then
+        echo "Filling Image from filled mask"
+        fslmaths "$OUTDIR/${h}" -mas "$OUTDIR/${fpmask}" "$OUTDIR/${h}" 
+    fi
 
       ## fslmaths "$OUTDIR/$h" -thr 1024 -bin "$OUTDIR/$h"
       

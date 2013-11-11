@@ -55,7 +55,6 @@ x2 <- load(file=rda)
 
 test.ind <- !train.ind
 
-  train <- df[samp,]
   test <- df[ !(1:nrow(df) %in% samp), ]
 
   #test$pred <- predict(mod, newdata=test, type="response")
@@ -67,6 +66,7 @@ test.ind <- !train.ind
   system.time(preds <- sapply(mods, pred.prob, test=test ))
   nmods <- ncol(preds)
   cn <- colnames(preds) <- paste0("mod", 1:nmods)
+  preds <- data.table(preds)
   test <- cbind(test, preds)
   preds <- NULL
 
@@ -139,6 +139,10 @@ test.ind <- !train.ind
     dev.off()
   }      
 
+  rm(list="test")
+
+  train <- df[samp,]
+  
 ## Training data
 
   system.time(preds <- sapply(mods, pred.prob, test=train ))

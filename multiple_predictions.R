@@ -8,7 +8,6 @@
 
 rm(list=ls())
 library(data.table)
-library(ROCR)
 # library(pROC)
 basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
@@ -27,53 +26,46 @@ load(file=rda)
 
 # test <- df[ !(1:nrow(df) %in% samp), ]
 
-# irow <- grep("102323", mat$img)
-iscen <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+# ifold <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iscen)) iscen <- 1
+# if (is.na(ifold)) ifold <- 1
 
 nscen <- nrow(scenarios)
-mods <- matrix(0, ncol=length(cols)+1, nrow=nscen)
-colnames(mods) <- c("(Intercept)", cols)
+### number of folds is number of cores
+nfolds <- 75
+folds <-c(sapply(1:nfolds, rep, length=ceiling(nscen/nfolds)))
+folds <- folds[1:nscen]
 
-for (iscen in 1:nscen){
-# system.time({
-	rda <- file.path(basedir, "Models", paste0("Model", iscen, ".rda"))
+train <- as.data.frame(train)
+
+
+ifold <- 1
+mod.mat <- matrix(0, ncol=length(cols)+2, nrow=nscen)
+colnames(mod.mat) <- c("(Intercept)", cols, "converged")
+
+################################################################
+####### Loop over folds - extract coefficients #################
+######## and put into a matrix and then save   #################
+################################################################
+
+for (ifold in 1:nfolds){
+	rda <- file.path(basedir, "Models", 
+		paste0("Model_Fold_", ifold, ".rda"))
 	load(file=rda)
 	# coef(mod)
 
-	var.classes <- get.stuff(mod)
-
-
-	### checking to see if we used factors or not in the model
-	stopifnot(all(var.classes %in% c('numeric', 'logical')))
-	coefs <- coef(mod)
-	have.log <- var.classes %in% "logical"
-	if (any(have.log)){
-	vars <- names(var.classes)[have.log]
-	for (ivar in vars){
-	  names(coefs) <- gsub(paste0(ivar, "TRUE"), ivar, names(coefs))
+	scen.ind <- which(folds == ifold)
+	for (iscen in scen.ind){
+		coefs <- mods[[iscen]]$coefficients
+		mod.mat[iscen, names(coefs)] <- coefs
+		mod.mat[iscen, "converged"] <- mods[[iscen]]$converged
+		# print(iscen)
 	}
-	}
-
-	mods[iscen, names(coefs)] <- coefs
-	print(iscen)
+	print(ifold)
 }
 
 
-	rda <- file.path(basedir, "Models", paste0("Aggregate_Model.rda"))
-	save(list="mods", file=rda)
-	# mods[[iscen]] <- mod
-# })
+rda <- file.path(basedir, "Models", paste0("Aggregate_Model.rda"))
+save(list="mod.mat", file=rda)
 
 
-# 	system.time(preds <- pred.prob(mod=mod, test=valid))
-# 	# system.time(p2 <- predict(mod, newdata=valid))
-# 	rpreds <- prediction(preds, valid$y)
-# 	perf <- performance(rpreds, "auc")
-# 	auc <- as.numeric(perf@y.values)
-# 	print(iscen)
-# # }
-# 	rda <- file.path(basedir, "Models", paste0("AUC", iscen, ".rda"))
-# 	save(list = c("auc", "preds"), file=rda)
-# 	

@@ -28,7 +28,7 @@ fslsmooth <- function(file, mask=NULL, outfile=NULL,
 
 # fslmaths  'FLAIRnorm_blur1_10.nii.gz' -div 'csfmask_blur1_10.nii.gz'   -mas 'csfmask.nii.gz'  'FLAIR_blur1_10_div.nii.gz'
 	system(cmd, intern=intern)
-	system(sprintf('rm "%s"', mask.blur))
+	file.remove(paste0(mask.blur, ".nii.gz"))
 }
 
 fslhd <- function(file, intern=TRUE){
