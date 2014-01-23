@@ -44,7 +44,6 @@ mat$ss.img <- file.path(dirname(mat$ss.img),
 ## all combinations
 nfiles <- nrow(mat)
 combos <- combn(nrow(mat), floor(nrow(mat)/2))
-subset <- sample(1:ncol(combos), 1)
 ind <- 1:nfiles
 
 rda <- file.path(basedir, "Collaped_Data.rda")

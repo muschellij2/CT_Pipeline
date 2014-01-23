@@ -14,6 +14,9 @@ library(car)
 library(ROCR)
 library(ggplot2)
 library(data.table)
+library(biglm)
+library(randomForest)
+library(rpart)
 basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
 progdir <- file.path(dirname(basedir), "programs")
@@ -35,14 +38,16 @@ colnames(mat) <- c("roi", "img")
 mat <- mat[, c("img", "roi")]
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
+test <- NULL
 
 mat$ss.img <- paste0(mat$img, "_SS_First_Pass_Mask_0.1")
 mat$ss.img <- file.path(dirname(mat$ss.img), 
   "Skull_Stripped", 
   basename(mat$ss.img))
 
-set.seed(20131113)
-## all combinations
+
+# ## all combinations
+set.seed(20131106)
 nfiles <- nrow(mat)
 combos <- combn(nrow(mat), floor(nrow(mat)/2))
 subset <- sample(1:ncol(combos), 1)
@@ -50,30 +55,64 @@ ind <- 1:nfiles
 train.ind <- ind %in% combos[, subset]
 test.ind <- !train.ind
 
-irow <- 1
-rda <- paste0(mat$img[irow], "_Data.rda")
-load(file=rda)
-df$fname <- mat$img[irow]
-# all.df <- df
-all.df <- vector(mode="list", length=nfiles)
-all.df[[1]] <- df
-rm(list="df")
-gc()
-for (irow in 2:nfiles){
-  rda <- paste0(mat$img[irow], "_Data.rda")
-  load(file=rda) 
-  df$fname <- mat$img[irow]
-  # all.df <- rbind(all.df, df)
-  all.df[[irow]] <- df
-  rm(list="df")
-  for (i in 1:10) gc()
-  print(irow) 
+all.mods <- list()
+for (irow in 1:nrow(mat)){
+  rda <- paste0(mat$img[irow], "_Models.rda")
+  load(file=rda)
+  all.mods <- c(all.mods, mods)
+  print(irow)
 }
+formulas <- sapply(all.mods, formula)
+uforms <- unique(formulas)
 
-all.df <- rbindlist(all.df)
-
-df <- all.df
+# run.mods <- mods
 
 rda <- file.path(basedir, "Collaped_Data.rda")
-save(list = c("df"), file=rda)
+load(file=rda)
 
+  perc <- 0.01
+  indices <- 1:nrow(df)
+  dropscan <- mat$img[test.ind]
+
+  drop.ind <- which(df$fname %in% dropscan )
+  indices <- indices[ -drop.ind ]
+
+  N <- length(indices)
+  all.train <- df[indices,]
+  samp <- sample(indices, floor(N*perc), replace=FALSE)
+  
+  train <- df[samp,]
+  test <- df[ !(1:nrow(df) %in% samp), ]
+
+  rm(list="df")
+
+  train$y <- factor(train$y)
+
+  rp <- rpart(formula=uforms[[1]], data=train)
+
+
+  ntest <- nrow(test)
+  nfolds <- 5
+  folds <-c(sapply(1:nfolds, rep, length=ceiling(ntest/nfolds)))
+  folds <- folds[1:ntest]
+
+  # test$fold <- folds
+  test$fname <- NULL
+
+  test$pred <- NA
+  ifold <- 1
+  for (ifold in 1:nfolds){
+    print(ifold)
+    ind <- which(folds == ifold)
+    tt <- test[ ind,  ]
+    pred <- predict(rp, newdata=tt, type="class")
+    test$pred[ind] <- pred
+  }
+
+  tab <- table(test$y, test$pred)
+  print(prop.table(tab, 2))
+  print(prop.table(tab, 1))
+
+  rf <- randomForest(formula=uforms[[1]], data=train)
+  rda <- file.path(basedir, "Rpart_and_RF.rda")
+  save(rf, rp, file=rda)

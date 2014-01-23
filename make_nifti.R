@@ -61,7 +61,12 @@ for (iid in 1:length(ids)){
 
 		dcm <- readDICOM(path="./", recursive=FALSE)
 		# hdr <- dcm$hdr[[1]]
-
+    ### taking FOV out of the equatino
+		for (iimg in 1:length(dcm$img)){
+		  x = dcm$img[[iimg]]
+		  dcm$img[[iimg]][x < -1024] = -1024
+		}	
+    
 		nim <- dicom2nifti(dcm, rescale=TRUE, reslice=FALSE)
 		if (idir == 2){
 			nim <- nim + nim@scl_inter

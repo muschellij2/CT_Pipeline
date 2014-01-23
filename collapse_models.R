@@ -14,6 +14,7 @@ library(car)
 library(ROCR)
 library(ggplot2)
 library(data.table)
+library(biglm)
 basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
 if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
 progdir <- file.path(dirname(basedir), "programs")
@@ -35,6 +36,7 @@ colnames(mat) <- c("roi", "img")
 mat <- mat[, c("img", "roi")]
 test <- gsub("_ROI", "", mat$roi)
 stopifnot(all(test == mat$img))
+test <- NULL
 
 mat$ss.img <- paste0(mat$img, "_SS_First_Pass_Mask_0.1")
 mat$ss.img <- file.path(dirname(mat$ss.img), 
@@ -42,8 +44,8 @@ mat$ss.img <- file.path(dirname(mat$ss.img),
   basename(mat$ss.img))
 
 
+# ## all combinations
 set.seed(20131106)
-## all combinations
 nfiles <- nrow(mat)
 combos <- combn(nrow(mat), floor(nrow(mat)/2))
 subset <- sample(1:ncol(combos), 1)
@@ -74,15 +76,32 @@ load(file=rda)
   indices <- indices[ -drop.ind ]
 
   N <- length(indices)
+  all.train <- df[indices,]
   samp <- sample(indices, floor(N*perc), replace=FALSE)
   
   train <- df[samp,]
-  test <- df[ !(1:nrow(df) %in% samp), ]
+  # test <- df[ !(1:nrow(df) %in% samp), ]
 
+  cmod <- bigglm(formula=uforms[[1]], data=train, 
+    family=binomial(), sandwich=FALSE, maxit=25)
+  cmod.glm <- glm(formula=uforms[[1]], data=train, 
+    family=binomial())  
+  cmod.all <- bigglm(formula=uforms[[1]], data=all.train, 
+    family=binomial(), sandwich=FALSE, maxit=25, 
+    start=coef(cmod))
 
   col.mods <- lapply(uforms, function(form){
     print("model running")
-    cmod <- glm(formula=form, data=train, family=binomial)
+    cmod <- bigglm(formula=form, data=train, 
+      family=binomial(), sandwich=FALSE, maxit=25)    
+    cmod <- scrape.mod(cmod)
+    cmod
+    })
+
+  all.col.mods <- lapply(uforms, function(form){
+    print("model running")
+    cmod <- bigglm(formula=form, data=all.train, 
+      family=binomial(), sandwich=FALSE, maxit=25) 
     cmod <- scrape.mod(cmod)
     cmod
     })

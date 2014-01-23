@@ -8,7 +8,7 @@
 # rootdir="/Volumes/DATA_LOCAL/Image_Processing"
 rootdir="/dexter/disk2/smart/stroke_ct/ident"
 tempdir="${rootdir}/Template"
-basedir="${rootdir}/MISTIE"
+basedir="${rootdir}/ICES"
 progdir="${rootdir}/programs"
 tempfile="scct_unsmooth_skull_400_1000.nii.gz"
 tempimg="scct_unsmooth.nii.gz"
@@ -16,9 +16,9 @@ tempimg="${tempdir}/${tempimg}"
 template="${tempdir}/${tempfile}"
 
 cd "$basedir"
-id="100-318"
-for id in `find . -maxdepth 1 -mindepth 1 -type d -exec basename '{}' \;`; 
- do
+id="225-505"
+# for id in `find . -maxdepth 1 -mindepth 1 -type d -exec basename '{}' \;`; 
+ # do
 	refdir="$basedir/$id"
 	# refdir="$basedir"
 	cd "$refdir"
@@ -27,8 +27,8 @@ for id in `find . -maxdepth 1 -mindepth 1 -type d -exec basename '{}' \;`;
 		&& [ "$id" != "All_Images" ] && [ "$id" != "results" ]  
 	then
 
-		OUTDIR="$refdir/Registered" 
-		mkdir "$OUTDIR"
+	OUTDIR="$refdir/Registered" 
+	mkdir "$OUTDIR"
 
 		for file in *.nii.gz; 
 		do
@@ -58,6 +58,6 @@ for id in `find . -maxdepth 1 -mindepth 1 -type d -exec basename '{}' \;`;
 	fi;
 
 
-done;
+# done;
 
 

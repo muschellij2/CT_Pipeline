@@ -56,10 +56,10 @@ stopifnot(all(file.exists(imgs)))
 
 
 ## all combinations
-nfiles <- nrow(mat)
-combos <- combn(nrow(mat), floor(nrow(mat)/2))
-subset <- sample(1:ncol(combos), 1)
-ind <- 1:nfiles
+# nfiles <- nrow(mat)
+# combos <- combn(nrow(mat), floor(nrow(mat)/2))
+# subset <- sample(1:ncol(combos), 1)
+# ind <- 1:nfiles
 
 rda <- file.path(basedir, "Collaped_Data.rda")
 load(file=rda)

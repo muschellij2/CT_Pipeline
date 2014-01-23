@@ -1,0 +1,10 @@
+%-----------------------------------------------------------------------
+% Job configuration created by cfg_util (rev $Rev: 4252 $)
+%-----------------------------------------------------------------------
+matlabbatch{1}.spm.tools.MRI.CTnorm.images = '<UNDEFINED>';
+matlabbatch{1}.spm.tools.MRI.CTnorm.ctles = '';
+matlabbatch{1}.spm.tools.MRI.CTnorm.brainmaskct = 1;
+matlabbatch{1}.spm.tools.MRI.CTnorm.bb = [-78 -112 -50
+                                          78 76 85];
+matlabbatch{1}.spm.tools.MRI.CTnorm.vox = [1 1 1];
+matlabbatch{1}.spm.tools.MRI.CTnorm.DelIntermediate = 0;

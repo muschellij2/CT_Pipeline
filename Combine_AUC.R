@@ -40,7 +40,7 @@ for (imod in 1:nfolds){
 }
 
 ranks <- rank(-aucs[,2])
-models <- which(ranks <= 100)
+models <- which(ranks <= 1000)
 
 top.mods <- scenarios[models,]
 cn <- colnames(scenarios)

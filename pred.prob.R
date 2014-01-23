@@ -1,3 +1,5 @@
+
+
 get.stuff <- function(mod){
     var.used <- attr(mod$terms, "term.labels")
     var.classes <- attr(mod$terms, "dataClasses")
@@ -52,6 +54,9 @@ pred.prob <- function(model, test){
 ### just get the coefficients (without the factor crap)
 scrape.mod <- function(x){
 
+  if ("glm" %in% class(x)){
+    return(scrape.mod.glm(x))
+  }
   var.used <- attr(x$terms, "term.labels")
   add.int <- "(Intercept)" %in% x$names
   if (add.int) var.used <- c("(Intercept)", var.used)
@@ -74,7 +79,7 @@ scrape.mod.glm <- function(x){
   cn <- cn[! cn %in% c("coefficients", 
     "null.deviance", 
     "deviance",
-    "aic")]
+    "aic", "terms")]
   for (icn in cn) x[icn] <- NULL
   x
 }
