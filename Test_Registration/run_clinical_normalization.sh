@@ -1,5 +1,6 @@
 #!/bin/bash 
-matlab -nodesktop -nosplash -nodisplay -nojvm < run_clinical_normalization.m
+cd ~/
+matlab -nodesktop -nosplash -nodisplay -nojvm < $dex/programs/Test_Registration/run_clinical_normalization.m
 
 
 getdim(){
