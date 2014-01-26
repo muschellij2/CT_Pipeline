@@ -77,7 +77,7 @@ convert <- TRUE
 skullstrip <- FALSE
 regantry <- FALSE
 untgantry <- FALSE
-runall <- FALSE
+runall <- TRUE
 useR = TRUE
 
 ### initial setup
