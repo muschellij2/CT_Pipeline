@@ -113,12 +113,18 @@ extract.time = function(hdr, key){
 }
 
 miss.data = function(info){
-  is.na(info) | length(info) == 0 | info %in% ""  
+  if (is.null(info)) return(FALSE)
+  if (is.na(info)) return(FALSE)
+  if ( length(info) == 0 ) return(FALSE)
+  if ( info %in% "" ) return(FALSE)
+  return(TRUE)
 }
 
 name.file = function(hdr, id = NULL){
   # print(colnames(hdr))
   PID         = extract.from.hdr(hdr, '0010,0020)')
+  # print(PID)
+  # print(id)
   PID         = ifelse(miss.data(PID), id, PID)
 
   StudyDate   = extract.from.hdr(hdr, '(0008,0020)', numeric=TRUE)
@@ -176,8 +182,8 @@ Rdcmsort = function(basedir, sortdir, id = NULL, writeFile=TRUE){
 
     # hdr = hdrl[[length(dcms)]]
 
-    filenames = laply(hdrl, name.file, 
-      .progress="text", id = id)
+    filenames = laply(hdrl, name.file, id = id,
+      .progress="text")
     names(filenames)= NULL
 
     basenames = basename(dcms)
@@ -332,7 +338,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
   
   ## conversion
   if (useR) {
-    Rdcm2nii(basedir, sortdir, verbose=TRUE, ...)
+    ret = Rdcm2nii(basedir, sortdir, verbose=TRUE, ...)
   } else {
     dcm2nii(basedir, progdir, sortdir, verbose, ...)
   }
@@ -347,7 +353,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
   for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
   for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
 
-    return(TRUE)
+  return(TRUE)
 } ###end function
 
 
@@ -524,7 +530,7 @@ file_gc <- function(basedir, progdir, verbose=TRUE, ...){
   
   ### read headers and then the gantry tilt correction
   if (lpath >= 1){
-    if (verbose) cat("Converting to nii \n")
+    if (verbose) cat("Gantry Tilt Correction \n")
     
     for (ipath in 1:length(paths)){
       path <- paths[ipath]
@@ -606,49 +612,70 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   return(outdir)
 }
 
+dcm2nii_worker <- function(path, outfile="output", 
+  pixelSpacing = "0.45 0.45", addPixel = FALSE, ...){
+  
+  # the workhorse of the Rdcm2nii
+  dcm <- readDICOM(path=path, recursive=FALSE, verbose=verbose)
 
-dcm2nii_worker <- function(path, outfile="output", ...){
-        
-        dcm <- readDICOM(path=path, recursive=FALSE, verbose=verbose)
+  dcmtable = dicomTable(dcm$hdr)
+  keepcols = grepl("RescaleIntercept|RescaleSlope|PixelSpacing", 
+                   colnames(dcmtable))
+  dcmtab = dcmtable[, 
+    c("0028-1052-RescaleIntercept", 
+      "0028-1053-RescaleSlope", 
+      "0028-0030-PixelSpacing"),
+    drop=FALSE]
+  stopifnot(ncol(dcmtab) == 3)
+  colnames(dcmtab) = c("intercept", "slope", "pixelspacing")
+  print(dcmtab$pixelspacing)
 
-        dcmtable = dicomTable(dcm$hdr)
-        keepcols = grepl("RescaleIntercept|RescaleSlope", 
-                         colnames(dcmtable))
-        dcmtab = dcmtable[, 
-          c("0028-1052-RescaleIntercept", "0028-1053-RescaleSlope"),
-          drop=FALSE]
-        stopifnot(ncol(dcmtab) == 2)
-        colnames(dcmtab) = c("intercept", "slope")
-        
-        for (iimg in 1:length(dcm$img)){
-          inter = as.numeric(dcmtab$intercept[iimg])
-          slope = as.numeric(dcmtab$slope[iimg])
-          dcm$img[[iimg]] = (dcm$img[[iimg]] + inter)/slope
-          x = dcm$img[[iimg]]
-          # if (verbose) print(range(dcm$img[[iimg]]))
-          dcm$img[[iimg]][x < -1024] = -1024
-          dcm$img[[iimg]][x > 3000] = 3000
-        }
-        dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE)
-        dcmNifti@scl_slope = 1
-        dcmNifti@scl_inter = 0        
+  dcmtab$pixelspacing[ dcmtab$pixelspacing %in% "" ] = NA
+  if (all(is.na(dcmtab$pixelspacing))){
+    ## Adding in Pixel Spacing
+    if (addPixel){
+      if (verbose) cat("Changing PixelSpacing to 0.45")
+      for (iimg in seq_along(dcm$hdr)){
+        hd = dcm$hdr[[iimg]]
+        hd[ hd$name == "PixelSpacing", "value"] = pixelSpacing
+        dcm$hdr[[img]] = hd
+      }
+    } else { 
+      return(FALSE)
+    }
+  }
 
-#       vals <- t(sapply(dcm$hdr, function(x){
-#         int <- x[x[, "name"] == "RescaleIntercept", "value"]
-#         slope <- x[x[, "name"] == "RescaleSlope", "value"]
-#         return(c(int=int, slope=slope))
-#       }))
-#       class(vals) <- "numeric"
-#       vals <- data.frame(vals)
-#       uniq <- sapply(vals, function(x) length(unique(x)))
-#       stopifnot(all(uniq==1))
-#       vals <- apply(vals, 2, unique)
-#       dcmNifti@scl_slope <- vals["slope"]
-#       dcmNifti@scl_inter <- vals["int"]
-      dcmNifti@descrip <- paste0("written by R - ", dcmNifti@descrip)
-      outfile <- gsub("\\.gz$", "", outfile)
-      outfile <- gsub("\\.nii$", "", outfile)
-      writeNIfTI(nim=dcmNifti, file=file.path(path, outfile))
+  for (iimg in 1:length(dcm$img)){
+    inter = as.numeric(dcmtab$intercept[iimg])
+    slope = as.numeric(dcmtab$slope[iimg])
+    dcm$img[[iimg]] = (dcm$img[[iimg]] + inter)/slope
+    x = dcm$img[[iimg]]
+    # if (verbose) print(range(dcm$img[[iimg]]))
+    dcm$img[[iimg]][x < -1024] = -1024
+    dcm$img[[iimg]][x > 3000] = 3000
+  }
+  dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE)
+  dcmNifti@scl_slope = 1
+  dcmNifti@scl_inter = 0        
+
+  #       vals <- t(sapply(dcm$hdr, function(x){
+  #         int <- x[x[, "name"] == "RescaleIntercept", "value"]
+  #         slope <- x[x[, "name"] == "RescaleSlope", "value"]
+  #         return(c(int=int, slope=slope))
+  #       }))
+  #       class(vals) <- "numeric"
+  #       vals <- data.frame(vals)
+  #       uniq <- sapply(vals, function(x) length(unique(x)))
+  #       stopifnot(all(uniq==1))
+  #       vals <- apply(vals, 2, unique)
+  #       dcmNifti@scl_slope <- vals["slope"]
+  #       dcmNifti@scl_inter <- vals["int"]
+  dcmNifti@descrip <- paste0("written by R - ", dcmNifti@descrip)
+  outfile <- gsub("\\.gz$", "", outfile)
+  outfile <- gsub("\\.nii$", "", outfile)
+  writeNIfTI(nim=dcmNifti, file=file.path(path, outfile))
+  return(TRUE)
+
 }
 
 
@@ -666,7 +693,7 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
   if (lpath >= 1){
     if (verbose) cat("Converting to nii using R \n")
     
-    for (ipath in 1:length(paths)){
+    for (ipath in 1:lpath){
       path <- paths[ipath]
       res <- system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
       

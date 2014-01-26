@@ -77,12 +77,16 @@ convert <- TRUE
 skullstrip <- FALSE
 regantry <- FALSE
 untgantry <- FALSE
-runall <- TRUE
+runall <- FALSE
 useR = TRUE
 
 ### initial setup
 # iid <- length(ids)
-iid <- 1
+
+iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+
+if (is.na(iid)) iid <- 11
+
 id <- ids[iid]
 setup(id)
 
@@ -92,19 +96,26 @@ for (ifile in seq_along(zeroed)) {
   system(sprintf('rm "%s"', zeroed[ifile]))
 }
 
-# zeroed <- dir(path=homedir, pattern= ":.*.gz", recursive=TRUE, full.names=TRUE)
-# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', zeroed[ifile]))
+# zeroed <- dir(path=homedir, pattern= ":.*.gz", 
+# recursive=TRUE, full.names=TRUE)
+# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', 
+# zeroed[ifile]))
 
-# zeroed <- dir(path=homedir, pattern= ":.*.txt", recursive=TRUE, full.names=TRUE)
-# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', zeroed[ifile]))
+# zeroed <- dir(path=homedir, pattern= ":.*.txt", recursive=TRUE, 
+# full.names=TRUE)
+# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', 
+# zeroed[ifile]))
 
-# zeroed <- dir(path=homedir, pattern= "'.*.tar.gz", recursive=TRUE, full.names=TRUE)
-# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', zeroed[ifile]))
+# zeroed <- dir(path=homedir, pattern= "'.*.tar.gz", 
+# recursive=TRUE, full.names=TRUE)
+# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', 
+# zeroed[ifile]))
 
 
 if (regantry){
   ### re-run gantry tilt on the data
-    files <- dir(path=homedir, pattern="_ungantry.tar.gz$", full.names=TRUE, 
+   files <- dir(path=homedir, pattern="_ungantry.tar.gz$", 
+    full.names=TRUE, 
         recursive=TRUE)
     if (untgantry) {
       ifile <- files[1]
@@ -118,13 +129,14 @@ if (regantry){
       }
     } # untarball gantry
     fnames <- basename(files)  
-    gantniis <- gsub("_ungantry.tar.gz", ".nii.gz", fnames, fixed=TRUE)
+    gantniis <- gsub("_ungantry.tar.gz", ".nii.gz", 
+      fnames, fixed=TRUE)
     gantniis <- file.path(dirname(dirname(files)), gantniis)
-}
+} 
 
 #### loop through IDS and convert them to nii, gantry tilted
 ### 301-520 needs to use Study Date/Time instead of Series Date/Time
-for (iid in 1:length(ids)){
+# for (iid in 1:length(ids)){
 
   id <- ids[iid]
   setup(id)
@@ -138,11 +150,12 @@ for (iid in 1:length(ids)){
 
   ### started 11:55
   contime <- NULL
+
   if (convert) {
     ### convert the dicoms
     contime <- system.time(convert_DICOM(basedir, progdir, 
                             verbose=verbose, untar=untar, 
-                            useR= TRUE))
+                            useR= TRUE, id = id))
 
     ## dropout the niis that are not needed
     lis <- includeMatrix(basedir, dropstring="ungantry", error=TRUE)
@@ -160,7 +173,7 @@ for (iid in 1:length(ids)){
     save(outs, mis, file = infofile)
   }
   
-}
+# }
 
 
 #### skull stripping
@@ -190,7 +203,8 @@ for (iid in 1:length(ids)){
 #       nii <- gantniis[ifile]
 #       iddir <- dirname(dirname(nii))
 #       outdir <- file.path(iddir, "Skull_Stripped")
-#       Skull_Strip_file(img=nii, progdir=progdir, outdir=outdir, opts="-f 0.1", verbose=verbose)
+#       Skull_Strip_file(img=nii, progdir=progdir, outdir=outdir, 
+# opts="-f 0.1", verbose=verbose)
 #     }
 #   } else {
 #     stop("Don't konw who to run - not runall and not just run gantry")
@@ -239,7 +253,8 @@ for (iid in 1:length(ids)){
 # 
 
 
-# sh ~/DHanley/CT_Registration/Brain_Seg_Rerun/programs/Brain_Seg_Function.sh -i "$f" -o ./Skull_Stripped
+# sh ~/DHanley/CT_Registration/Brain_Seg_Rerun/programs/Brain_Seg_Function.sh \
+#  -i "$f" -o ./Skull_Stripped
 # 
 # done;
 
