@@ -113,11 +113,11 @@ extract.time = function(hdr, key){
 }
 
 miss.data = function(info){
-  if (is.null(info)) return(FALSE)
-  if (is.na(info)) return(FALSE)
-  if ( length(info) == 0 ) return(FALSE)
-  if ( info %in% "" ) return(FALSE)
-  return(TRUE)
+  if (is.null(info)) return(TRUE)
+  if (is.na(info)) return(TRUE)
+  if ( length(info) == 0 ) return(TRUE)
+  if ( info %in% "" ) return(TRUE)
+  return(FALSE)
 }
 
 name.file = function(hdr, id = NULL){

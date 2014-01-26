@@ -74,7 +74,7 @@ ids = c("100-318", "100-362", "100-365", "101-306", "101-307", "101-308",
 verbose=TRUE
 untar = FALSE
 convert <- TRUE
-skullstrip <- FALSE
+skullstrip <- TRUE
 regantry <- FALSE
 untgantry <- FALSE
 runall <- TRUE
