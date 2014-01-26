@@ -147,7 +147,7 @@ name.file = function(hdr){
 }
 
 
-Rdcmsort = function(basedir, sortdir){
+Rdcmsort = function(basedir, sortdir, writeFile=TRUE){
   dcms = getfiles(basedir)$files
 
   # ifile = 1;
@@ -175,6 +175,9 @@ Rdcmsort = function(basedir, sortdir){
 
   rownames(dcmtables) = new.fnames
 
+  if (writeFile){
+    save(dcmtables, file=file.path(basedir, "All_Header_Info.Rda"))
+  }
   x = file.rename(dcms, new.fnames)
 
   stopifnot(all(x))

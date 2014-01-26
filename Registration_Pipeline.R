@@ -57,6 +57,7 @@ skullstrip <- FALSE
 regantry <- FALSE
 untgantry <- FALSE
 runall <- TRUE
+useR = TRUE
 
 ### initial setup
 # iid <- length(ids)
