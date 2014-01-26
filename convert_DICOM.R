@@ -176,7 +176,8 @@ Rdcmsort = function(basedir, sortdir, writeFile=TRUE){
   rownames(dcmtables) = new.fnames
 
   if (writeFile){
-    save(dcmtables, file=file.path(basedir, "All_Header_Info.Rda"))
+    save(dcmtables, 
+      file=file.path(basedir, "All_Header_Info.Rda"))
   }
   x = file.rename(dcms, new.fnames)
 
