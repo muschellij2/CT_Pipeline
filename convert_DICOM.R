@@ -352,7 +352,8 @@ Skull_Strip <- function(basedir, progdir, CTonly=TRUE,
   ### skull strip  data
   inii <- niis[1]
   for (inii in niis){
-    Skull_Strip_file(img=inii, progdir=progdir, outdir=outdir, opts=opts, verbose=verbose)
+    Skull_Strip_file(img=inii, progdir=progdir, 
+      outdir=outdir, opts=opts, verbose=verbose)
   }
 
 }

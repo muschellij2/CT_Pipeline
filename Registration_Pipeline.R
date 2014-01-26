@@ -51,7 +51,7 @@ setup <- function(id){
 ids = "100-362"
 
 verbose=TRUE
-untar = FALSE
+untar = TRUE
 convert <- TRUE
 skullstrip <- FALSE
 regantry <- FALSE
