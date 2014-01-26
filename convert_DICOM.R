@@ -119,7 +119,7 @@ miss.data = function(info){
 name.file = function(hdr, id = NULL){
   # print(colnames(hdr))
   PID         = extract.from.hdr(hdr, '0010,0020)')
-  PID         = ifelse(miss.data(PID), id, NA)
+  PID         = ifelse(miss.data(PID), id, PID)
 
   StudyDate   = extract.from.hdr(hdr, '(0008,0020)', numeric=TRUE)
   NUMBER      = extract.time(hdr, '(0008,0030)')
