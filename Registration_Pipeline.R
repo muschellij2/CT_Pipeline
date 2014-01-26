@@ -72,7 +72,7 @@ ids = c("100-318", "100-362", "100-365", "101-306", "101-307", "101-308",
 # ids = "100-362"
 
 verbose=TRUE
-untar = FALSE
+untar = TRUE
 convert <- TRUE
 skullstrip <- TRUE
 regantry <- FALSE

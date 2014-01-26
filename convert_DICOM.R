@@ -361,7 +361,8 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
 
 
 Skull_Strip <- function(basedir, progdir, CTonly=TRUE, 
-                      dropstring=NULL, opts = "", verbose=TRUE){
+                      dropstring=NULL, opts = "-f 0.1 -b", 
+                      verbose=TRUE){
   outdir <- file.path(basedir, "Skull_Stripped")
   if (!file.exists(outdir)) system(sprintf('mkdir -p "%s"', outdir))
 
@@ -371,7 +372,7 @@ Skull_Strip <- function(basedir, progdir, CTonly=TRUE,
   if (CTonly) niis <- niis[grepl("_CT_", niis)]
   ## drop out scans (like CTA)
   if (!is.null(dropstring) & length(dropstring) > 0){
-    for (istring in 1:length(dropstring)){
+    for (istring in seq_along(dropstring)){
       niis <- niis[!grepl(dropstring[istring], niis)]
     }
   }
@@ -384,7 +385,8 @@ Skull_Strip <- function(basedir, progdir, CTonly=TRUE,
 
 }
 
-Skull_Strip_file <- function(img, progdir, outdir, opts = "", verbose=TRUE){
+Skull_Strip_file <- function(img, progdir, outdir, opts = "", 
+  verbose=TRUE){
     cmd <- sprintf('sh "%s"/Brain_Seg_Function.sh -i "%s" -o "%s" %s', 
       progdir, img, outdir, opts) 
     res <- system(cmd)
