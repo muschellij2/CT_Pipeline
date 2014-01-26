@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Author: John Muschelli, 2013
@@ -88,7 +89,7 @@ addon="${adder}";
   
 sstub=`basename $file`
 stub=`echo $sstub | awk '{ sub(/\.gz/, ""); print }'`
-stub=`echo $sstub | awk '{ sub(/\.nii/, ""); print }'`
+stub=`echo $stub | awk '{ sub(/\.nii/, ""); print }'`
 
 
 ### need this because then you can reorient them if you need to

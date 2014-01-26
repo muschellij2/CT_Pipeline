@@ -149,7 +149,8 @@ for (iid in 1:length(ids)){
   if (skullstrip){
 
     if (runall) {
-      system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, opts="-f 0.1", 
+      system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, 
+        opts="-f 0.1 -b", 
         verbose=verbose))
 
     }
