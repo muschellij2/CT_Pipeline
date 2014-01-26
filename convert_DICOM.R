@@ -162,42 +162,45 @@ name.file = function(hdr, id = NULL){
 Rdcmsort = function(basedir, sortdir, id = NULL, writeFile=TRUE){
   dcms = getfiles(basedir)$files
 
-  # ifile = 1;
-  ### read in EVERY HEADER from this 
-  hdrl = llply(dcms, 
-    function(x) {
-      rereadDICOMFile(x, pixelData=FALSE)$hdr
-    }, .progress = "text")
+  if (length(dcms) > 0){
+    # ifile = 1;
+    ### read in EVERY HEADER from this 
+    hdrl = llply(dcms, 
+      function(x) {
+        rereadDICOMFile(x, pixelData=FALSE)$hdr
+      }, .progress = "text")
 
-  names(hdrl) = dcms
+    names(hdrl) = dcms
 
-  dcmtables = dicomTable(hdrl)
+    dcmtables = dicomTable(hdrl)
 
-  # hdr = hdrl[[length(dcms)]]
+    # hdr = hdrl[[length(dcms)]]
 
-  filenames = laply(hdrl, name.file, 
-    .progress="text", id = id)
-  names(filenames)= NULL
+    filenames = laply(hdrl, name.file, 
+      .progress="text", id = id)
+    names(filenames)= NULL
 
-  basenames = basename(dcms)
+    basenames = basename(dcms)
 
-  new.dirs = file.path(sortdir, filenames)
-  x = sapply(unique(new.dirs), dir.create, showWarnings=FALSE)
-  
-  new.fnames = file.path(new.dirs, basenames)
+    new.dirs = file.path(sortdir, filenames)
+    x = sapply(unique(new.dirs), dir.create, showWarnings=FALSE)
+    
+    new.fnames = file.path(new.dirs, basenames)
 
-  rownames(dcmtables) = new.fnames
+    rownames(dcmtables) = new.fnames
 
-  if (writeFile){
-    save(dcmtables, 
-      file=file.path(basedir, "All_Header_Info.Rda"))
+    if (writeFile){
+      save(dcmtables, 
+        file=file.path(basedir, "All_Header_Info.Rda"))
+    }
+    x = file.rename(dcms, new.fnames)
+
+    stopifnot(all(x))
+    return(dcmtables)
+  } else {
+    return(FALSE)
   }
-  x = file.rename(dcms, new.fnames)
-
-  stopifnot(all(x))
-
   # names(hdrl) = new.fnames
-  return(dcmtables)
 }
 
 dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, 
@@ -279,6 +282,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
 #### wrapper to convert an entire directory to sort/move/nifti
 convert_DICOM <- function(basedir, progdir, verbose=TRUE, 
   untar=FALSE, useR = TRUE, id = NULL, ...){
+  
   setwd(basedir)
 
   sortdir <- file.path(basedir, "Sorted")
@@ -320,6 +324,9 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
     dcmsort(basedir, progdir, sortdir, verbose, ...)
   }
 
+  if (useR & inherits(dcmtables, "logical")){
+    return(FALSE)
+  }
   ## gantry tilt correction
   file_gc(basedir, progdir, verbose, ...)
   
@@ -340,7 +347,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
   for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
   for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
 
-
+    return(TRUE)
 } ###end function
 
 
