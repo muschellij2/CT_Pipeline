@@ -128,10 +128,10 @@ name.file = function(hdr, id = NULL){
   SeriesDesc  = extract.desc(hdr, '(0008,103E)')
 
   SeriesDate  = extract.from.hdr(hdr, '(0008,0021)', numeric=TRUE)
-  SENUMBER      = extract.time(hdr, '(0008,0021)')
+  SENUMBER      = extract.time(hdr, '(0008,0031)')
 
-  ACQNUM      = extract.time(hdr, '(0008,0032)')
-  CNUM      = extract.time(hdr, '(0008,0033)')
+  ACQNUM       = extract.time(hdr, '(0008,0032)')
+  CNUM         = extract.time(hdr, '(0008,0033)')
 
   SID         = extract.from.hdr(hdr, '(0020,000D)')
   #  echo $SeriesDesc
@@ -144,11 +144,9 @@ name.file = function(hdr, id = NULL){
   ### series number
   SNUM        = extract.from.hdr(hdr, '(0020,0011)')
 
-  FNUM        = ifelse(is.na(ACQNUM), CNUM, ACQNUM)
-  FNUM        = ifelse(is.na(FNUM) | length(StudyDate) == 0, 
-    NUMBER, ACQNUM)
-  FNUM        = ifelse(is.na(FNUM) | length(StudyDate) == 0, 
-    SENUBMER, FNUM)
+  FNUM        = ifelse(is.na(NUMBER), NUMBER, SENUMBER)
+  FNUM        = ifelse( miss.data(FNUM), ACQNUM, FNUM)
+  FNUM        = ifelse( miss.data(FNUM), CNUM, FNUM)
 
   DATE        = ifelse(!is.na(StudyDate) & !(StudyDate %in% "") & length(StudyDate) > 0, StudyDate, SeriesDate)
   DATE        = ifelse(!is.na(DATE) & !(DATE %in% "") & length(DATE) > 0, DATE, NA)
@@ -177,7 +175,8 @@ Rdcmsort = function(basedir, sortdir, id = NULL, writeFile=TRUE){
 
   # hdr = hdrl[[length(dcms)]]
 
-  filenames = laply(hdrl, name.file, .progress="text", id = id)
+  filenames = laply(hdrl, name.file, 
+    .progress="text", id = id)
   names(filenames)= NULL
 
   basenames = basename(dcms)
@@ -602,12 +601,15 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
 
 
 dcm2nii_worker <- function(path, outfile="output", ...){
+        
         dcm <- readDICOM(path=path, recursive=FALSE, verbose=verbose)
 
         dcmtable = dicomTable(dcm$hdr)
         keepcols = grepl("RescaleIntercept|RescaleSlope", 
                          colnames(dcmtable))
-        dcmtab = dcmtable[, keepcols]
+        dcmtab = dcmtable[, 
+          c("0028-1052-RescaleIntercept", "0028-1053-RescaleSlope"),
+          drop=FALSE]
         stopifnot(ncol(dcmtab) == 2)
         colnames(dcmtab) = c("intercept", "slope")
         
