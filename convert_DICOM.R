@@ -104,25 +104,34 @@ extract.desc = function(hdr, key){
   return(desc)
 } 
 
-name.file = function(hdr){
+extract.time = function(hdr, key){
+  runtime     = extract.from.hdr(hdr, key, numeric=TRUE)  
+  NUMBER      = runtime / 100
+  NUMBER      = sprintf("%04.0f", NUMBER)
+  NUMBER        = ifelse(!is.na(NUMBER) & !(NUMBER %in% "") & 
+    length(NUMBER) > 0, NUMBER, NA)  
+}
+
+miss.data = function(info){
+  is.na(info) | length(info) == 0 | info %in% ""  
+}
+
+name.file = function(hdr, id = NULL){
   # print(colnames(hdr))
   PID         = extract.from.hdr(hdr, '0010,0020)')
-  StudyDate   = extract.from.hdr(hdr, '(0008,0020)', numeric=TRUE)
-  StudyTime   = extract.from.hdr(hdr, '(0008,0030)', numeric=TRUE)
-  NUMBER      = StudyTime / 100
-  NUMBER      = sprintf("%04.0f", NUMBER)
-  NUMBER        = ifelse(!is.na(NUMBER) & !(NUMBER %in% "") & length(NUMBER) > 0, NUMBER, NA)
+  PID         = ifelse(miss.data(PID), id, NA)
 
+  StudyDate   = extract.from.hdr(hdr, '(0008,0020)', numeric=TRUE)
+  NUMBER      = extract.time(hdr, '(0008,0030)')
 
   StudyDesc  = extract.desc(hdr, '(0008,1030)')
   SeriesDesc  = extract.desc(hdr, '(0008,103E)')
 
   SeriesDate  = extract.from.hdr(hdr, '(0008,0021)', numeric=TRUE)
-  SeriesTime  = extract.from.hdr(hdr, '(0008,0031)', numeric=TRUE)
-  SENUMBER    = SeriesTime / 100
-  SENUMBER    = sprintf("%04.0f", SENUMBER)
-  SENUMBER        = ifelse(!is.na(SENUMBER) & !(SENUMBER %in% "") & length(SENUMBER) > 0, SENUMBER, NA)
+  SENUMBER      = extract.time(hdr, '(0008,0021)')
 
+  ACQNUM      = extract.time(hdr, '(0008,0032)')
+  CNUM      = extract.time(hdr, '(0008,0033)')
 
   SID         = extract.from.hdr(hdr, '(0020,000D)')
   #  echo $SeriesDesc
@@ -135,7 +144,12 @@ name.file = function(hdr){
   ### series number
   SNUM        = extract.from.hdr(hdr, '(0020,0011)')
 
-  FNUM        = ifelse(is.na(NUMBER), SENUBMER, NUMBER)
+  FNUM        = ifelse(is.na(ACQNUM), CNUM, ACQNUM)
+  FNUM        = ifelse(is.na(FNUM) | length(StudyDate) == 0, 
+    NUMBER, ACQNUM)
+  FNUM        = ifelse(is.na(FNUM) | length(StudyDate) == 0, 
+    SENUBMER, FNUM)
+
   DATE        = ifelse(!is.na(StudyDate) & !(StudyDate %in% "") & length(StudyDate) > 0, StudyDate, SeriesDate)
   DATE        = ifelse(!is.na(DATE) & !(DATE %in% "") & length(DATE) > 0, DATE, NA)
 
@@ -147,7 +161,7 @@ name.file = function(hdr){
 }
 
 
-Rdcmsort = function(basedir, sortdir, writeFile=TRUE){
+Rdcmsort = function(basedir, sortdir, id = NULL, writeFile=TRUE){
   dcms = getfiles(basedir)$files
 
   # ifile = 1;
@@ -163,7 +177,7 @@ Rdcmsort = function(basedir, sortdir, writeFile=TRUE){
 
   # hdr = hdrl[[length(dcms)]]
 
-  filenames = laply(hdrl, name.file, .progress="text")
+  filenames = laply(hdrl, name.file, .progress="text", id = id)
   names(filenames)= NULL
 
   basenames = basename(dcms)
@@ -265,7 +279,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
 
 #### wrapper to convert an entire directory to sort/move/nifti
 convert_DICOM <- function(basedir, progdir, verbose=TRUE, 
-  untar=FALSE, useR = TRUE,...){
+  untar=FALSE, useR = TRUE, id = NULL, ...){
   setwd(basedir)
 
   sortdir <- file.path(basedir, "Sorted")
@@ -302,7 +316,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
 
   ## putting into respective folders using dcmdump
   if (useR) {
-    dcmtables = Rdcmsort(basedir, sortdir)
+    dcmtables = Rdcmsort(basedir, sortdir, id = id)
   } else {
     dcmsort(basedir, progdir, sortdir, verbose, ...)
   }
@@ -609,7 +623,6 @@ dcm2nii_worker <- function(path, outfile="output", ...){
         dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE)
         dcmNifti@scl_slope = 1
         dcmNifti@scl_inter = 0        
-        dcmNifti <- dicom2nifti(dcm, datatype=4, mode="integer")
 
 #       vals <- t(sapply(dcm$hdr, function(x){
 #         int <- x[x[, "name"] == "RescaleIntercept", "value"]
