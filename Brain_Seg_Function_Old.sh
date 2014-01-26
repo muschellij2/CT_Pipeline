@@ -71,25 +71,15 @@ fi
 
 
 if [ -z "${adder}" ]; then
-  echo "No adder given, using 1024 if needed"
+  echo "No adder given, using 1024"
   adder=1024;
   # addon='';
-fi
-
-
-ext=".nii.gz"
-if [ "$FSLOUTPUTTYPE" = "NIFTI" ]; 
-then
-  ext=".nii"
 fi
 
 addon="${adder}";
 
   
-sstub=`basename $file`
-stub=`echo $sstub | awk '{ sub(/\.gz/, ""); print }'`
-stub=`echo $sstub | awk '{ sub(/\.nii/, ""); print }'`
-
+stub=`basename $file`
 
 ### need this because then you can reorient them if you need to
 sform=`fslorient -getsformcode $file`  
@@ -98,40 +88,39 @@ suffix="${addon}_${intensity}"
 
 if [ -n "${best}" ]; then
   ### no adding or whatever, but thresholding
-  raw="${stub}_SS_${intensity}"
+  raw=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_"'${intensity}'"\.nii\.gz"); print }'`
   echo "No addition of $adder, 0-100 thresh $file file..";
   fslmaths $file -thr 0 -uthr 100 "${OUTDIR}/${raw}"
 
   echo "Bet 1 Running $raw"
   bet2 "$OUTDIR/$raw" "$OUTDIR/$raw" -f ${intensity}
   
-  rawmask="${stub}_SS_Mask_${intensity}"
+  rawmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_Mask_"'${intensity}'"\.nii\.gz"); print }'`
   fslmaths "${OUTDIR}/${raw}" -bin -fillh "${OUTDIR}/${rawmask}"
 
-  rm "$OUTDIR/${raw}${ext}"
+  rm "$OUTDIR/${raw}"
   exit 0
 fi
 
 if [ -z "${run}" ]; then
 
   # Try BET just on the raw image
-  null="${stub}_Raw_${intensity}"
-
+  null=`echo $stub | awk '{ sub(/\.nii\.gz/, "_Raw_"'${intensity}'"\.nii\.gz"); print }'` 
   echo "Raw Brain Extraction $null file..";
   bet2 $file "$OUTDIR/${null}" -f ${intensity}
 
-  nullmask="${stub}_Raw_Mask_${intensity}"
+  nullmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_Raw_Mask_"'${intensity}'"\.nii\.gz"); print }'`
   fslmaths "${OUTDIR}/${null}" -bin -fillh "${OUTDIR}/${nullmask}"      
 
   ### no adding or whatever, but thresholding
-  raw="${stub}_SS_${intensity}"  
+  raw=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_"'${intensity}'"\.nii\.gz"); print }'`
   echo "No addition of $adder, 0-100 thresh $file file..";
   fslmaths $file -thr 0 -uthr 100 "${OUTDIR}/${raw}"
 
   echo "Bet 1 Running $raw"
   bet2 "$OUTDIR/$raw" "$OUTDIR/$raw" -f ${intensity}
   
-  rawmask="${stub}_SS_Mask_${intensity}"
+  rawmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_Mask_"'${intensity}'"\.nii\.gz"); print }'`
   fslmaths "${OUTDIR}/${raw}" -bin -fillh "${OUTDIR}/${rawmask}"
   # fslmaths "$OUTDIR/${rawmask}" -fillh "$OUTDIR/${rawmask}"            
   
@@ -154,8 +143,7 @@ result=`echo "($min < 0)" | bc`
 
 if [ $result ] 
 then
-
-  zeroed="${file}_Zeroed_${suffix}"
+  zeroed=`echo $file | awk '{ sub(/\.nii\.gz/, "_Zeroed_'${suffix}'\.nii\.gz"); print }'`      
   echo "Rescaling so histograms are 'zeroed', adding $adder"
   ### need to add this so that rest works - can't have pre-subtracted data.  Could adapt this to be anything other than 1024
   fslmaths $file -add $adder $zeroed
@@ -163,7 +151,7 @@ then
 fi 
 
 # This is important because of 2 things - constraining to brain and getting rid of FOV
-h="${stub}_SS_Add_${suffix}"
+h=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_Add_'${suffix}'\.nii\.gz"); print }'`
 echo "Thresholding 0 - 100 HU $file file..";
 uthresh=`expr $adder + 100`
 fslmaths $file -thr $adder -uthr $uthresh "${OUTDIR}/${h}"
@@ -173,7 +161,7 @@ bet2 "${OUTDIR}/${h}" "${OUTDIR}/${h}" -f ${intensity}
 
 fslmaths "${OUTDIR}/${h}" -sub $adder "${OUTDIR}/${h}"
 
-fpmask="${stub}_SS_Add_Mask_${suffix}"
+fpmask=`echo $stub | awk '{ sub(/\.nii\.gz/, "_SS_Add_Mask_'${suffix}'\.nii\.gz"); print }'`
 fslmaths "${OUTDIR}/${h}" -bin "${OUTDIR}/${fpmask}"
 fslmaths "$OUTDIR/${fpmask}" -fillh "$OUTDIR/${fpmask}"
 # filled image
@@ -185,7 +173,7 @@ fi
 ## fslmaths "$OUTDIR/$h" -thr $adder -bin "$OUTDIR/$h"
 
 ### just trying bet straight up
-human="${stub}_Human_${suffix}"
+human=`echo $stub | awk '{ sub(/\.nii\.gz/, "_Human_'${suffix}'\.nii\.gz"); print }'`      
 echo "Human Extraction $human file..";
 bet2 $file "$OUTDIR/${human}" -f ${intensity}
 
@@ -237,6 +225,6 @@ echo "Brain volume is $brainvol"
 if [ $result ]
 then
   echo "Deleting ${zeroed} for cleanup"
-  rm "${zeroed}${ext}"
+  rm "${zeroed}"
 fi 
 

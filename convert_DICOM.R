@@ -1,3 +1,8 @@
+require(stringr)
+require(plyr)
+require(oro.nifti)
+require(oro.dicom)
+
 movefiles <- function(files, indices, outdir, num=6, verbose=TRUE){
   maxnum <- 10^num
   if (max(indices) > maxnum) stop("Need new format")
@@ -72,7 +77,114 @@ dcmsort <- function(basedir, progdir, sortdir, dcmsortopt = '', verbose=TRUE, ..
   }
 }
 
-dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, dcm2niicmd = "dcm2nii", ...){
+### extract from readDICOM header
+extract.from.hdr = function(hdr, key, numeric=FALSE){
+  key <- gsub("(", "", key, fixed=TRUE)
+  key <- gsub(")", "", key, fixed=TRUE)
+  ss = strsplit(key, ",")
+  groups = sapply(ss, function(x) x[1])
+  elements = sapply(ss, function(x) x[2])
+
+  crit = hdr$group == groups & hdr$element == elements
+  values = hdr[crit, "value"]
+  values = str_trim(values)
+  values = gsub("\\s\\s+" , " ", values)
+  if (numeric) values = as.numeric(values)
+  return (values)
+}
+
+
+
+extract.desc = function(hdr, key){
+  desc = extract.from.hdr(hdr, key)
+  desc = gsub(" ", "_", desc)
+  desc = ifelse(is.na(desc) | length(desc) == 0, "unnamed", desc)
+  desc = gsub("/", "", desc); 
+  desc = gsub("\47", "", desc)
+  return(desc)
+} 
+
+name.file = function(hdr){
+  # print(colnames(hdr))
+  PID         = extract.from.hdr(hdr, '0010,0020)')
+  StudyDate   = extract.from.hdr(hdr, '(0008,0020)', numeric=TRUE)
+  StudyTime   = extract.from.hdr(hdr, '(0008,0030)', numeric=TRUE)
+  NUMBER      = StudyTime / 100
+  NUMBER      = sprintf("%04.0f", NUMBER)
+  NUMBER        = ifelse(!is.na(NUMBER) & !(NUMBER %in% "") & length(NUMBER) > 0, NUMBER, NA)
+
+
+  StudyDesc  = extract.desc(hdr, '(0008,1030)')
+  SeriesDesc  = extract.desc(hdr, '(0008,103E)')
+
+  SeriesDate  = extract.from.hdr(hdr, '(0008,0021)', numeric=TRUE)
+  SeriesTime  = extract.from.hdr(hdr, '(0008,0031)', numeric=TRUE)
+  SENUMBER    = SeriesTime / 100
+  SENUMBER    = sprintf("%04.0f", SENUMBER)
+  SENUMBER        = ifelse(!is.na(SENUMBER) & !(SENUMBER %in% "") & length(SENUMBER) > 0, SENUMBER, NA)
+
+
+  SID         = extract.from.hdr(hdr, '(0020,000D)')
+  #  echo $SeriesDesc
+  Modality    = extract.from.hdr(hdr, '(0008,0060)')
+  # (0020,000d)
+  UUID        = extract.from.hdr(hdr, '(0008,0018)')
+  ss          = strsplit(UUID, "\\.")
+  UUID        = sapply(ss, function(x) paste(x[1:(length(x)-2)], sep="", collapse="."))
+    
+  ### series number
+  SNUM        = extract.from.hdr(hdr, '(0020,0011)')
+
+  FNUM        = ifelse(is.na(NUMBER), SENUBMER, NUMBER)
+  DATE        = ifelse(!is.na(StudyDate) & !(StudyDate %in% "") & length(StudyDate) > 0, StudyDate, SeriesDate)
+  DATE        = ifelse(!is.na(DATE) & !(DATE %in% "") & length(DATE) > 0, DATE, NA)
+
+  DATER       = paste0(DATE, "_", FNUM)
+
+  PNAME       = paste(PID, DATER, Modality, SNUM, StudyDesc, SeriesDesc, sep="_")
+  PNAME       = gsub(" ", "_", PNAME)
+  return(PNAME)
+}
+
+
+Rdcmsort = function(basedir, sortdir){
+  dcms = getfiles(basedir)$files
+
+  # ifile = 1;
+  ### read in EVERY HEADER from this 
+  hdrl = llply(dcms, 
+    function(x) {
+      rereadDICOMFile(x, pixelData=FALSE)$hdr
+    }, .progress = "text")
+
+  names(hdrl) = dcms
+
+  dcmtables = dicomTable(hdrl)
+
+  # hdr = hdrl[[length(dcms)]]
+
+  filenames = laply(hdrl, name.file, .progress="text")
+  names(filenames)= NULL
+
+  basenames = basename(dcms)
+
+  new.dirs = file.path(sortdir, filenames)
+  x = sapply(unique(new.dirs), dir.create, showWarnings=FALSE)
+  
+  new.fnames = file.path(new.dirs, basenames)
+
+  rownames(dcmtables) = new.fnames
+
+  x = file.rename(dcms, new.fnames)
+
+  stopifnot(all(x))
+
+  # names(hdrl) = new.fnames
+  return(dcmtables)
+}
+
+dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, 
+                    dcm2niicmd = "dcm2nii", ...){
 
   gf <- getfiles(basedir)
   files <- gf$files
@@ -148,7 +260,8 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, dcm2niicmd = "dcm2n
 
 
 #### wrapper to convert an entire directory to sort/move/nifti
-convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE, ...){
+convert_DICOM <- function(basedir, progdir, verbose=TRUE, 
+  untar=FALSE, useR = TRUE,...){
   setwd(basedir)
 
   sortdir <- file.path(basedir, "Sorted")
@@ -184,14 +297,21 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE, ...){
   onedir(basedir, verbose, ...)
 
   ## putting into respective folders using dcmdump
-  dcmsort(basedir, progdir, sortdir, verbose, ...)
+  if (useR) {
+    Rdcmsort(basedir, sortdir)
+  } else {
+    dcmsort(basedir, progdir, sortdir, verbose, ...)
+  }
 
   ## gantry tilt correction
   file_gc(basedir, progdir, verbose, ...)
   
   ## conversion
-  dcm2nii(basedir, progdir, sortdir, verbose, ...)
-
+  if (useR) {
+    Rdcm2nii(basedir, sortdir, verbose=TRUE, ...)
+  } else {
+    dcm2nii(basedir, progdir, sortdir, verbose, ...)
+  }
   
   gf <- getfiles(basedir)
 
@@ -199,6 +319,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE, untar=FALSE, ...){
   expaths <- list.dirs(basedir, recursive=TRUE, full.names=TRUE)
   expaths <- expaths[!(expaths %in% c(sortdir, basedir))]
   expaths <- expaths[!(expaths %in% gf$paths)]
+  expaths <- expaths[!grepl("plots|Skull_Stripped|Registered|RawNIfTI|reoriented|FLIRT", expaths)]
   for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
   for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
 
@@ -389,7 +510,8 @@ file_gc <- function(basedir, progdir, verbose=TRUE, ...){
       }
       if (length(row) == 1){
         tilt <- as.numeric(hdr[row, "value"])
-        if (tilt != 0) gantry_correct(indir=path, progdir=progdir, verbose=verbose)
+        if (tilt != 0) gantry_correct(indir=path, 
+          progdir=progdir, verbose=verbose)
       }
     }
   }
@@ -458,85 +580,45 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
 
 
 dcm2nii_worker <- function(path, outfile="output", ...){
-        dcm <- readDICOM(path=path, recursive=FALES, verbose=verbose)
-      dcmNifti <- dicom2nifti(dcm, datatype=4, mode="integer")
+        dcm <- readDICOM(path=path, recursive=FALSE, verbose=verbose)
 
-      vals <- t(sapply(dcm$hdr, function(x){
-        int <- x[x[, "name"] == "RescaleIntercept", "value"]
-        slope <- x[x[, "name"] == "RescaleSlope", "value"]
-        return(c(int=int, slope=slope))
-      }))
-      class(vals) <- "numeric"
-      vals <- data.frame(vals)
-      uniq <- sapply(vals, function(x) length(unique(x)))
-      stopifnot(all(uniq==1))
-      vals <- apply(vals, 2, unique)
-      dcmNifti@scl_slope <- vals["slope"]
-      dcmNifti@scl_inter <- vals["int"]
+        dcmtable = dicomTable(dcm$hdr)
+        keepcols = grepl("RescaleIntercept|RescaleSlope", 
+                         colnames(dcmtable))
+        dcmtab = dcmtable[, keepcols]
+        stopifnot(ncol(dcmtab) == 2)
+        colnames(dcmtab) = c("intercept", "slope")
+        
+        for (iimg in 1:length(dcm$img)){
+          inter = as.numeric(dcmtab$intercept[iimg])
+          slope = as.numeric(dcmtab$slope[iimg])
+          dcm$img[[iimg]] = (dcm$img[[iimg]] + inter)/slope
+          x = dcm$img[[iimg]]
+          # if (verbose) print(range(dcm$img[[iimg]]))
+          dcm$img[[iimg]][x < -1024] = -1024
+          dcm$img[[iimg]][x > 3000] = 3000
+        }
+        dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE)
+        dcmNifti@scl_slope = 1
+        dcmNifti@scl_inter = 0        
+        dcmNifti <- dicom2nifti(dcm, datatype=4, mode="integer")
+
+#       vals <- t(sapply(dcm$hdr, function(x){
+#         int <- x[x[, "name"] == "RescaleIntercept", "value"]
+#         slope <- x[x[, "name"] == "RescaleSlope", "value"]
+#         return(c(int=int, slope=slope))
+#       }))
+#       class(vals) <- "numeric"
+#       vals <- data.frame(vals)
+#       uniq <- sapply(vals, function(x) length(unique(x)))
+#       stopifnot(all(uniq==1))
+#       vals <- apply(vals, 2, unique)
+#       dcmNifti@scl_slope <- vals["slope"]
+#       dcmNifti@scl_inter <- vals["int"]
       dcmNifti@descrip <- paste0("written by R - ", dcmNifti@descrip)
       outfile <- gsub("\\.gz$", "", outfile)
       outfile <- gsub("\\.nii$", "", outfile)
       writeNIfTI(nim=dcmNifti, file=file.path(path, outfile))
 }
 
-
-Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
-
-  gf <- getfiles(basedir)
-  files <- gf$files
-  paths <- gf$paths
-
-  ## THEN PIPELINE TEST
-  ipath <- 1
-  lpath <- length(paths)
-
-  ### need dcm2nii in your path! - from MRICRON
-  if (lpath >= 1){
-    if (verbose) cat("Converting to nii using R \n")
-
-    for (ipath in 1:length(paths)){
-      path <- paths[ipath]
-      res <- system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
-      
-      dcm2nii_worker(path)
-
-      niis <- dir(path=path, pattern=".nii.gz")
-      stub <- basename(path)
-
-      iddir <- file.path(basedir)
-      name <- stub
-      
-      ### copy dicom header info
-      make_txt(path)
-      
-      if (length(niis) > 1){    
-        # stop("it")
-        # cmd <- 'FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; export FSLDIR FSLOUTPUTTYPE; '
-        # cmd <- paste0(cmd, 'echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh; ', 
-        #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
-        cmd <- c('fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
-        system(sprintf(cmd, iddir, name, path), ignore.stdout = !verbose)
-          
-      }
-      if (length(niis) == 1){
-        system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', path, iddir, name), 
-          ignore.stdout = !verbose)
-      }
-      system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
-      setwd(dirname(path))
-      #     stop("me")
-      newpath <- file.path(dirname(path), name)
-      system(sprintf('mv "%s" "%s"', path, newpath), ignore.stdout = !verbose)
-
-      # setwd(basename(newpath))
-      # tarfile <- paste(newpath, ".tar.gz", sep="")
-      # tar(tarfile, compression="gzip")
-      system(sprintf('tar -czf "%s" ./"%s"', paste(newpath, ".tar.gz", sep=""), 
-          basename(newpath)), ignore.stdout = !verbose)
-      
-      system(sprintf('rm -R "%s"', newpath), ignore.stdout = !verbose)
-    }
-  } # end loop over paths
-
-} ## end Rdcm2nii
 

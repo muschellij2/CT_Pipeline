@@ -102,6 +102,7 @@ if (is.na(iid)) iid <- 11
 		}
 		nim <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE)
 		nim@scl_slope = 1
+		nim@scl_inter = 0
 		if (idir == 2){
 			nim <- nim + nim@scl_inter
 			nim@cal_max <- nim@cal_max + nim@scl_inter

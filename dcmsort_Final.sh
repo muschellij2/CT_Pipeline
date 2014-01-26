@@ -101,7 +101,7 @@ do
     SeriesDesc=$(echo $SeriesDesc | awk '{ gsub("/",""); print }')
     SeriesDesc=$(echo $SeriesDesc | awk '{ gsub(/[:\47]*/,""); print }')
 
-    SeriesDate=$(cat tmp.txt | grep -e '^(0008,0020)' | sed -e 's/^(0008,0020).*\[\(.*\)\].*/\1/')
+    SeriesDate=$(cat tmp.txt | grep -e '^(0008,0021)' | sed -e 's/^(0008,0021).*\[\(.*\)\].*/\1/')
     SeriesTime=$(cat tmp.txt | grep -e '^(0008,0031)' | sed -e 's/^(0008,0031).*\[\(.*\)\].*/\1/')
     SENUMBER=$(echo $SeriesTime | awk '{ print $0 / 100 }')
     SENUMBER=$(echo $SENUMBER | awk -F. '{ print $1 }')

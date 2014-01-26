@@ -1,5 +1,3 @@
-
-
 %[P, sts] = spm_select([1 Inf], 'image','Images to reorient');
 %if ~sts, return; else P = cellstr(P); end
 
