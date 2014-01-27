@@ -79,7 +79,7 @@ bad.ids = c(16, 27, 28, 33, 38, 40, 43, 57, 59, 61, 62, 63, 64, 65, 66,
 # ids = "100-362"
 
 
-runonlybad = TRUE
+runonlybad = FALSE
 
 if (runonlybad) ids = ids[bad.ids]
 
@@ -97,7 +97,7 @@ useR = TRUE
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 3
+if (is.na(iid)) iid <- 38
 
 id <- ids[iid]
 setup(id)
@@ -170,19 +170,19 @@ if (regantry){
                             useR= TRUE, id = id))
 
     ## dropout the niis that are not needed
-    lis <- includeMatrix(basedir, dropstring="ungantry", error=TRUE)
-    outs <- lis$outs
-    mis <- lis$mis
+    # lis <- includeMatrix(basedir, dropstring="ungantry", error=TRUE)
+    # outs <- lis$outs
+    # mis <- lis$mis
 
-    dropniis <- outs$fname[outs$Takeout]
-    dropniis <- getBase(basename(dropniis), 1)
+    # dropniis <- outs$fname[outs$Takeout]
+    # dropniis <- getBase(basename(dropniis), 1)
 
-    if (length(dropniis) > 0){
-      dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
-      for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
-    }
+    # if (length(dropniis) > 0){
+    #   dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
+    #   for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
+    # }
 
-    save(outs, mis, file = infofile)
+    # save(outs, mis, file = infofile)
   }
   
 # }

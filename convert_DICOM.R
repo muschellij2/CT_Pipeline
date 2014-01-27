@@ -47,7 +47,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
 
   ## putting into respective folders using dcmdump
   if (useR) {
-    if (verbose) cat
+    # if (verbose) cat("dcm sorting")
     dcmtables = Rdcmsort(basedir, sortdir, id = id)
   } else {
     dcmsort(basedir, progdir, sortdir, verbose, ...)
@@ -229,7 +229,7 @@ name.file = function(hdr, id = NULL){
   ### series number
   SNUM        = extract.from.hdr(hdr, '(0020,0011)')
 
-  FNUM        = ifelse(is.na(NUMBER), NUMBER, SENUMBER)
+  FNUM        = ifelse(is.na(NUMBER), SENUMBER, NUMBER)
   FNUM        = ifelse( miss.data(FNUM), ACQNUM, FNUM)
   FNUM        = ifelse( miss.data(FNUM), CNUM, FNUM)
 
@@ -246,7 +246,7 @@ name.file = function(hdr, id = NULL){
 
 
 Rdcmsort = function(basedir, sortdir, id = NULL, 
-  writeFile=TRUE, verbose = TRUE){
+  writeFile=FALSE, verbose = TRUE){
   dcms = getfiles(basedir)$files
 
   if (length(dcms) > 0){
@@ -553,7 +553,7 @@ file_gc <- function(basedir, progdir, verbose=TRUE, ...){
     
     for (ipath in 1:length(paths)){
       path <- paths[ipath]
-      files <- dir(path=path, pattern="dcm|DCM", full.names=TRUE)
+      files <- getfiles(path)$files
       hdr <- dicomInfo(fname=files[1], pixelData=FALSE)$hdr
       row <- grep("GantryDetectorTilt", hdr[, "name"])
       if (length(row) == 0) next;
@@ -694,31 +694,52 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   
 
   
-  header_txt(outdir)
+  # header_txt(outdir)
   gd <- getwd()
   setwd(dirname(outdir))
   bn <- basename(outdir)
-  
+
+  dcms = getfiles(outdir)$files
+  hdrl = rereadDICOMHeader(dcms)      
+  names(hdrl) = dcms
+
+  dcmtables = dicomTable(hdrl)
+
+  save(dcmtables, 
+    file=paste0(outdir, "_Header_Info.Rda"))  
+
   system(sprintf('tar -czf "%s" ./"%s" --remove-files', paste0(outdir, ".tar.gz"), bn))  
   system(sprintf('rmdir "%s"', outdir))  
   
   setwd(gd)
-  header_txt(indir)
+  # header_txt(indir)
   
   return(outdir)
 }
+
+
+
 
 dcm2nii_worker <- function(path, outfile="output", 
   pixelSpacing = "0.45 0.45", addPixel = FALSE, ...){
   
   # the workhorse of the Rdcm2nii
-  res = try({ 
+  res = tryCatch({ 
     dcm = readDICOM(path=path, recursive=FALSE, 
     verbose=verbose)
+    TRUE
+  }, warning = function(war) {
+    print(paste("Warning was: ", war))
+    return(FALSE)
+  }, error = function(e) {
+    print(paste("Had error, skipping: ", e))
+    return(FALSE)
+  }, finally = function(e){
+    return(TRUE)
   })
   ### added line for readDICOM
 
-  if (inherits(res, "try-error")) return(FALSE)
+  if (!res) return(FALSE)
 
   dcmtable = dicomTable(dcm$hdr)
   keepcols = grepl("RescaleIntercept|RescaleSlope|PixelSpacing", 
@@ -757,9 +778,23 @@ dcm2nii_worker <- function(path, outfile="output",
     dcm$img[[iimg]][x > 3000] = 3000
   }
 
-  res = try({ 
+  # res = try({ 
+  #   dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE, 
+  #     descrip = NULL)
+  # })
+
+  res = tryCatch({ 
     dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE, 
       descrip = NULL)
+    TRUE
+  }, warning = function(war) {
+    print(paste("Warning was: ", war))
+    return(FALSE)
+  }, error = function(e) {
+    print(paste("Had error, skipping: ", e))
+    return(FALSE)
+  }, finally = function(e){
+    return(TRUE)
   })
   ### added line for readDICOM
 
@@ -822,7 +857,7 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
       name <- stub
       
       ### copy dicom header info
-      header_txt(path)
+      # header_txt(path)
       dcms = getfiles(path)$files
 
       if (length(dcms) > 0){

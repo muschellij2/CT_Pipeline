@@ -1,3 +1,4 @@
+
 rm(list=ls())
 library(oro.dicom)
 library(oro.nifti)
@@ -27,11 +28,13 @@ library(plyr)
 
   study = "Registration"
   todir <- file.path(rootdir, study)
-  fromdir = file.path(rootdir, "MISTIE")
+  fromstudy = "ICES"
+  fromdir = file.path(rootdir, fromstudy)
   
   # dropids = "100-318"
-  dropids = "asdf"
-
+  dropids = NULL
+  # keepids = c("100-318", "102-360")
+  keepids = NULL
 
   getfiles <- function(basedir){
     files <- dir(path=basedir, pattern="dcm$|DCM$", full.names=TRUE, 
@@ -43,16 +46,27 @@ library(plyr)
   dirs <- list.dirs(fromdir, recursive=FALSE, full.names=FALSE)
   ptpat <- "\\d\\d\\d-(\\d|)\\d\\d\\d"
   ids <- grep(paste0(ptpat, "$"), dirs, value=TRUE)
-  ids = ids[ !(ids %in% dropids) ]
-
+  if (!is.null(dropids)) {
+    ids = ids[ !(ids %in% dropids) ]
+  }
+  if (!is.null(keepids)) {
+    ids = ids[ (ids %in% keepids) ]
+  }  
   idir = 1;
   # for (idir in seq_along(ids)){
     files = getfiles(fromdir)
 
     xfiles = files$files
-    xfiles = xfiles[ !grepl(dropids, xfiles, fixed=TRUE) ]
-    
-    tofiles = gsub("MISTIE", "Registration", xfiles)
+    if (!is.null(dropids)) {
+      xfiles = xfiles[ !grepl(dropids, xfiles, fixed=TRUE) ]
+    }
+    if (!is.null(keepids)) {
+      mat = sapply(keepids, grepl, x=xfiles)
+      mat = matrix(mat, nrow=length(xfiles))
+      mat = apply(mat, 1, any)
+      xfiles = xfiles[ mat ]
+    }    
+    tofiles = gsub(fromstudy, "Registration", xfiles)
     paths = dirname(tofiles)
     make.dir = function(path){
       system(sprintf('mkdir -p "%s"', path))
