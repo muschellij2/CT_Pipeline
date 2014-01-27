@@ -675,7 +675,7 @@ dcm2nii_worker <- function(path, outfile="output",
   #       dcmNifti@scl_slope <- vals["slope"]
   #       dcmNifti@scl_inter <- vals["int"]
   descrip.string <- extractHeader(dcm$hdr, 
-    descrip = "SeriesDescription", 
+    "SeriesDescription", 
     FALSE)[1]
   descrip.string[ is.na(descrip.string) ] = ""
   
