@@ -1,3 +1,3 @@
 #!/bin/bash 
-#$ -t 1-117
+#$ -t 2-117
 R --no-save < Registration_Pipeline.R

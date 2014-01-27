@@ -181,9 +181,9 @@ if (regantry){
 
 
 #### skull stripping
-for (iid in 1:length(ids)){
-  id <- ids[iid]
-  setup(id)
+# for (iid in 1:length(ids)){
+  # id <- ids[iid]
+  # setup(id)
   if (skullstrip){
 
     if (runall) {
@@ -193,7 +193,7 @@ for (iid in 1:length(ids)){
 
     }
   }  
-}
+# }
 
 
 # if (skullstrip){
