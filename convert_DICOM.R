@@ -656,7 +656,9 @@ dcm2nii_worker <- function(path, outfile="output",
     dcm$img[[iimg]][x < -1024] = -1024
     dcm$img[[iimg]][x > 3000] = 3000
   }
-  dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE)
+
+  dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE, 
+    descrip = NULL)
   dcmNifti@scl_slope = 1
   dcmNifti@scl_inter = 0        
 
@@ -672,6 +674,10 @@ dcm2nii_worker <- function(path, outfile="output",
   #       vals <- apply(vals, 2, unique)
   #       dcmNifti@scl_slope <- vals["slope"]
   #       dcmNifti@scl_inter <- vals["int"]
+  descrip.string <- extractHeader(dcm$hdr, descrip[i], 
+    FALSE)[1]
+  descrip.string[ is.na(descrip.string) ] = ""
+  
   dcmNifti@descrip <- paste0("written by R - ", dcmNifti@descrip)
   outfile <- gsub("\\.gz$", "", outfile)
   outfile <- gsub("\\.nii$", "", outfile)
