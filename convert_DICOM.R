@@ -3,6 +3,85 @@ require(plyr)
 require(oro.nifti)
 require(oro.dicom)
 
+
+
+#### wrapper to convert an entire directory to sort/move/nifti
+convert_DICOM <- function(basedir, progdir, verbose=TRUE, 
+  untar=FALSE, useR = TRUE, id = NULL, ...){
+  
+  setwd(basedir)
+
+  sortdir <- file.path(basedir, "Sorted")
+  if (!file.exists(sortdir)) system(sprintf('mkdir -p "%s"', sortdir))
+
+  if (untar){
+    ### unzip all the tar.gz (if you have to redo)
+    if (verbose) cat("Un tarballing data \n")
+    files <- dir(path=basedir, pattern=".tar.gz$", full.names=TRUE, 
+          recursive=TRUE)
+    gants <- grepl("_ungantry", files)
+
+    ## don't need to untarball the gantry corrected -these willbe over wrtiten
+    if (any(gants)){
+        gants <- files[gants]
+        rm.files <- gsub("_ungantry", "", gants)
+        files <- files[! files %in% rm.files]
+    }
+    ### untarball the files using R's command
+    if (length(files) > 0){
+      for (ifile in files){
+        dname <- dirname(ifile)
+        untar(ifile, exdir = dname, compressed='gzip')
+        if (verbose) print(ifile)
+      }
+    }
+    files <- dir(path=basedir, pattern=".nii.gz", 
+          full.names=TRUE, recursive=TRUE)
+    file.remove(files)
+  }
+
+
+  ### Moving files into one big directory
+  ### watch out for / ending in basedir
+  onedir(basedir, verbose, ...)
+
+  ## putting into respective folders using dcmdump
+  if (useR) {
+    if (verbose) cat
+    dcmtables = Rdcmsort(basedir, sortdir, id = id)
+  } else {
+    dcmsort(basedir, progdir, sortdir, verbose, ...)
+  }
+
+  if (useR & inherits(dcmtables, "logical")){
+    return(FALSE)
+  }
+  ## gantry tilt correction
+  file_gc(basedir, progdir, verbose, ...)
+  
+  ## conversion
+  if (useR) {
+    ret = Rdcm2nii(basedir, sortdir, verbose=TRUE, ...)
+  } else {
+    dcm2nii(basedir, progdir, sortdir, verbose, ...)
+  }
+  
+  gf <- getfiles(basedir)
+
+  if (verbose) cat("Deleting Empty Directories \n")
+  expaths <- list.dirs(basedir, recursive=TRUE, full.names=TRUE)
+  expaths <- expaths[!(expaths %in% c(sortdir, basedir))]
+  expaths <- expaths[!(expaths %in% gf$paths)]
+  expaths <- expaths[!grepl("plots|Skull_Stripped|Registered|RawNIfTI|reoriented|FLIRT", 
+    expaths)]
+  for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
+  for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
+
+  return(TRUE)
+} ###end function
+
+
+
 movefiles <- function(files, indices, outdir, num=6, verbose=TRUE){
   maxnum <- 10^num
   if (max(indices) > maxnum) stop("Need new format")
@@ -166,24 +245,25 @@ name.file = function(hdr, id = NULL){
 }
 
 
-Rdcmsort = function(basedir, sortdir, id = NULL, writeFile=TRUE){
+Rdcmsort = function(basedir, sortdir, id = NULL, 
+  writeFile=TRUE, verbose = TRUE){
   dcms = getfiles(basedir)$files
 
   if (length(dcms) > 0){
     # ifile = 1;
     ### read in EVERY HEADER from this 
-    hdrl = llply(dcms, 
-      function(x) {
-        rereadDICOMFile(x, pixelData=FALSE)$hdr
-      }, .progress = "text")
+    if (verbose) cat("Reading Headers \n")
+    hdrl = rereadDICOMHeader(dcms)
 
     names(hdrl) = dcms
 
 
     # hdr = hdrl[[length(dcms)]]
+    if (verbose) cat("Making filenames \n")
 
-    filenames = laply(hdrl, name.file, id = id,
+    filenames = llply(hdrl, name.file, id = id,
       .progress="text")
+    filenames = unlist(filenames)
     names(filenames)= NULL
 
     basenames = basename(dcms)
@@ -196,6 +276,12 @@ Rdcmsort = function(basedir, sortdir, id = NULL, writeFile=TRUE){
     x = file.rename(dcms, new.fnames)
     stopifnot(all(x))
 
+    # hdrl = lapply(hdrl, function(df) {
+    #   df$uval = paste(df$group, df$element, df$name, sep="-")
+    #    df$duplicated = duplicated(df$uval)
+    #    return(df)
+    #   })
+    
     dcmtables = dicomTable(hdrl)
     rownames(dcmtables) = new.fnames
 
@@ -250,7 +336,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       name <- stub
       
       ### copy dicom header info
-      make_txt(path)
+      header_txt(path)
 #       dcm <- dir(path=path, pattern="dcm|DCM", full.names=TRUE, recursive=FALSE)[1]    
 #       txtfile <- file.path(dirname(path), paste0(stub, ".txt"))
 #       system(sprintf('dcmdump "%s" > "%s"', dcm, txtfile))
@@ -286,81 +372,6 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
   } # end loop over paths
 
 } ## end dcm2nii
-
-
-#### wrapper to convert an entire directory to sort/move/nifti
-convert_DICOM <- function(basedir, progdir, verbose=TRUE, 
-  untar=FALSE, useR = TRUE, id = NULL, ...){
-  
-  setwd(basedir)
-
-  sortdir <- file.path(basedir, "Sorted")
-  if (!file.exists(sortdir)) system(sprintf('mkdir -p "%s"', sortdir))
-
-  if (untar){
-    ### unzip all the tar.gz (if you have to redo)
-    if (verbose) cat("Un tarballing data \n")
-    files <- dir(path=basedir, pattern=".tar.gz$", full.names=TRUE, 
-          recursive=TRUE)
-    gants <- grepl("_ungantry", files)
-
-    ## don't need to untarball the gantry corrected -these willbe over wrtiten
-    if (any(gants)){
-        gants <- files[gants]
-        rm.files <- gsub("_ungantry", "", gants)
-        files <- files[! files %in% rm.files]
-    }
-    ### untarball the files using R's command
-    if (length(files) > 0){
-      for (ifile in files){
-        dname <- dirname(ifile)
-        untar(ifile, exdir = dname, compressed='gzip')
-        if (verbose) print(ifile)
-      }
-    }
-    files <- dir(path=basedir, pattern=".nii.gz", 
-          full.names=TRUE, recursive=TRUE)
-    file.remove(files)
-  }
-
-
-  ### Moving files into one big directory
-  ### watch out for / ending in basedir
-  onedir(basedir, verbose, ...)
-
-  ## putting into respective folders using dcmdump
-  if (useR) {
-    dcmtables = Rdcmsort(basedir, sortdir, id = id)
-  } else {
-    dcmsort(basedir, progdir, sortdir, verbose, ...)
-  }
-
-  if (useR & inherits(dcmtables, "logical")){
-    return(FALSE)
-  }
-  ## gantry tilt correction
-  file_gc(basedir, progdir, verbose, ...)
-  
-  ## conversion
-  if (useR) {
-    ret = Rdcm2nii(basedir, sortdir, verbose=TRUE, ...)
-  } else {
-    dcm2nii(basedir, progdir, sortdir, verbose, ...)
-  }
-  
-  gf <- getfiles(basedir)
-
-  if (verbose) cat("Deleting Empty Directories \n")
-  expaths <- list.dirs(basedir, recursive=TRUE, full.names=TRUE)
-  expaths <- expaths[!(expaths %in% c(sortdir, basedir))]
-  expaths <- expaths[!(expaths %in% gf$paths)]
-  expaths <- expaths[!grepl("plots|Skull_Stripped|Registered|RawNIfTI|reoriented|FLIRT", 
-    expaths)]
-  for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
-  for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
-
-  return(TRUE)
-} ###end function
 
 
 
@@ -561,12 +572,89 @@ file_gc <- function(basedir, progdir, verbose=TRUE, ...){
 
 
 ### copy dicom header info
-make_txt <- function(path){
+header_txt <- function(path){
   stub <- basename(path)
-  dcm <- dir(path=path, pattern="dcm|DCM", full.names=TRUE, recursive=FALSE)[1]    
-  txtfile <- file.path(dirname(path), paste0(stub, ".txt"))
-  system(sprintf('dcmdump "%s" > "%s"', dcm, txtfile))
+  dcm = getfiles(path)$files[1]
+  make_txt(dcm, ispath=FALSE)
 }
+
+
+
+### dump the header contents and 
+make_txt = function(path, ispath=TRUE,
+  readfile = FALSE, 
+  rmfile = FALSE) {
+  stopifnot(!readfile | rmfile)
+  dcm = path
+  if (ispath) {
+    dcm = getfiles(path)$files
+  }
+    stub <- basename(dcm)
+    stub = gsub("\\.(dcm|DCM)$", "", stub)
+    txtfile <- file.path(dirname(dcm), paste0(stub, ".txt"))
+  df = data.frame(dcm = dcm, txtfile=txtfile, 
+    stringsAsFactors = FALSE)
+  dcm = txtfile = NULL
+
+  hdrs = mlply(df, function(dcm, txtfile){
+    if (rmfile) {
+      hdr = system(sprintf('dcmdump "%s"', dcm), intern=TRUE)
+    } else {
+      hdr = system(sprintf('dcmdump "%s" > "%s"', dcm, txtfile), 
+        intern=TRUE)
+      if (readfile) hdr = readLines(txtfile)
+    }
+    return(hdr)   
+  }, .progress= "none")
+
+  return(hdrs)
+}
+
+
+### parse a make_txt list into a list of header information
+parse_txt <- function(hdrs, verbose=TRUE){
+  tables = llply(hdrs, function(hdr){
+    hdr = str_trim(hdr)
+    hdr = hdr[ grepl("^\\(", hdr)]
+    ss = strsplit(hdr, " ")
+    gel = sapply(ss, function(x) x[1])
+    code = sapply(ss, function(x) x[c(2)])
+    vlen= sapply(ss, function(x) gsub(",", "", x[length(x) -2]))
+    name = sapply(ss, function(x) x[length(x)])
+    value = sapply(ss, function(x) x[c(3)])
+
+    gel = gsub("\\(|\\)", "", gel)
+    gel = toupper(gel)
+    ss.gel = strsplit(gel, ",")
+    group = sapply(ss.gel, function(x) x[1])
+    el = sapply(ss.gel, function(x) x[2])
+
+    df = data.frame(group=group, element=el, name=name,
+      code=code, length=vlen,
+      value=value,  stringsAsFactors=FALSE)
+    df$value = gsub("^\\[", "", df$value)
+    df$value = gsub("\\]$", "", df$value)
+
+    df$value[grep("\\.\\.\\.$", df$value)] = "skipped"
+    df$value = gsub("\\", " ", df$value, fixed=TRUE)
+
+    df = df[ !grepl("[A-Z]", df$group) | 
+      (df$group %in% "7FE0" & df$element %in% "0010"), ]
+    df[(df$group %in% "7FE0" & df$element %in% "0010"), 
+      c("length", "value")] = c(-1, "skipped")
+
+    df$value = gsub("(no", "", df$value, fixed=TRUE)
+    return(df)
+  }, .progress=ifelse(verbose, "text", "none"))
+  return(tables)
+}
+
+rereadDICOMHeader = function(dcm, pixelData=FALSE,...){
+  hdr.list = make_txt(dcm, ispath=FALSE, rmfile= TRUE, readfile=TRUE)
+  hdrs = parse_txt(hdr.list, ...)
+  return(hdrs)
+}
+
 
 
 ### gantry tilt correction - calls in matlab
@@ -606,7 +694,7 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   
 
   
-  make_txt(outdir)
+  header_txt(outdir)
   gd <- getwd()
   setwd(dirname(outdir))
   bn <- basename(outdir)
@@ -615,7 +703,7 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   system(sprintf('rmdir "%s"', outdir))  
   
   setwd(gd)
-  make_txt(indir)
+  header_txt(indir)
   
   return(outdir)
 }
@@ -624,7 +712,13 @@ dcm2nii_worker <- function(path, outfile="output",
   pixelSpacing = "0.45 0.45", addPixel = FALSE, ...){
   
   # the workhorse of the Rdcm2nii
-  dcm <- readDICOM(path=path, recursive=FALSE, verbose=verbose)
+  res = try({ 
+    dcm = readDICOM(path=path, recursive=FALSE, 
+    verbose=verbose)
+  })
+  ### added line for readDICOM
+
+  if (inherits(res, "try-error")) return(FALSE)
 
   dcmtable = dicomTable(dcm$hdr)
   keepcols = grepl("RescaleIntercept|RescaleSlope|PixelSpacing", 
@@ -636,7 +730,7 @@ dcm2nii_worker <- function(path, outfile="output",
     drop=FALSE]
   stopifnot(ncol(dcmtab) == 3)
   colnames(dcmtab) = c("intercept", "slope", "pixelspacing")
-  print(dcmtab$pixelspacing)
+  # print(dcmtab$pixelspacing)
 
   dcmtab$pixelspacing[ dcmtab$pixelspacing %in% "" ] = NA
   if (all(is.na(dcmtab$pixelspacing))){
@@ -663,8 +757,14 @@ dcm2nii_worker <- function(path, outfile="output",
     dcm$img[[iimg]][x > 3000] = 3000
   }
 
-  dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE, 
-    descrip = NULL)
+  res = try({ 
+    dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE, 
+      descrip = NULL)
+  })
+  ### added line for readDICOM
+
+  if (inherits(res, "try-error")) return(FALSE)
+
   dcmNifti@scl_slope = 1
   dcmNifti@scl_inter = 0        
 
@@ -712,7 +812,8 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
       path <- paths[ipath]
       res <- system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
       
-      dcm2nii_worker(path)
+      res = dcm2nii_worker(path)
+      if (!res) next;
       
       niis <- dir(path=path, pattern=".nii.gz")
       stub <- basename(path)
@@ -721,8 +822,23 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
       name <- stub
       
       ### copy dicom header info
-      make_txt(path)
-      
+      header_txt(path)
+      dcms = getfiles(path)$files
+
+      if (length(dcms) > 0){
+        # ifile = 1;
+        ### read in EVERY HEADER from this 
+        if (verbose) cat("Reading Headers \n")
+        hdrl = rereadDICOMHeader(dcms)      
+        names(hdrl) = dcms
+    
+        dcmtables = dicomTable(hdrl)
+
+          save(dcmtables, 
+            file=paste0(path, "_Header_Info.Rda"))
+      }
+
+
       if (length(niis) > 1){    
     # stop("it")
   # cmd <- 'FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; export FSLDIR FSLOUTPUTTYPE; '
@@ -754,3 +870,63 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
   
 } ## end Rdcm2nii
 
+
+
+
+### nnee to write this function - failing at differnent spots
+readCT = function (fname, hdr=NULL, endian = "little", 
+  flipud = TRUE, DICM = TRUE, 
+    skipSequence = FALSE, pixelData = TRUE, warn = -1, debug = FALSE) 
+{
+    oldwarn <- getOption("warn")
+    options(warn = warn)
+    fsize <- file.info(fname)$size
+    fraw <- readBin(fname, "raw", n = as.integer(fsize), endian = endian)
+    skip128 <- fraw[1:128]
+    if (debug) {
+        cat("#", "First 128 bytes of DICOM header =", fill = TRUE)
+        print(skip128)
+    }
+    if (DICM) {
+        if (rawToChar(fraw[129:132]) != "DICM") {
+            stop("DICM != DICM")
+        }
+    }
+    dicomHeader <- sequence <- NULL
+    seq.txt <- ""
+    if (is.null(hdr)) {
+      dcm <- parseDICOMHeader(fraw[133:fsize], seq.txt, endian = endian, 
+         verbose = debug)
+      hdr <- as.data.frame(dcm$header, stringsAsFactors = FALSE)
+      row.names(hdr) <- NULL
+      names(hdr) <- c("group", "element", "name", "code", "length", 
+          "value", "sequence")
+    } else {
+        #  don't know yet
+    }
+
+
+    if (dcm$pixel.data && pixelData) {
+        if (debug) {
+            cat("##### Reading PixelData (7FE0,0010) #####", 
+                fill = TRUE)
+        }
+        img <- parsePixelData(fraw[(132 + dcm$data.seek + 1):fsize], 
+            hdr, endian, flipud)
+    }
+    else {
+        if (dcm$spectroscopy.data && pixelData) {
+            if (debug) {
+                cat("##### Reading SpectroscopyData (5600,0020) #####", 
+                  fill = TRUE)
+            }
+            img <- parseSpectroscopyData(fraw[(132 + dcm$data.seek + 
+                1):fsize], hdr, endian)
+        }
+        else {
+            img <- NULL
+        }
+    }
+    options(warn = oldwarn)
+    list(hdr = hdr, img = img)
+}
