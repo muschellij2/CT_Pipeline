@@ -2,6 +2,10 @@ rm(list=ls())
 library(oro.dicom)
 library(oro.nifti)
 library(plyr)
+
+
+
+
 setup <- function(id){
   username <- Sys.info()["user"][[1]]
 
@@ -85,7 +89,7 @@ useR = TRUE
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 11
+if (is.na(iid)) iid <- 1
 
 id <- ids[iid]
 setup(id)
@@ -128,7 +132,7 @@ if (regantry){
         }
       }
     } # untarball gantry
-    fnames <- basename(files)  
+    fnames <- basename(files)
     gantniis <- gsub("_ungantry.tar.gz", ".nii.gz", 
       fnames, fixed=TRUE)
     gantniis <- file.path(dirname(dirname(files)), gantniis)

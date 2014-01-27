@@ -154,7 +154,8 @@ name.file = function(hdr, id = NULL){
   FNUM        = ifelse( miss.data(FNUM), ACQNUM, FNUM)
   FNUM        = ifelse( miss.data(FNUM), CNUM, FNUM)
 
-  DATE        = ifelse(!is.na(StudyDate) & !(StudyDate %in% "") & length(StudyDate) > 0, StudyDate, SeriesDate)
+  DATE        = ifelse(!is.na(StudyDate) & !(StudyDate %in% "") & length(StudyDate) > 0, 
+    StudyDate, SeriesDate)
   DATE        = ifelse(!is.na(DATE) & !(DATE %in% "") & length(DATE) > 0, DATE, NA)
 
   DATER       = paste0(DATE, "_", FNUM)
@@ -178,7 +179,6 @@ Rdcmsort = function(basedir, sortdir, id = NULL, writeFile=TRUE){
 
     names(hdrl) = dcms
 
-    dcmtables = dicomTable(hdrl)
 
     # hdr = hdrl[[length(dcms)]]
 
@@ -193,15 +193,17 @@ Rdcmsort = function(basedir, sortdir, id = NULL, writeFile=TRUE){
     
     new.fnames = file.path(new.dirs, basenames)
 
+    x = file.rename(dcms, new.fnames)
+    stopifnot(all(x))
+
+    dcmtables = dicomTable(hdrl)
     rownames(dcmtables) = new.fnames
 
     if (writeFile){
       save(dcmtables, 
         file=file.path(basedir, "All_Header_Info.Rda"))
     }
-    x = file.rename(dcms, new.fnames)
 
-    stopifnot(all(x))
     return(dcmtables)
   } else {
     return(FALSE)
@@ -256,15 +258,16 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       
       if (length(niis) > 1){    
         # stop("it")
-        # cmd <- 'FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; export FSLDIR FSLOUTPUTTYPE; '
-        # cmd <- paste0(cmd, 'echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh; ', 
-        #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
+  # cmd <- 'FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; export FSLDIR FSLOUTPUTTYPE; '
+  # cmd <- paste0(cmd, 'echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh; ', 
+  #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         cmd <- c('fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         system(sprintf(cmd, iddir, name, path))
           
       }
       if (length(niis) == 1){
-        system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', path, iddir, name))
+        system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', 
+          path, iddir, name))
       }
       system(sprintf('rm "%s"/*.nii.gz', path))
       setwd(dirname(path))
@@ -300,6 +303,8 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
     files <- dir(path=basedir, pattern=".tar.gz$", full.names=TRUE, 
           recursive=TRUE)
     gants <- grepl("_ungantry", files)
+
+    ## don't need to untarball the gantry corrected -these willbe over wrtiten
     if (any(gants)){
         gants <- files[gants]
         rm.files <- gsub("_ungantry", "", gants)
@@ -349,7 +354,8 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
   expaths <- list.dirs(basedir, recursive=TRUE, full.names=TRUE)
   expaths <- expaths[!(expaths %in% c(sortdir, basedir))]
   expaths <- expaths[!(expaths %in% gf$paths)]
-  expaths <- expaths[!grepl("plots|Skull_Stripped|Registered|RawNIfTI|reoriented|FLIRT", expaths)]
+  expaths <- expaths[!grepl("plots|Skull_Stripped|Registered|RawNIfTI|reoriented|FLIRT", 
+    expaths)]
   for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
   for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
 
@@ -718,10 +724,10 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
       make_txt(path)
       
       if (length(niis) > 1){    
-        # stop("it")
-        # cmd <- 'FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; export FSLDIR FSLOUTPUTTYPE; '
-        # cmd <- paste0(cmd, 'echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh; ', 
-        #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
+    # stop("it")
+  # cmd <- 'FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; export FSLDIR FSLOUTPUTTYPE; '
+  # cmd <- paste0(cmd, 'echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh; ', 
+  #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         cmd <- c('fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         system(sprintf(cmd, iddir, name, path), ignore.stdout = !verbose)
         

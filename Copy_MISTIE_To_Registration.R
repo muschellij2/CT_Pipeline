@@ -29,8 +29,8 @@ library(plyr)
   todir <- file.path(rootdir, study)
   fromdir = file.path(rootdir, "MISTIE")
   
-  dropids = "100-318"
-
+  # dropids = "100-318"
+  dropids = "asdf"
 
 
   getfiles <- function(basedir){
@@ -57,7 +57,7 @@ library(plyr)
     make.dir = function(path){
       system(sprintf('mkdir -p "%s"', path))
     }
-    # l_ply(unique(paths), make.dir, .progress="text")
+    x = l_ply(unique(paths), make.dir, .progress="text")
 
     df = data.frame(xfiles, tofiles, stringsAsFactors=FALSE)
     x = mlply(df,function(xfiles,tofiles){
