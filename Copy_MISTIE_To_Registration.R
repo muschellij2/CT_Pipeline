@@ -74,6 +74,7 @@ library(plyr)
     x = l_ply(unique(paths), make.dir, .progress="text")
 
     df = data.frame(xfiles, tofiles, stringsAsFactors=FALSE)
+    # df = df[nrow(df):1,]
     x = mlply(df,function(xfiles,tofiles){
       file.copy(xfiles, tofiles)
     }, .progress = "text")

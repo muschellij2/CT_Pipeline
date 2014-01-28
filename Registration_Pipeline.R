@@ -91,6 +91,7 @@ regantry <- FALSE
 untgantry <- FALSE
 runall <- TRUE
 useR = TRUE
+dcm2niicmd = "dcm2nii_2009"
 
 ### initial setup
 # iid <- length(ids)
@@ -165,9 +166,22 @@ if (regantry){
 
   # if (convert) {
     ### convert the dicoms
+    
     contime <- system.time(convert_DICOM(basedir, progdir, 
                             verbose=verbose, untar=untar, 
-                            useR= TRUE, id = id))
+                            useRdcmsort= TRUE, 
+                            useRdcm2nii= TRUE,
+                            id = id, 
+                            dcmsortopt=dcmsortopt, 
+                            dcm2niicmd=dcm2niicmd))
+
+    # contime <- system.time(convert_DICOM(basedir, progdir, 
+    #                         verbose=verbose, untar=untar, 
+    #                         useRdcmsort= TRUE, 
+    #                         useRdcm2nii= FALSE,
+    #                         id = id, 
+    #                         dcmsortopt=dcmsortopt, 
+    #                         dcm2niicmd=dcm2niicmd))    
     print(contime)
 
     ## dropout the niis that are not needed

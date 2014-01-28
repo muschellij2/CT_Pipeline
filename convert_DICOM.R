@@ -7,7 +7,8 @@ require(oro.dicom)
 
 #### wrapper to convert an entire directory to sort/move/nifti
 convert_DICOM <- function(basedir, progdir, verbose=TRUE, 
-  untar=FALSE, useR = TRUE, id = NULL, ...){
+  isSorted = FALSE, untar=FALSE, useRdcmsort = TRUE, 
+  useRdcm2nii = TRUE, id = NULL, ...){
   
   setwd(basedir)
 
@@ -43,24 +44,27 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
 
   ### Moving files into one big directory
   ### watch out for / ending in basedir
-  onedir(basedir, verbose, ...)
+  if (!isSorted) {onedir(basedir, verbose, ...)
 
-  ## putting into respective folders using dcmdump
-  if (useR) {
-    # if (verbose) cat("dcm sorting")
-    dcmtables = Rdcmsort(basedir, sortdir, id = id)
-  } else {
-    dcmsort(basedir, progdir, sortdir, verbose, ...)
-  }
+    ## putting into respective folders using dcmdump
+    if (useRdcmsort) {
+      # if (verbose) cat("dcm sorting")
+      dcmtables = Rdcmsort(basedir, sortdir, id = id)
+    } else {
+      dcmsort(basedir, progdir, sortdir, verbose, ...)
+      dcmtables = NULL
+    }
 
-  if (useR & inherits(dcmtables, "logical")){
-    return(FALSE)
+    if (useRdcmsort & inherits(dcmtables, "logical")){
+      return(FALSE)
+    }
   }
+    
   ## gantry tilt correction
   file_gc(basedir, progdir, verbose, ...)
   
   ## conversion
-  if (useR) {
+  if (useRdcm2nii) {
     ret = Rdcm2nii(basedir, sortdir, verbose=TRUE, ...)
   } else {
     dcm2nii(basedir, progdir, sortdir, verbose, ...)
@@ -375,6 +379,22 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
           basename(newpath)))
       
       system(sprintf('rm -R "%s"', newpath))
+
+      outfile = file.path(iddir, paste0(name, ".nii.gz"))
+      ### rescaling
+      img = readNIfTI(outfile)
+      inter = as.numeric(img@scl_inter)
+      slope = as.numeric(img@scl_slope)
+      img = (img + inter)/slope      
+      img[img < -1024] = -1024
+      img[img < -3071] = 3071
+      img@scl_slope = 1
+      img@scl_inter = 0  
+      img@cal_max = max(img, na.rm=TRUE)       
+      img@cal_min = min(img, na.rm=TRUE)             
+      writeNIfTI(img, file=outfile)
+    #http://www.medical.siemens.com/siemens/en_GLOBAL/rg_marcom_FBAs/files/brochures/DICOM/ct/DICOM_VA70C.pdf for 4095 ranges
+
     }
   } # end loop over paths
 
@@ -561,7 +581,8 @@ file_gc <- function(basedir, progdir, verbose=TRUE, ...){
     for (ipath in 1:length(paths)){
       path <- paths[ipath]
       files <- getfiles(path)$files
-      hdr <- dicomInfo(fname=files[1], pixelData=FALSE)$hdr
+      hdr = rereadDICOMHeader(files[1])[[1]]
+      # hdr <- dicomInfo(fname=files[1], pixelData=FALSE)$hdr
       row <- grep("GantryDetectorTilt", hdr[, "name"])
       if (length(row) == 0) next;
       if (length(row) > 1) {
@@ -735,14 +756,9 @@ dcm2nii_worker <- function(path, outfile="output",
     dcm = readDICOM(path=path, recursive=FALSE, 
     verbose=verbose)
     TRUE
-  }, warning = function(war) {
-    print(paste("Warning was: ", war))
-    return(FALSE)
   }, error = function(e) {
     print(paste("Had error, skipping: ", e))
     return(FALSE)
-  }, finally = function(e){
-    return(TRUE)
   })
   ### added line for readDICOM
 
@@ -782,7 +798,8 @@ dcm2nii_worker <- function(path, outfile="output",
     x = dcm$img[[iimg]]
     # if (verbose) print(range(dcm$img[[iimg]]))
     dcm$img[[iimg]][x < -1024] = -1024
-    dcm$img[[iimg]][x > 3000] = 3000
+    dcm$img[[iimg]][x > 3071] = 3071
+    #http://www.medical.siemens.com/siemens/en_GLOBAL/rg_marcom_FBAs/files/brochures/DICOM/ct/DICOM_VA70C.pdf for 4095 ranges
   }
 
   # res = try({ 
@@ -794,14 +811,9 @@ dcm2nii_worker <- function(path, outfile="output",
     dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE, 
       descrip = NULL)
     TRUE
-  }, warning = function(war) {
-    print(paste("Warning was: ", war))
-    return(FALSE)
   }, error = function(e) {
     print(paste("Had error, skipping: ", e))
     return(FALSE)
-  }, finally = function(e){
-    return(TRUE)
   })
   ### added line for readDICOM
 
@@ -846,6 +858,7 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
   ipath <- 1
   lpath <- length(paths)
   
+  results = rep(FALSE, lpath)
   ### need dcm2nii in your path! - from MRICRON
   if (lpath >= 1){
     if (verbose) cat("Converting to nii using R \n")
@@ -855,6 +868,7 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
       res <- system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
       
       res = dcm2nii_worker(path)
+      results[ipath] = res
       if (!res) next;
       
       niis <- dir(path=path, pattern=".nii.gz")
@@ -909,6 +923,9 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
       system(sprintf('rm -R "%s"', newpath), ignore.stdout = !verbose)
     }
   } # end loop over paths
+
+  df = data.frame(paths, results, stringsAsFactors=FALSE)
+  return(df)
   
 } ## end Rdcm2nii
 
