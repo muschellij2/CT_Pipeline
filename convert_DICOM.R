@@ -260,9 +260,16 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
 
     # hdr = hdrl[[length(dcms)]]
     if (verbose) cat("Making filenames \n")
-
     filenames = llply(hdrl, name.file, id = id,
       .progress="text")
+    flen = sapply(filenames, length)
+    over1 = flen > 1
+    if (any(over1)){
+      ind = which(over1)
+      print("Multi Names")
+      print(filenames[ind])
+      filenames = llply(filenames, function(x) x[1])
+    }
     filenames = unlist(filenames)
     names(filenames)= NULL
 

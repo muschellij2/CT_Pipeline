@@ -97,7 +97,7 @@ useR = TRUE
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 38
+if (is.na(iid)) iid <- 75
 
 id <- ids[iid]
 setup(id)
@@ -163,11 +163,12 @@ if (regantry){
   ### started 11:55
   contime <- NULL
 
-  if (convert) {
+  # if (convert) {
     ### convert the dicoms
     contime <- system.time(convert_DICOM(basedir, progdir, 
                             verbose=verbose, untar=untar, 
                             useR= TRUE, id = id))
+    print(contime)
 
     ## dropout the niis that are not needed
     # lis <- includeMatrix(basedir, dropstring="ungantry", error=TRUE)
@@ -183,7 +184,7 @@ if (regantry){
     # }
 
     # save(outs, mis, file = infofile)
-  }
+  # }
   
 # }
 

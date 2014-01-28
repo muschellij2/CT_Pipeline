@@ -28,7 +28,7 @@ library(plyr)
 
   study = "Registration"
   todir <- file.path(rootdir, study)
-  fromstudy = "ICES"
+  fromstudy = "MISTIE"
   fromdir = file.path(rootdir, fromstudy)
   
   # dropids = "100-318"
