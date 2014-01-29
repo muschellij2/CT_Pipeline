@@ -81,7 +81,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
       dcmtab$slope = as.numeric(dcmtab$slope)
 
       if (verbose){
-        not.reg.ct = ( dcmtab$slope != 1 | 
+        not.reg.ct = ( !(dcmtab$slope %in% 1) | 
           !(dcmtab$intercept %in% c(0, -1024) ) )
         if ( any(not.reg.ct) ){
           nonreg = dcmtab[not.reg.ct, ]
@@ -266,7 +266,8 @@ extract.time = function(hdr, key){
   runtime     = extract.from.hdr(hdr, key, numeric=TRUE)  
   NUMBER      = runtime / 100
   NUMBER      = sprintf("%04.0f", NUMBER)
-  NUMBER        = ifelse(!is.na(NUMBER) & !(NUMBER %in% "") & 
+  NUMBER        = ifelse(!is.na(NUMBER) & 
+    !(NUMBER %in% c("", "  NA")) & 
     length(NUMBER) > 0, NUMBER, NA)  
 }
 
@@ -312,6 +313,8 @@ name.file = function(hdr, id = NULL){
   FNUM        = ifelse( miss.data(FNUM), ACQNUM, FNUM)
   FNUM        = ifelse( miss.data(FNUM), CNUM, FNUM)
 
+  FNUM        = gsub(" ", "_", FNUM)
+
   DATE        = ifelse(!is.na(StudyDate) & !(StudyDate %in% "") & length(StudyDate) > 0, 
     StudyDate, SeriesDate)
   DATE        = ifelse(!is.na(DATE) & !(DATE %in% "") & length(DATE) > 0, DATE, NA)
@@ -354,21 +357,30 @@ group.hdr = function(hdrl, id){
   dtimes = grep("(Date|Time)$", cn, value=TRUE)
   for (icol in dtimes) dcmtab[, icol] = as.numeric(dcmtab[, icol])
 
+    get.col = function(value, colname){
+      if ( colname %in% colnames(dcmtab) ){
+        value[is.na(value)] = dcmtab[is.na(value), colname]
+      } 
+      return(value)
+    }
+
   dcmtab$Date = dcmtab$"0008-0022-AcquisitionDate"  
-  dcmtab$Date[is.na(dcmtab$Date)] = 
-    dcmtab[is.na(dcmtab$Date), "0008-0023-ContentDate"]  
-  dcmtab$Date[is.na(dcmtab$Date)] = 
-    dcmtab[is.na(dcmtab$Date), "0008-0021-SeriesDate"]      
-  dcmtab$Date[is.na(dcmtab$Date)] = 
-    dcmtab[is.na(dcmtab$Date), "0008-0020-StudyDate"] 
+  dcmtab$Date[is.na(dcmtab$Date)] = get.col(dcmtab$Date, 
+    "0008-0023-ContentDate")
+  dcmtab$Date[is.na(dcmtab$Date)] = get.col(dcmtab$Date, 
+    "0008-0021-SeriesDate")
+  dcmtab$Date[is.na(dcmtab$Date)] = get.col(dcmtab$Date, 
+    "0008-0020-StudyDate")
+
     # "230-356" has weird dtimes
   dcmtab$Time = dcmtab$"0008-0032-AcquisitionTime"  
-  dcmtab$Time[is.na(dcmtab$Time)] = 
-    dcmtab[is.na(dcmtab$Time), "0008-0031-SeriesTime"]      
-  dcmtab$Time[is.na(dcmtab$Time)] = 
-    dcmtab[is.na(dcmtab$Time), "0008-0020-StudyTime"] 
+  dcmtab$Time[is.na(dcmtab$Time)] =  get.col(dcmtab$Time,
+    "0008-0031-SeriesTime")
+  dcmtab$Time[is.na(dcmtab$Time)] =  get.col(dcmtab$Time,
+    "0008-0020-StudyTime") 
 
   dcmtab$Time = sprintf("%04.0f", dcmtab$Time/100)
+  dcmtab$Time = gsub(" ", "", dcmtab$Time)
 
   grouptime = ddply(dcmtab, .(group), function(x) {
     DTime = paste0(x$Date[1], "_", x$Time[1])
@@ -416,6 +428,8 @@ group.hdr = function(hdrl, id){
   cn = colnames(dcmtab)
   cn = cn[grepl("Number$", cn)]
   for (icol in cn) dcmtab[ dcmtab[, icol] %in% "", icol] = NA
+
+  dcmtab$uname = gsub("/", "_", dcmtab$uname)
 
   return(list(df = dcmtab, fnames=dcmtab$uname))
 }
@@ -535,6 +549,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
 
   ### need dcm2nii in your path! - from MRICRON
   if (lpath >= 1){
+    
     outdir = file.path(basedir, "dcm2nii")
     if (!file.exists(outdir)) {
       system(sprintf('mkdir -p "%s"', outdir))
@@ -545,8 +560,8 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       path <- paths[ipath]
       x = system(sprintf('rm "%s"/*.nii.gz', path), intern=TRUE)
       intern=TRUE
-      res <- system(sprintf('%s -b "%s"/CT_dcm2nii.ini "%s"', dcm2niicmd,
-          progdir, path), intern=intern)
+      res <- system(sprintf('%s -b "%s"/CT_dcm2nii.ini "%s"', 
+          dcm2niicmd, progdir, path), intern=intern)
       if (intern) {
         errs <- any(grepl("Error", res))
       } else {
@@ -563,6 +578,21 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
 
       iddir <- file.path(basedir)
       name <- stub
+
+      dcms = getfiles(path)$files
+
+      if (length(dcms) > 0){
+        # ifile = 1;
+        ### read in EVERY HEADER from this 
+        if (verbose) cat("Reading Headers \n")
+        hdrl = rereadDICOMHeader(dcms)      
+        names(hdrl) = dcms
+    
+        dcmtables = dicomTable(hdrl)
+
+        save(dcmtables, 
+            file=paste0(path, "_Header_Info.Rda"))
+      }      
       
       ### copy dicom header info
       # header_txt(path)
@@ -606,6 +636,17 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       img@cal_min = min(img, na.rm=TRUE)
       img@descrip = paste0("written by dcm2nii - ", img@descrip)
       outfile = file.path(iddir, name)
+
+      #### create histograms
+      pngname = file.path(iddir, "Hists")
+      dir.create(pngname, showWarnings=FALSE)
+          
+      pngname = file.path(pngname, paste0(name, ".png"))
+      
+      png(pngname)
+        hist(img)
+      dev.off()
+
       writeNIfTI(img, file=outfile)
 
       newpath <- file.path(dirname(path), name)            
