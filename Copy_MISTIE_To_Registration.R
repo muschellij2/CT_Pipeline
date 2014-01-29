@@ -71,9 +71,11 @@ library(plyr)
     make.dir = function(path){
       system(sprintf('mkdir -p "%s"', path))
     }
-    x = l_ply(unique(paths), make.dir, .progress="text")
+    # x = l_ply(unique(paths), make.dir, .progress="text")
 
     df = data.frame(xfiles, tofiles, stringsAsFactors=FALSE)
+    cuts = as.numeric(cut(seq(nrow(df)), 5))
+    # df = df[ cuts == 4, ]
     # df = df[nrow(df):1,]
     x = mlply(df,function(xfiles,tofiles){
       file.copy(xfiles, tofiles)

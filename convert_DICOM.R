@@ -7,8 +7,9 @@ require(oro.dicom)
 
 #### wrapper to convert an entire directory to sort/move/nifti
 convert_DICOM <- function(basedir, progdir, verbose=TRUE, 
-  isSorted = FALSE, untar=FALSE, useRdcmsort = TRUE, 
-  useRdcm2nii = TRUE, id = NULL, ...){
+  isSorted = NULL, untar=FALSE, useRdcmsort = TRUE, 
+  useRdcm2nii = TRUE, id = NULL, removeDups = FALSE, 
+  removeNII = TRUE, ...){
   
   setwd(basedir)
 
@@ -36,20 +37,59 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
         if (verbose) print(ifile)
       }
     }
-    files <- dir(path=basedir, pattern=".nii.gz", 
+    if (removeNII) {
+      files <- dir(path=basedir, pattern=".nii.gz", 
           full.names=TRUE, recursive=TRUE)
-    file.remove(files)
+      file.remove(files)
+    }
   }
 
 
+  if (is.null(isSorted)) {
+    isSorted = sorted.data(basedir)
+  }
   ### Moving files into one big directory
   ### watch out for / ending in basedir
-  if (!isSorted) {onedir(basedir, verbose, ...)
+  if (!isSorted) {
+    onedir(basedir, verbose)
 
     ## putting into respective folders using dcmdump
     if (useRdcmsort) {
       # if (verbose) cat("dcm sorting")
-      dcmtables = Rdcmsort(basedir, sortdir, id = id)
+      dcmtables = Rdcmsort(basedir, sortdir, id = id, 
+        removeDups = removeDups)
+
+      keepcols = grepl("RescaleIntercept|RescaleSlope|PixelSpacing", 
+                       colnames(dcmtables))
+      dcmtab = dcmtables[, 
+        c("0028-1052-RescaleIntercept", 
+          "0028-1053-RescaleSlope", 
+          "0028-0030-PixelSpacing"),
+        drop=FALSE]
+      stopifnot(ncol(dcmtab) == 3)
+      colnames(dcmtab) = c("intercept", "slope", "pixelspacing")
+
+
+      dcmtab$dirname = basename(dirname(rownames(dcmtab)))
+      if (verbose) {
+        print(table(dcmtab$dirname, dcmtab$slope))
+        print(table(dcmtab$dirname, dcmtab$intercept))
+      }
+
+      dcmtab$intercept = as.numeric(dcmtab$intercept)
+      dcmtab$slope = as.numeric(dcmtab$slope)
+
+      if (verbose){
+        not.reg.ct = ( dcmtab$slope != 1 | 
+          !(dcmtab$intercept %in% c(0, -1024) ) )
+        if ( any(not.reg.ct) ){
+          nonreg = dcmtab[not.reg.ct, ]
+          print(table(nonreg$slope))
+          print(table(nonreg$intercept))
+          print(unique(nonreg$dirname))
+        }
+      }
+
     } else {
       dcmsort(basedir, progdir, sortdir, verbose, ...)
       dcmtables = NULL
@@ -65,9 +105,11 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
   
   ## conversion
   if (useRdcm2nii) {
-    ret = Rdcm2nii(basedir, sortdir, verbose=TRUE, ...)
+    ret = Rdcm2nii(basedir, sortdir, verbose=verbose, ...)
   } else {
-    dcm2nii(basedir, progdir, sortdir, verbose, ...)
+    dcm2niicmd = dcm2niicmd
+    dcm2nii(basedir, progdir, sortdir, verbose,
+      ...)
   }
   
   gf <- getfiles(basedir)
@@ -85,18 +127,33 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
 } ###end function
 
 
-
 movefiles <- function(files, indices, outdir, num=6, verbose=TRUE){
   maxnum <- 10^num
   if (max(indices) > maxnum) stop("Need new format")
-  for (i in 1:length(files)){
-    ind <- indices[i]
-    fmt <- paste0("%0", num, ".0f.dcm")
+  fmt <- paste0("%0", num, ".0f.dcm")
+  
+  i = 1;
+  x = llply(files, function(file){
+      ind = indices[i]
       new <- file.path(outdir, sprintf(fmt, ind))
-      system(sprintf('mv "%s" "%s"', files[i], new))   
-      if (verbose) print(i)
-  }
+      system(sprintf('mv "%s" "%s"', file, new))   
+      i <<- i + 1;
+      return(NULL)
+  }, .progress = ifelse(verbose, "text", "none"))
 }
+
+# movefiles <- function(files, indices, outdir, num=6, verbose=TRUE){
+#   maxnum <- 10^num
+#   if (max(indices) > maxnum) stop("Need new format")
+  
+#   for (i in 1:length(files)){
+#     ind <- indices[i]
+#     fmt <- paste0("%0", num, ".0f.dcm")
+#       new <- file.path(outdir, sprintf(fmt, ind))
+#       system(sprintf('mv "%s" "%s"', files[i], new))   
+#       if (verbose) print(i)
+#   }
+# }
 
 ## find /thisdir -type f -name '*.ogg' -exec mv -i {} /somedir \;
 
@@ -111,10 +168,10 @@ runformats <- function(fmts, startind= 0, indir, outdir, verbose=TRUE){
                   full.names=TRUE)  
     if (length(x) > 0) {
       ### get new indices
-      runn <- (istart+1):(istart+1+length(x))
-      movefiles(x, runn, outdir=outdir, verbose=verbose)
+      indices <- (istart+1):(istart+1+length(x))
+      movefiles(x, indices, outdir=outdir, verbose=verbose)
       ## re-index the formats
-      istart <- max(runn)
+      istart <- max(indices)
     }
 
   }
@@ -128,18 +185,35 @@ runformats <- function(fmts, startind= 0, indir, outdir, verbose=TRUE){
     return(list(files=files, paths=paths))
   }
 
-onedir <- function(basedir, verbose=TRUE, ...){
-    gf <- getfiles(basedir)
 
+sorted.data = function(basedir){
+    gf <- getfiles(basedir)
 
   ### Moving files into one big directory
     ### watch out for / ending in basedir
   if (!all(gf$paths == basedir)){
+    return(FALSE)
+  } else {
+    return(TRUE)
+  }
+
+}
+
+onedir <- function(basedir, verbose=TRUE){
+    gf <- getfiles(basedir)
+
+  if (sorted.data(basedir)) {
+      return(TRUE)
+  } else {
+  ### Moving files into one big directory
+    ### watch out for / ending in basedir
+
     fmts <- c(".dcm", ".DCM", "Image[0-9].*[0-9]$", 
       "C[0-9].*[0-9]$", "C[0-9].*[A-Z]$")
     lastind <- runformats(fmts, indir=basedir, 
       outdir=basedir, verbose=verbose)
-  }
+    return(FALSE)
+  } 
 }
 
 dcmsort <- function(basedir, progdir, sortdir, dcmsortopt = '', verbose=TRUE, ...){
@@ -182,7 +256,7 @@ extract.desc = function(hdr, key){
   desc = extract.from.hdr(hdr, key)
   desc = gsub(" ", "_", desc)
   desc = ifelse(is.na(desc) | length(desc) == 0, "unnamed", desc)
-  desc = gsub("/", "", desc); 
+  desc = gsub("/", "", desc) 
   desc = gsub("\47", "", desc)
   return(desc)
 } 
@@ -249,8 +323,108 @@ name.file = function(hdr, id = NULL){
 }
 
 
+
+
+##### stopped here - best way to categorize the data
+##### using unique ID information
+group.hdr = function(hdrl, id){
+  ID = llply(hdrl, function(x){
+    x = x[grepl("(Study.*|Patient|Series.*)ID$", x$name) | x$name == "SeriesNumber" | 
+    grepl("(Series|Study|Acquisition|Content)(Date|Time)$", x$name) |
+    grepl("Modality", x$name) | grepl("(Series|Study)Description$", x$name)| 
+    grepl("Number$", x$name),]
+  })
+  dcmtab = dicomTable(ID)
+  stopifnot(nrow(dcmtab) == length(hdrl))
+  df = as.data.frame(table(dcmtab$"0020-000D-StudyInstanceUID", 
+    dcmtab$"0020-000E-SeriesInstanceUID"))
+  colnames(df) = c("0020-000D-StudyInstanceUID", "0020-000E-SeriesInstanceUID", "N")
+  df = df[df$N > 0,]
+
+  # df = as.data.frame(table(dcmtab$"0020-000E-SeriesInstanceUID"))
+  # colnames(df) = c("0020-000E-SeriesInstanceUID", "N")
+  # df = df[df$N > 0,]
+
+  df$group = 1:nrow(df)
+
+  dcmtab = merge(dcmtab, df, all.x=TRUE, sort=FALSE)
+
+  cn = colnames(dcmtab)
+  dtimes = grep("(Date|Time)$", cn, value=TRUE)
+  for (icol in dtimes) dcmtab[, icol] = as.numeric(dcmtab[, icol])
+
+  dcmtab$Date = dcmtab$"0008-0022-AcquisitionDate"  
+  dcmtab$Date[is.na(dcmtab$Date)] = 
+    dcmtab[is.na(dcmtab$Date), "0008-0023-ContentDate"]  
+  dcmtab$Date[is.na(dcmtab$Date)] = 
+    dcmtab[is.na(dcmtab$Date), "0008-0021-SeriesDate"]      
+  dcmtab$Date[is.na(dcmtab$Date)] = 
+    dcmtab[is.na(dcmtab$Date), "0008-0020-StudyDate"] 
+    # "230-356" has weird dtimes
+  dcmtab$Time = dcmtab$"0008-0032-AcquisitionTime"  
+  dcmtab$Time[is.na(dcmtab$Time)] = 
+    dcmtab[is.na(dcmtab$Time), "0008-0031-SeriesTime"]      
+  dcmtab$Time[is.na(dcmtab$Time)] = 
+    dcmtab[is.na(dcmtab$Time), "0008-0020-StudyTime"] 
+
+  dcmtab$Time = sprintf("%04.0f", dcmtab$Time/100)
+
+  grouptime = ddply(dcmtab, .(group), function(x) {
+    DTime = paste0(x$Date[1], "_", x$Time[1])
+  })
+
+  colnames(grouptime) = c("group", "DTime")
+  dcmtab = merge(dcmtab, grouptime, by="group", 
+    all.x=TRUE, sort=FALSE)
+
+  uID = unique(dcmtab$"0010-0020-PatientID", NA)
+  uID = uID[ !is.na(uID) & !(uID %in% "") ]
+  stopifnot(length(uID) <= 1)
+  if (length(uID) == 0) uID = id
+
+  dcmtab$PID = uID
+
+  groupinfo = ddply(dcmtab, .(group), function(x) {
+    info = paste0(x$"0008-1030-StudyDescription"[1], "_", 
+      x$"0008-103E-SeriesDescription"[1])
+  })
+  colnames(groupinfo) = c("group", "Desc")
+  groupinfo$Desc[ groupinfo$Desc %in% "_"] = ""
+  dcmtab = merge(dcmtab, groupinfo, by="group", 
+    all.x=TRUE, sort=FALSE)
+
+  dcmtab$uname = paste0(dcmtab$PID, "_", dcmtab$DTime, "_", 
+    dcmtab$"0008-0060-Modality", "_", 
+    dcmtab$"0020-0011-SeriesNumber", "_", dcmtab$Desc)
+   dcmtab$uname = gsub("_$", "", dcmtab$uname)
+  rownames(dcmtab) = names(hdrl)
+
+### ione last double check
+  df = as.data.frame(table(dcmtab$uname, dcmtab$group), 
+    stringsAsFactors=FALSE)
+  df = df[ df$Freq > 0,]
+  n = nrow(df)
+  stopifnot( length(unique(df$Var2)) == n )
+  if ( (length(unique(df$Var1)) != n) ){
+
+    warning("Throwing some scans into the same folder")
+    print(df$Var1[duplicated(df$Var1)])
+  }
+  
+  ## NA'ing ascention numbers, etc
+  cn = colnames(dcmtab)
+  cn = cn[grepl("Number$", cn)]
+  for (icol in cn) dcmtab[ dcmtab[, icol] %in% "", icol] = NA
+
+  return(list(df = dcmtab, fnames=dcmtab$uname))
+}
+
+
 Rdcmsort = function(basedir, sortdir, id = NULL, 
+  removeDups = FALSE,
   writeFile=FALSE, verbose = TRUE){
+  
+  ### get dcm files
   dcms = getfiles(basedir)$files
 
   if (length(dcms) > 0){
@@ -264,18 +438,21 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
 
     # hdr = hdrl[[length(dcms)]]
     if (verbose) cat("Making filenames \n")
-    filenames = llply(hdrl, name.file, id = id,
-      .progress="text")
-    flen = sapply(filenames, length)
-    over1 = flen > 1
-    if (any(over1)){
-      ind = which(over1)
-      print("Multi Names")
-      print(filenames[ind])
-      filenames = llply(filenames, function(x) x[1])
-    }
-    filenames = unlist(filenames)
-    names(filenames)= NULL
+    # filenames = llply(hdrl, name.file, id = id,
+    #   .progress="text")
+    # flen = sapply(filenames, length)
+    # over1 = flen > 1
+    # if (any(over1)){
+    #   ind = which(over1)
+    #   print("Multi Names")
+    #   print(filenames[ind])
+    #   filenames = llply(filenames, function(x) x[1])
+    # }
+    # filenames = unlist(filenames)
+    # names(filenames)= NULL
+
+    groups = group.hdr(hdrl, id = id)
+    filenames = groups$fnames
 
     basenames = basename(dcms)
 
@@ -286,6 +463,42 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
 
     x = file.rename(dcms, new.fnames)
     stopifnot(all(x))
+
+    groupdf = groups$df
+    rownames(groupdf) = NULL
+    cn = colnames(groupdf)
+    ### just in case Image Number vs. Instance Number
+    ### http://dicomlookup.com/lookup.asp?sw=Tnumber&q=(0020,0013)
+    inum = grep("0020-0013-", cn, value=TRUE)
+    # groupdf = groupdf[, 
+    #   c("group", "0020-0012-AcquisitionNumber", 
+    #     "0008-0050-AccessionNumber", "0020-0011-SeriesNumber", 
+    #     inum,
+    #     "uname")]
+
+    groupdf = groupdf[, 
+      c("0020-0012-AcquisitionNumber", 
+        "0008-0050-AccessionNumber", "0020-0011-SeriesNumber", 
+        inum,
+        "uname")]
+
+    rownames(groupdf) = new.fnames
+
+    if (removeDups) {
+      dups = duplicated(groupdf)
+      udups = duplicated(groupdf, fromLast= TRUE)
+      ddups = dups | udups
+      ### if they don't have instance nmber - just keep it
+      cc = complete.cases(groupdf[, inum])
+      dups = dups & cc
+      dup.files = rownames(groupdf[dups,])
+      file.remove(dup.files)
+      hdrl = hdrl[!dups]
+
+      new.fnames = new.fnames[!dups]
+    }
+
+
 
     # hdrl = lapply(hdrl, function(df) {
     #   df$uval = paste(df$group, df$element, df$name, sep="-")
@@ -309,7 +522,7 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
 }
 
 dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, 
-                    dcm2niicmd = "dcm2nii", ...){
+                    dcm2niicmd = "dcm2nii_2009", ...){
 
   gf <- getfiles(basedir)
   files <- gf$files
@@ -321,6 +534,10 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
 
   ### need dcm2nii in your path! - from MRICRON
   if (lpath >= 1){
+    outdir = file.path(basedir, "dcm2nii")
+    if (!file.exists(outdir)) {
+      system(sprintf('mkdir -p "%s"', outdir))
+    }
     if (verbose) cat("Converting to nii \n")
 
     for (ipath in 1:length(paths)){
@@ -328,7 +545,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       x = system(sprintf('rm "%s"/*.nii.gz', path), intern=TRUE)
       intern=TRUE
       res <- system(sprintf('%s -b "%s"/CT_dcm2nii.ini "%s"', dcm2niicmd,
-          progdir, path), intern=TRUE)
+          progdir, path), intern=intern)
       if (intern) {
         errs <- any(grepl("Error", res))
       } else {
@@ -347,7 +564,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       name <- stub
       
       ### copy dicom header info
-      header_txt(path)
+      # header_txt(path)
 #       dcm <- dir(path=path, pattern="dcm|DCM", full.names=TRUE, recursive=FALSE)[1]    
 #       txtfile <- file.path(dirname(path), paste0(stub, ".txt"))
 #       system(sprintf('dcmdump "%s" > "%s"', dcm, txtfile))
@@ -366,11 +583,32 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
         system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', 
           path, iddir, name))
       }
-      system(sprintf('rm "%s"/*.nii.gz', path))
+      # system(sprintf('rm "%s"/*.nii.gz', path))
       setwd(dirname(path))
       #     stop("me")
-      newpath <- file.path(dirname(path), name)
-      system(sprintf('mv "%s" "%s"', path, newpath))
+
+      outfile = file.path(iddir, paste0(name, ".nii.gz"))
+      file.copy(outfile, 
+        file.path(outdir, paste0(name, ".nii.gz")),
+        overwrite=TRUE)
+      ### rescaling
+      if (verbose) cat("Rescaling Image to -1024 to 3071\n")
+      img = readNIfTI(outfile, reorient=FALSE)
+      # inter = as.numeric(img@scl_inter)
+      # slope = as.numeric(img@scl_slope)
+      # img = (img * slope + inter)
+      img[img < -1024] = -1024
+      img[img > 3071] = 3071
+      img@scl_slope = 1
+      img@scl_inter = 0  
+      img@cal_max = max(img, na.rm=TRUE)       
+      img@cal_min = min(img, na.rm=TRUE)
+      img@descrip = paste0("written by dcm2nii - ", img@descrip)
+      outfile = file.path(iddir, name)
+      writeNIfTI(img, file=outfile)
+
+      newpath <- file.path(dirname(path), name)            
+      # system(sprintf('mv "%s" "%s"', path, newpath))
 
       # setwd(basename(newpath))
       # tarfile <- paste(newpath, ".tar.gz", sep="")
@@ -380,19 +618,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       
       system(sprintf('rm -R "%s"', newpath))
 
-      outfile = file.path(iddir, paste0(name, ".nii.gz"))
-      ### rescaling
-      img = readNIfTI(outfile)
-      inter = as.numeric(img@scl_inter)
-      slope = as.numeric(img@scl_slope)
-      img = (img + inter)/slope      
-      img[img < -1024] = -1024
-      img[img < -3071] = 3071
-      img@scl_slope = 1
-      img@scl_inter = 0  
-      img@cal_max = max(img, na.rm=TRUE)       
-      img@cal_min = min(img, na.rm=TRUE)             
-      writeNIfTI(img, file=outfile)
+      if (verbose) print(newpath)
     #http://www.medical.siemens.com/siemens/en_GLOBAL/rg_marcom_FBAs/files/brochures/DICOM/ct/DICOM_VA70C.pdf for 4095 ranges
 
     }
@@ -626,9 +852,9 @@ make_txt = function(path, ispath=TRUE,
 
   hdrs = mlply(df, function(dcm, txtfile){
     if (rmfile) {
-      hdr = system(sprintf('dcmdump "%s"', dcm), intern=TRUE)
+      hdr = system(sprintf('dcmdump -q "%s"', dcm), intern=TRUE)
     } else {
-      hdr = system(sprintf('dcmdump "%s" > "%s"', dcm, txtfile), 
+      hdr = system(sprintf('dcmdump -q "%s" > "%s"', dcm, txtfile), 
         intern=TRUE)
       if (readfile) hdr = readLines(txtfile)
     }
@@ -755,7 +981,7 @@ dcm2nii_worker <- function(path, outfile="output",
   res = tryCatch({ 
     dcm = readDICOM(path=path, recursive=FALSE, 
     verbose=verbose)
-    TRUE
+    return(TRUE)
   }, error = function(e) {
     print(paste("Had error, skipping: ", e))
     return(FALSE)
@@ -774,6 +1000,7 @@ dcm2nii_worker <- function(path, outfile="output",
     drop=FALSE]
   stopifnot(ncol(dcmtab) == 3)
   colnames(dcmtab) = c("intercept", "slope", "pixelspacing")
+
   # print(dcmtab$pixelspacing)
 
   dcmtab$pixelspacing[ dcmtab$pixelspacing %in% "" ] = NA
@@ -794,7 +1021,7 @@ dcm2nii_worker <- function(path, outfile="output",
   for (iimg in 1:length(dcm$img)){
     inter = as.numeric(dcmtab$intercept[iimg])
     slope = as.numeric(dcmtab$slope[iimg])
-    dcm$img[[iimg]] = (dcm$img[[iimg]] + inter)/slope
+    dcm$img[[iimg]] = dcm$img[[iimg]] * slope + inter
     x = dcm$img[[iimg]]
     # if (verbose) print(range(dcm$img[[iimg]]))
     dcm$img[[iimg]][x < -1024] = -1024
@@ -861,6 +1088,10 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
   results = rep(FALSE, lpath)
   ### need dcm2nii in your path! - from MRICRON
   if (lpath >= 1){
+    outdir = file.path(basedir, "Rdcm2nii")
+    if (!file.exists(outdir)) {
+      system(sprintf('mkdir -p "%s"', outdir))
+    }    
     if (verbose) cat("Converting to nii using R \n")
     
     for (ipath in 1:lpath){
@@ -908,6 +1139,9 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
         system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', path, iddir, name), 
                ignore.stdout = !verbose)
       }
+      file.copy(file.path(iddir, paste0(name, ".nii.gz")), 
+        file.path(outdir, paste0(name, ".nii.gz")))
+
       system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
       setwd(dirname(path))
       #     stop("me")

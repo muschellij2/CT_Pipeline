@@ -84,13 +84,15 @@ runonlybad = FALSE
 if (runonlybad) ids = ids[bad.ids]
 
 verbose=TRUE
-untar = FALSE
+untar = TRUE
 convert <- TRUE
 skullstrip <- TRUE
 regantry <- FALSE
 untgantry <- FALSE
 runall <- TRUE
-useR = TRUE
+useRdcmsort= TRUE
+useRdcm2nii= FALSE
+removeDups = TRUE
 dcm2niicmd = "dcm2nii_2009"
 
 ### initial setup
@@ -98,7 +100,7 @@ dcm2niicmd = "dcm2nii_2009"
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 75
+if (is.na(iid)) iid <- 110
 
 id <- ids[iid]
 setup(id)
@@ -169,9 +171,10 @@ if (regantry){
     
     contime <- system.time(convert_DICOM(basedir, progdir, 
                             verbose=verbose, untar=untar, 
-                            useRdcmsort= TRUE, 
-                            useRdcm2nii= TRUE,
+                            useRdcmsort= useRdcmsort, 
+                            useRdcm2nii= useRdcm2nii,
                             id = id, 
+                            removeDups=removeDups,
                             dcmsortopt=dcmsortopt, 
                             dcm2niicmd=dcm2niicmd))
 
