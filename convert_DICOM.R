@@ -72,6 +72,7 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
 
       dcmtab$dirname = basename(dirname(rownames(dcmtab)))
       if (verbose) {
+        cat("May explain 1024 problem\n")
         print(table(dcmtab$dirname, dcmtab$slope))
         print(table(dcmtab$dirname, dcmtab$intercept))
       }
