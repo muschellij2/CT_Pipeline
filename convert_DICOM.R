@@ -642,7 +642,7 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       dir.create(pngname, showWarnings=FALSE)
           
       pngname = file.path(pngname, paste0(name, ".png"))
-      
+      options(bitmapType = 'cairo')      
       png(pngname)
         hist(img)
       dev.off()
@@ -1265,3 +1265,63 @@ readCT = function (fname, hdr=NULL, endian = "little",
     options(warn = oldwarn)
     list(hdr = hdr, img = img)
 }
+
+
+
+
+
+#####PLOTTING FUNCTIONS for orthographics
+  mask.overlay = function(fimg, fmask, window=c(0, 100),  
+    col= c(gray(0), gray(1:59/60)), col.y = alpha("red", 0.5), ...){
+    
+    if (inherits(fimg, "character")) {
+      img = readNIfTI(fimg, reorient=FALSE)
+    } else {
+      if (inherits(fimg, "nifti")){
+        img = fimg
+      } else {
+        error("fimg has weird type - not char or nifti")
+      }
+    }
+
+    if (inherits(fmask, "character")) {
+      img.mask = readNIfTI(fmask, reorient=FALSE)
+    } else {
+      if (inherits(fimg, "nifti")){
+        img.mask = fmask
+      } else {
+        error("fmask has weird type - not char or nifti")
+      }
+    }    
+    # img[ img >= window[2] | img < window[1] ] = 0
+    img@cal_min = window[1]
+    img@cal_max = window[2]
+
+    img[ img < window[1] ] = window[1]
+    img[ img >= window[2] ] = window[2]
+
+    img.mask[img.mask <= 0] = NA
+
+    orthographic(img, img.mask, col=col, col.y = col.y, ...)
+  }
+
+  window.img = function(x, window=c(0, 100), 
+    replace = c("window", "missing")) {
+    if (inherits(x, "character")) x= readNIfTI(x, reorient=FALSE)
+    x@cal_min = window[1]
+    x@cal_max = window[2]
+    repper = replace[1]
+
+    x[ x < window[1] ] = 
+      ifelse(repper == "window", window[1], NA)
+    x[ x > window[2] ] = 
+      ifelse(repper == "window", window[2], NA)    
+    return(x)
+  }
+
+  wortho = function(x, window=c(0, 100), 
+    replace = c("window", "missing"), 
+    ...){
+    x = window.img(x, window=window, replace= replace)
+    orthographic(x=x, ...)
+  }

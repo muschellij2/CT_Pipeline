@@ -75,7 +75,7 @@ library(plyr)
 
     df = data.frame(xfiles, tofiles, stringsAsFactors=FALSE)
     cuts = as.numeric(cut(seq(nrow(df)), 5))
-    # df = df[ cuts == 4, ]
+    df = df[ cuts == 4, ]
     # df = df[nrow(df):1,]
     x = mlply(df,function(xfiles,tofiles){
       file.copy(xfiles, tofiles)

@@ -2,6 +2,7 @@ rm(list=ls())
 library(oro.dicom)
 library(oro.nifti)
 library(plyr)
+library(scales)
 
 
 
@@ -86,8 +87,9 @@ if (runonlybad) ids = ids[bad.ids]
 
 verbose =TRUE
 untar = TRUE
-convert <- TRUE
-skullstrip <- TRUE
+convert <- FALSE
+skullstrip <- FALSE
+plotss = TRUE
 regantry <- FALSE
 untgantry <- FALSE
 runall <- TRUE
@@ -101,7 +103,7 @@ dcm2niicmd = "dcm2nii_2009"
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 97
+if (is.na(iid)) iid <- 70
 
 id <- ids[iid]
 setup(id)
@@ -160,16 +162,16 @@ if (regantry){
   dcmsortopt <- ifelse(id =="301-520", '-s ', "")
 
 
+
+
+  if (convert) {
+    ### convert the dicoms
   infofile <- file.path(basedir, "Dropout_Information.Rda")
   file.remove(infofile)
-
-
-  ### started 11:55
+  
+### time for convertsion
   contime <- NULL
 
-  # if (convert) {
-    ### convert the dicoms
-    
     contime <- system.time(convert_DICOM(basedir, progdir, 
                             verbose=verbose, untar=untar, 
                             useRdcmsort= useRdcmsort, 
@@ -204,7 +206,7 @@ if (regantry){
     # save(outs, mis, file = infofile)
   # }
   
-# }
+}
 
 
 #### skull stripping
@@ -218,9 +220,53 @@ if (regantry){
         opts="-f 0.1 -b", 
         verbose=verbose))
 
+
+      system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, 
+        opts="-f 0.01 -b", 
+        verbose=verbose))
+
+      system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, 
+        opts="-f 0.35 -b", 
+        verbose=verbose))
+
+
     }
-  }  
+  }
 # }
+
+
+### make pltos of overlays for skull stripping 
+if (plotss){
+  ssdir = file.path(basedir, "Skull_Stripped")
+  odir = file.path(ssdir, "overlays")
+  dir.create(odir, showWarnings=FALSE)
+  ss.imgs = list.files(ssdir, pattern=".*\\.nii\\.gz", 
+    full.names=TRUE)
+  imgs = gsub("_SS_Mask_(0\\.1|0\\.35|0\\.01)", "", ss.imgs, fixed=FALSE)
+  imgs = gsub("Skull_Stripped/", "", imgs)
+
+  df = data.frame(img=imgs, img.mask =ss.imgs, 
+    stringsAsFactors=FALSE)
+
+  keep = apply(sapply(df, file.exists), 1, all)
+
+  df = df[keep, ]
+
+  df = df[ grepl("0.01", df$img.mask, fixed=TRUE),]
+  # img = imgs[1]
+  # img.mask = ss.imgs[1]
+  m_ply(function(img, img.mask){
+    fname = gsub("\\.gz", "", basename(img.mask))
+    fname = gsub("\\.nii$", "", fname)
+    outfile = file.path(odir, paste0(fname, ".png"))
+    png(outfile, type="cairo")
+      mask.overlay(img, img.mask)
+    dev.off()
+  }, .data=df, .progress = "text")
+}
+
+  # mask.overlay(imgs[1], ss.imgs[1])
+ 
 
 
 # if (skullstrip){
