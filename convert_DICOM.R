@@ -9,7 +9,7 @@ require(oro.dicom)
 convert_DICOM <- function(basedir, progdir, verbose=TRUE, 
   isSorted = NULL, untar=FALSE, useRdcmsort = TRUE, 
   useRdcm2nii = TRUE, id = NULL, removeDups = FALSE, 
-  removeNII = TRUE, ...){
+  removeNII = TRUE, ROIformat = FALSE, ...){
   
   setwd(basedir)
 
@@ -52,53 +52,53 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
   ### watch out for / ending in basedir
   if (!isSorted) {
     onedir(basedir, verbose)
+  }
 
-    ## putting into respective folders using dcmdump
-    if (useRdcmsort) {
-      # if (verbose) cat("dcm sorting")
-      dcmtables = Rdcmsort(basedir, sortdir, id = id, 
-        removeDups = removeDups)
+  ## putting into respective folders using dcmdump
+  if (useRdcmsort) {
+    # if (verbose) cat("dcm sorting")
+    dcmtables = Rdcmsort(basedir, sortdir, id = id, 
+      removeDups = removeDups, ROIformat=ROIformat)
 
-      keepcols = grepl("RescaleIntercept|RescaleSlope|PixelSpacing", 
-                       colnames(dcmtables))
-      dcmtab = dcmtables[, 
-        c("0028-1052-RescaleIntercept", 
-          "0028-1053-RescaleSlope", 
-          "0028-0030-PixelSpacing"),
-        drop=FALSE]
-      stopifnot(ncol(dcmtab) == 3)
-      colnames(dcmtab) = c("intercept", "slope", "pixelspacing")
+    keepcols = grepl("RescaleIntercept|RescaleSlope|PixelSpacing", 
+                     colnames(dcmtables))
+    dcmtab = dcmtables[, 
+      c("0028-1052-RescaleIntercept", 
+        "0028-1053-RescaleSlope", 
+        "0028-0030-PixelSpacing"),
+      drop=FALSE]
+    stopifnot(ncol(dcmtab) == 3)
+    colnames(dcmtab) = c("intercept", "slope", "pixelspacing")
 
 
-      dcmtab$dirname = basename(dirname(rownames(dcmtab)))
-      if (verbose) {
-        cat("May explain 1024 problem\n")
-        print(table(dcmtab$dirname, dcmtab$slope))
-        print(table(dcmtab$dirname, dcmtab$intercept))
-      }
-
-      dcmtab$intercept = as.numeric(dcmtab$intercept)
-      dcmtab$slope = as.numeric(dcmtab$slope)
-
-      if (verbose){
-        not.reg.ct = ( !(dcmtab$slope %in% 1) | 
-          !(dcmtab$intercept %in% c(0, -1024) ) )
-        if ( any(not.reg.ct) ){
-          nonreg = dcmtab[not.reg.ct, ]
-          print(table(nonreg$slope))
-          print(table(nonreg$intercept))
-          print(unique(nonreg$dirname))
-        }
-      }
-
-    } else {
-      dcmsort(basedir, progdir, sortdir, verbose, ...)
-      dcmtables = NULL
+    dcmtab$dirname = basename(dirname(rownames(dcmtab)))
+    if (verbose) {
+      cat("May explain 1024 problem\n")
+      print(table(dcmtab$dirname, dcmtab$slope))
+      print(table(dcmtab$dirname, dcmtab$intercept))
     }
 
-    if (useRdcmsort & inherits(dcmtables, "logical")){
-      return(FALSE)
+    dcmtab$intercept = as.numeric(dcmtab$intercept)
+    dcmtab$slope = as.numeric(dcmtab$slope)
+
+    if (verbose){
+      not.reg.ct = ( !(dcmtab$slope %in% 1) | 
+        !(dcmtab$intercept %in% c(0, -1024) ) )
+      if ( any(not.reg.ct) ){
+        nonreg = dcmtab[not.reg.ct, ]
+        print(table(nonreg$slope))
+        print(table(nonreg$intercept))
+        print(unique(nonreg$dirname))
+      }
     }
+
+  } else {
+    dcmsort(basedir, progdir, sortdir, verbose, ...)
+    dcmtables = NULL
+  }
+
+  if (useRdcmsort & inherits(dcmtables, "logical")){
+    return(FALSE)
   }
     
   ## gantry tilt correction
@@ -279,7 +279,7 @@ miss.data = function(info){
   return(FALSE)
 }
 
-name.file = function(hdr, id = NULL){
+name.file = function(hdr, id = NULL, ROIformat = FALSE){
   # print(colnames(hdr))
   PID         = extract.from.hdr(hdr, '0010,0020)')
   # print(PID)
@@ -323,6 +323,8 @@ name.file = function(hdr, id = NULL){
 
   PNAME       = paste(PID, DATER, Modality, SNUM, StudyDesc, SeriesDesc, sep="_")
   PNAME       = gsub(" ", "_", PNAME)
+
+  if (ROIformat) PNAME = gsub("_gantry", "", SeriesDesc)
   return(PNAME)
 }
 
@@ -331,7 +333,7 @@ name.file = function(hdr, id = NULL){
 
 ##### stopped here - best way to categorize the data
 ##### using unique ID information
-group.hdr = function(hdrl, id){
+group.hdr = function(hdrl, id, ROIformat = FALSE){
   ID = llply(hdrl, function(x){
     x = x[grepl("(Study.*|Patient|Series.*)ID$", x$name) | x$name == "SeriesNumber" | 
     grepl("(Series|Study|Acquisition|Content)(Date|Time)$", x$name) |
@@ -397,10 +399,19 @@ group.hdr = function(hdrl, id){
 
   dcmtab$PID = uID
 
+#### just so you can use the series description of ROI formatted
+  groupseries = ddply(dcmtab, .(group), function(x) {
+    info = gsub("_ungantry", "", x$"0008-103E-SeriesDescription"[1])
+  })
+
   groupinfo = ddply(dcmtab, .(group), function(x) {
     info = paste0(x$"0008-1030-StudyDescription"[1], "_", 
       x$"0008-103E-SeriesDescription"[1])
   })
+
+#### just so you can use the series description of ROI formatted
+  if (ROIformat) groupinfo = groupseries
+
   colnames(groupinfo) = c("group", "Desc")
   groupinfo$Desc[ groupinfo$Desc %in% "_"] = ""
   dcmtab = merge(dcmtab, groupinfo, by="group", 
@@ -409,7 +420,11 @@ group.hdr = function(hdrl, id){
   dcmtab$uname = paste0(dcmtab$PID, "_", dcmtab$DTime, "_", 
     dcmtab$"0008-0060-Modality", "_", 
     dcmtab$"0020-0011-SeriesNumber", "_", dcmtab$Desc)
+  
+  #### just so you can use the series description of ROI formatted
+  if (ROIformat) dcmtab$uname = dcmtab$Desc
    dcmtab$uname = gsub("_$", "", dcmtab$uname)
+
   rownames(dcmtab) = names(hdrl)
 
 ### ione last double check
@@ -437,7 +452,7 @@ group.hdr = function(hdrl, id){
 
 Rdcmsort = function(basedir, sortdir, id = NULL, 
   removeDups = FALSE,
-  writeFile=FALSE, verbose = TRUE){
+  writeFile=FALSE, verbose = TRUE, ROIformat = FALSE){
   
   ### get dcm files
   dcms = getfiles(basedir)$files
@@ -453,7 +468,7 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
 
     # hdr = hdrl[[length(dcms)]]
     if (verbose) cat("Making filenames \n")
-    # filenames = llply(hdrl, name.file, id = id,
+    # filenames = llply(hdrl, name.file, id = id, ROIformat= ROIformat,
     #   .progress="text")
     # flen = sapply(filenames, length)
     # over1 = flen > 1
@@ -466,7 +481,7 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
     # filenames = unlist(filenames)
     # names(filenames)= NULL
 
-    groups = group.hdr(hdrl, id = id)
+    groups = group.hdr(hdrl, id = id, ROIformat = ROIformat)
     filenames = groups$fnames
 
     basenames = basename(dcms)
@@ -608,13 +623,13 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
   #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         cmd <- c('fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         system(sprintf(cmd, iddir, name, path))
+        system(sprintf('rm "%s"/*.nii.gz', path))
           
       }
       if (length(niis) == 1){
         system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', 
           path, iddir, name))
       }
-      # system(sprintf('rm "%s"/*.nii.gz', path))
       setwd(dirname(path))
       #     stop("me")
 

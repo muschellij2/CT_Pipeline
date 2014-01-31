@@ -26,9 +26,9 @@ library(plyr)
   #   dpath <- study <- "ICES" 
   # }
 
-  study = "Registration"
+  study = "Registration_ICES"
   todir <- file.path(rootdir, study)
-  fromstudy = "MISTIE"
+  fromstudy = "ICES"
   fromdir = file.path(rootdir, fromstudy)
   
   # dropids = "100-318"
@@ -36,8 +36,10 @@ library(plyr)
   # keepids = c("100-318", "102-360")
   keepids = NULL
 
-  getfiles <- function(basedir){
-    files <- dir(path=basedir, pattern="dcm$|DCM$", full.names=TRUE, 
+
+
+  getfiles <- function(basedir, pattern = "dcm$|DCM$"){
+    files <- dir(path=basedir, pattern=pattern, full.names=TRUE, 
           recursive=TRUE)
     paths <- unique(dirname(files))
     return(list(files=files, paths=paths))
@@ -54,7 +56,10 @@ library(plyr)
   }  
   idir = 1;
   # for (idir in seq_along(ids)){
-    files = getfiles(fromdir)
+  pattern = ifelse(study %in% "MISTIE", 
+    "dcm$|DCM$", 
+    ".*_CT_.*\\.tar\\.gz$")
+    files = getfiles(fromdir, pattern = pattern)
 
     xfiles = files$files
     if (!is.null(dropids)) {
@@ -66,16 +71,16 @@ library(plyr)
       mat = apply(mat, 1, any)
       xfiles = xfiles[ mat ]
     }    
-    tofiles = gsub(fromstudy, "Registration", xfiles)
+    tofiles = gsub(fromstudy, study, xfiles)
     paths = dirname(tofiles)
     make.dir = function(path){
       system(sprintf('mkdir -p "%s"', path))
     }
-    # x = l_ply(unique(paths), make.dir, .progress="text")
+    x = l_ply(unique(paths), make.dir, .progress="text")
 
     df = data.frame(xfiles, tofiles, stringsAsFactors=FALSE)
     cuts = as.numeric(cut(seq(nrow(df)), 5))
-    df = df[ cuts == 4, ]
+    # df = df[ cuts == 4, ]
     # df = df[nrow(df):1,]
     x = mlply(df,function(xfiles,tofiles){
       file.copy(xfiles, tofiles)

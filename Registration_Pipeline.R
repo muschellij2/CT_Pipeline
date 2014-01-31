@@ -4,10 +4,10 @@ library(oro.nifti)
 library(plyr)
 library(scales)
 
+study = "Registration_ICES"
 
 
-
-setup <- function(id){
+setup <- function(id, study = "Registration"){
   username <- Sys.info()["user"][[1]]
 
   cluster=FALSE
@@ -30,8 +30,6 @@ setup <- function(id){
   #   dpath <- study <- "ICES" 
   # }
 
-  study = "Registration"
-
 
   rootdir <<- path.expand(rootdir)
   homedir <<- file.path(rootdir, study)
@@ -53,7 +51,8 @@ setup <- function(id){
 # "225-505", "225-506", "225-507", "225-510", "225-511", "225-515", 
 # "225-522", "225-523", "225-524", "232-512", "232-513", "232-514", 
 # "232-516", "232-521", "232-526", "289-518", "289-525", "301-520")
-ids = all.ids = c("100-318", "100-362", "100-365", "101-306", "101-307", "101-308", 
+if (study %in% "Registration") {
+  ids = all.ids = c("100-318", "100-362", "100-365", "101-306", "101-307", "101-308", 
 "102-317", "102-322", "102-323", "102-324", "102-326", "102-331", 
 "102-347", "102-349", "102-351", "102-360", "102-367", "102-374", 
 "102-391", "102-393", "102-403", "102-406", "111-415", "120-376", 
@@ -73,6 +72,12 @@ ids = all.ids = c("100-318", "100-362", "100-365", "101-306", "101-307", "101-30
 "222-357", "222-358", "223-355", "223-369", "223-407", "230-346", 
 "230-352", "230-356", "230-363", "230-366", "230-371", "230-377", 
 "234-385", "265-389", "265-398")
+} else {
+  ids = all.ids = c("205-509", "205-517", "205-519", "225-502", "225-503", "225-504", 
+"225-505", "225-506", "225-507", "225-510", "225-511", "225-515", 
+"225-522", "225-523", "225-524", "232-512", "232-513", "232-514", 
+"232-516", "232-521", "232-526", "289-518", "289-525", "301-520")
+}
 
 # bad.ids = c(16, 27, 28, 33, 38, 40, 43, 57, 59, 61, 62, 63, 64, 65, 66, 
 # 67, 68, 69, 71, 72, 75, 76, 77, 78, 79, 80, 81, 82, 85, 98, 99, 
@@ -103,10 +108,10 @@ dcm2niicmd = "dcm2nii_2009"
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 70
+if (is.na(iid)) iid <- 1
 
 id <- ids[iid]
-setup(id)
+setup(id, study = study)
 
 zeroed <- dir(path=basedir, pattern= ".*Zeroed.*\\.nii\\.gz", 
   recursive=TRUE, full.names=TRUE)
@@ -157,7 +162,7 @@ if (regantry){
 # for (iid in 1:length(ids)){
 
   id <- ids[iid]
-  setup(id)
+  setup(id, study = study)
   # source(file.path(progdir, "file_functions.R"))
   dcmsortopt <- ifelse(id =="301-520", '-s ', "")
 
@@ -252,7 +257,7 @@ if (plotss){
 
   df = df[keep, ]
 
-  df = df[ grepl("0.01", df$img.mask, fixed=TRUE),]
+  # df = df[ grepl("0.01", df$img.mask, fixed=TRUE),]
   # img = imgs[1]
   # img.mask = ss.imgs[1]
   m_ply(function(img, img.mask){
@@ -334,6 +339,10 @@ if (plotss){
 #  -i "$f" -o ./Skull_Stripped
 # 
 # done;
+
+# SSPLOT.e1616337.3:Error in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
+# SSPLOT.e1616337.68:Error in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
+# SSPLOT.e1616337.75:Error in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
 
 
 # for (i in mis){
