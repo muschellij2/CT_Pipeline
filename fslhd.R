@@ -43,20 +43,22 @@ fslmask <- function(file, mask=NULL, outfile=NULL,
 	
 	cmd <- NULL
 	fsldir <- system("echo $FSLDIR", intern=TRUE)
+	niiftype = "FSLOUTPUTTYPE=NIFTI_GZ;"
+	if (unzip) niiftype = "FSLOUTPUTTYPE=NIFTI;"
 	if (fsldir == "" | local) {
-	  if (local) cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
-	                          "export FSLDIR FSLOUTPUTTYPE; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
+	  if (local) cmd <- paste("FSLDIR=/usr/local/fsl; ", 
+	                          "export FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
 	}
-
+	cmd = paste(cmd, niiftype)
 
 	cmd <- paste(cmd, sprintf('fslmaths "%s" -mas "%s" "%s"', 
 		file, mask, outfile))
 # fslmaths  'FLAIRnorm_blur1_10.nii.gz' -div 'csfmask_blur1_10.nii.gz'   -mas 'csfmask.nii.gz'  'FLAIR_blur1_10_div.nii.gz'
 	system(cmd, intern=intern)
-	if (unzip) {
-		cmd = sprintf('gunzip --force "%s".gz', outfile)
-		system(cmd, intern=intern)	
-	}
+	# if (unzip) {
+	# 	cmd = sprintf('gunzip --force "%s".gz', outfile)
+	# 	system(cmd, intern=intern)	
+	# }
 }
 
 

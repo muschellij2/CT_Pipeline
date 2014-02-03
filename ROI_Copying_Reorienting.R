@@ -6,7 +6,8 @@ library(scales)
 library(reshape2)
 
 #### delete all ROI files
-### find . -regextype posix-extended -regex "^./[0-9].*[0-9]$" -exec rm -r {} \;
+### find . -regextype posix-extended -regex "^./[0-9].*[0-9]$"
+###  -exec rm -r {} \;
 
 setup <- function(id, study="ROI_data"){
   username <- Sys.info()["user"][[1]]
@@ -127,6 +128,8 @@ melted = melted[, c("value", "copydir")]
 ##########################################
 overwrite = FALSE
 m_ply(function(value, copydir) {
+  del.file = file.path(copydir, basename(value))
+  
   file.copy(value, copydir, overwrite=overwrite)
 }, .data = melted, .progress = "text")
 
@@ -150,7 +153,8 @@ df$ss = gsub("\\.gz$", "", df$ss)
 df$outfile = gsub("\\.nii", "_Masked.nii", df$raw)
 
 
-m_ply(.data=df[, c("raw", "ss", "outfile")], .fun = function(raw, ss, outfile) {
+m_ply(.data=df[, c("raw", "ss", "outfile")], 
+  .fun = function(raw, ss, outfile) {
   fslmask(file=raw, mask=ss, outfile=outfile, unzip = TRUE)
 }, .progress = "text")
 
