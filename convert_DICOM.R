@@ -505,12 +505,12 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
     #     "0008-0050-AccessionNumber", "0020-0011-SeriesNumber", 
     #     inum,
     #     "uname")]
-
-    groupdf = groupdf[, 
-      c("0020-0012-AcquisitionNumber", 
+    cns = c("0020-0012-AcquisitionNumber", 
         "0008-0050-AccessionNumber", "0020-0011-SeriesNumber", 
         inum,
-        "uname")]
+        "uname")
+    if (!all(cns %in% cn)) cns = intersect(cns, cn)
+    groupdf = groupdf[, cns]
 
     rownames(groupdf) = new.fnames
 
@@ -578,12 +578,14 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       res <- system(sprintf('%s -b "%s"/CT_dcm2nii.ini "%s"', 
           dcm2niicmd, progdir, path), intern=intern)
       if (intern) {
-        errs <- any(grepl("Error", res))
+        ### added use MRIcro from 205-519:
+        ### Unsupported Transfer Syntax
+        errs <- any(grepl("Error|use MRIcro", res))
       } else {
         errs <- res != 0
       }
       stopifnot(length(errs) == 1)
-      if (  errs ){
+      if ( errs ){
               system(sprintf('rm "%s"/*.nii.gz', path))
               print("Error in DCM2NII")
               next
@@ -909,9 +911,11 @@ make_txt = function(path, ispath=TRUE,
 
   hdrs = mlply(df, function(dcm, txtfile){
     if (rmfile) {
-      hdr = system(sprintf('dcmdump -q "%s"', dcm), intern=TRUE)
+      hdr = system(sprintf('dcmdump -q --print-all --load-short "%s"', 
+        dcm), intern=TRUE)
     } else {
-      hdr = system(sprintf('dcmdump -q "%s" > "%s"', dcm, txtfile), 
+      hdr = system(sprintf('dcmdump -q --print-all --load-short "%s" > "%s"', 
+        dcm, txtfile), 
         intern=TRUE)
       if (readfile) hdr = readLines(txtfile)
     }
@@ -1028,6 +1032,44 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   return(outdir)
 }
 
+
+
+acpc_reorient <- function(infiles, 
+  spmdir = "~/spm8", 
+  verbose=TRUE){
+  
+  require(stringr)
+  if (verbose) print(paste0("Gantry correction ", infiles))
+  find.matlab <- system("which matlab")
+  cmd <- 'matlab -nodesktop -nosplash -nodisplay -r '  
+  if (find.matlab != 0){
+    cmd <- paste0('/Applications/MATLAB_R2012b.app/bin/', cmd)
+  }
+  ### gantry tilt correction - make new folder
+  ### ranem old folder - zip it and then run matlab script
+  infiles <- path.expand(infiles)
+  spmdir = path.expand(spmdir)
+
+  cmd <- paste(cmd, '"try, ')
+  cmd <- paste(cmd, sprintf("addpath('%s');", spmdir))
+  cmd <- paste(cmd, sprintf("addpath('%s/toolbox');", spmdir))
+  cmd <- paste(cmd, sprintf("addpath('%s/toolbox/rorden');", spmdir))
+
+  limgs = length(infiles)
+   imgs = sprintf("'%s',", infiles[1])
+  for (ifile in 2:length(infiles)){
+    imgs = paste( imgs, sprintf("'%s',", 
+      infiles[ifile]))
+  }
+  imgs = str_trim(imgs)
+  imgs = gsub(",$", "", imgs)
+  cmd <- paste(cmd, sprintf("runimgs = strvcat(%s);", imgs))
+  cmd <- paste(cmd, "nii_setorigin(runimgs);")
+  cmd <- paste0(cmd, 'end; quit"')
+  x <- system(cmd, ignore.stdout = !verbose )
+  
+  return(x)
+}
 
 
 

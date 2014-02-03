@@ -61,7 +61,7 @@ first = function(x) {
 firsts = ddply(df, .(id), first)
 
 script = laply(firsts$tar, function(x){
-  start = paste0("rsync -rav $jenig:$dex/Registration/", x, " ./")
+  start = paste0("rsync -rav $jenig:$dex/", study, "/", x, " ./")
 })
 
 writeLines(script, file.path(progdir, "Copy_First.sh"))

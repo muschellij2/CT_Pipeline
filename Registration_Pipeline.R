@@ -92,8 +92,8 @@ if (runonlybad) ids = ids[bad.ids]
 
 verbose =TRUE
 untar = TRUE
-convert <- FALSE
-skullstrip <- FALSE
+convert <- TRUE
+skullstrip <- TRUE
 plotss = TRUE
 regantry <- FALSE
 untgantry <- FALSE
@@ -108,7 +108,7 @@ dcm2niicmd = "dcm2nii_2009"
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 1
+if (is.na(iid)) iid <- 3
 
 id <- ids[iid]
 setup(id, study = study)
@@ -221,6 +221,7 @@ if (regantry){
   if (skullstrip){
 
     if (runall) {
+
       system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, 
         opts="-f 0.1 -b", 
         verbose=verbose))
@@ -240,8 +241,9 @@ if (regantry){
 # }
 
 
-### make pltos of overlays for skull stripping 
+### make plots of overlays for skull stripping 
 if (plotss){
+
   ssdir = file.path(basedir, "Skull_Stripped")
   odir = file.path(ssdir, "overlays")
   dir.create(odir, showWarnings=FALSE)
@@ -268,6 +270,7 @@ if (plotss){
       mask.overlay(img, img.mask)
     dev.off()
   }, .data=df, .progress = "text")
+  
 }
 
   # mask.overlay(imgs[1], ss.imgs[1])
@@ -340,9 +343,9 @@ if (plotss){
 # 
 # done;
 
-# SSPLOT.e1616337.3:Error in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
-# SSPLOT.e1616337.68:Error in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
-# SSPLOT.e1616337.75:Error in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
+# SSPLOT.e1616337.3: in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
+# SSPLOT.e1616337.68: in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
+# SSPLOT.e1616337.75: in if (!all(dim(x)[1:3] == dim(y)[1:3])) { : 
 
 
 # for (i in mis){
