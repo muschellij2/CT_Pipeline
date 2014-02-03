@@ -91,7 +91,7 @@ runonlybad = FALSE
 if (runonlybad) ids = ids[bad.ids]
 
 verbose =TRUE
-untar = TRUE
+untar = FALSE
 convert <- TRUE
 skullstrip <- TRUE
 plotss = TRUE
@@ -108,7 +108,7 @@ dcm2niicmd = "dcm2nii_2009"
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 3
+if (is.na(iid)) iid <- 19
 
 id <- ids[iid]
 setup(id, study = study)

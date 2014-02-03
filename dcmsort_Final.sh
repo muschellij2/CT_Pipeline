@@ -14,7 +14,7 @@ function usage {
   echo "          -m Move instead of copy"
   echo "          -x Exclude Localizers"
   echo "          -h This page"
-  echo "          -s Series Date/Time instead of Series Date/Time"
+  echo "          -s Study Date/Time instead of Series Date/Time"
 }
 
 cmd="cp";

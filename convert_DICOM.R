@@ -143,6 +143,85 @@ movefiles <- function(files, indices, outdir, num=6, verbose=TRUE){
   }, .progress = ifelse(verbose, "text", "none"))
 }
 
+
+run_ctnorm <- function(rawfile, roifile=NULL, 
+  spmdir = "~/spm8", 
+  matfile = file.path("/dexter/disk2/smart/stroke_ct/ident/programs",
+    "Test_Registration", "CT_Normalize_All_BB.mat"),
+  deleteinter = TRUE,
+  makescript = TRUE, 
+  verbose=TRUE){
+  
+  stopifnot(length(rawfile) == 1)
+  require(stringr)
+  if (verbose) print(paste0("Co-registration to Template ", rawfile))
+  find.matlab <- system("which matlab")
+  cmd <- 'matlab -nodesktop -nosplash -nodisplay -r'  
+  if (find.matlab != 0){
+    cmd <- paste0('/Applications/MATLAB_R2012b.app/bin/', cmd)
+  }
+  matcmd = cmd
+
+  ### gantry tilt correction - make new folder
+  ### ranem old folder - zip it and then run matlab script
+  rawfile <- path.expand(rawfile)
+  roifile <- path.expand(roifile)
+
+  spmdir = path.expand(spmdir)
+
+  if (!makescript) {
+    cmd <- paste(cmd, '"')
+  } else {
+    cmd = NULL
+  }
+  cmd <- paste(cmd, 'try, ')
+  cmd <- paste(cmd, sprintf("addpath('%s');", spmdir))
+  cmd <- paste(cmd, sprintf("addpath('%s/toolbox');", spmdir))
+  cmd <- paste(cmd, sprintf("addpath('%s/toolbox/rorden');", spmdir))
+  cmd <- paste(cmd, sprintf("addpath('%s/toolbox/Clinical');", spmdir))
+
+  cmd <- paste(cmd, sprintf("job = load('%s');", matfile))
+
+  cmd <- paste(cmd, sprintf(
+    "job.matlabbatch{1}.spm.tools.MRI.CTnorm.images = {'%s,1'};", 
+    rawfile))
+  if (is.null(roifile)){
+    roifile = rawfile
+    cmd <- paste(cmd, 
+      "job.matlabbatch{1}.spm.tools.MRI.CTnorm.brainmaskct = 0;") 
+  }
+  cmd <- paste(cmd, sprintf(
+    "job.matlabbatch{1}.spm.tools.MRI.CTnorm.ctles = {'%s,1'};", 
+    roifile))    
+  if (!deleteinter){
+    cmd <- paste(cmd, 
+      "job.matlabbatch{1}.spm.tools.MRI.CTnorm.DelIntermediate = 0;")
+  }
+
+  cmd <- paste(cmd, "spm_jobman('initcfg');")
+  cmd <- paste(cmd, "spm_jobman('run', job.matlabbatch);")
+  cmd <- paste(cmd, "catch, exit(1);")
+  # cmd <- paste(cmd, "disp(err); ")
+  cmd <- paste0(cmd, 'end; exit(0);')
+  if (!makescript) {
+    cmd = paste0(cmd, ' quit"')
+  }
+  if (makescript) {
+    sname = file.path(getwd(), "TEMPORARY_SCRIPT_DELETE.m")
+    writeLines(cmd, con=sname)
+  }
+  # cat(cmd, "\n")
+  # if (verbose) cat(cmd, "\n")
+  # x <- system(cmd, ignore.stdout = !verbose )
+  if (makescript) {
+    cmd = paste0(matcmd, ' "', "run('", sname, "');", '"')
+  } 
+  x <- system(cmd, ignore.stdout = !verbose )
+  if (makescript) file.remove(sname)
+  return(x)
+}
+
+
 # movefiles <- function(files, indices, outdir, num=6, verbose=TRUE){
 #   maxnum <- 10^num
 #   if (max(indices) > maxnum) stop("Need new format")
@@ -333,7 +412,9 @@ name.file = function(hdr, id = NULL, ROIformat = FALSE){
 
 ##### stopped here - best way to categorize the data
 ##### using unique ID information
-group.hdr = function(hdrl, id, ROIformat = FALSE){
+group.hdr = function(hdrl, id, 
+  ROIformat = FALSE,
+  useNA = "no"){
   ID = llply(hdrl, function(x){
     x = x[grepl("(Study.*|Patient|Series.*)ID$", x$name) | x$name == "SeriesNumber" | 
     grepl("(Series|Study|Acquisition|Content)(Date|Time)$", x$name) |
@@ -343,7 +424,7 @@ group.hdr = function(hdrl, id, ROIformat = FALSE){
   dcmtab = dicomTable(ID)
   stopifnot(nrow(dcmtab) == length(hdrl))
   df = as.data.frame(table(dcmtab$"0020-000D-StudyInstanceUID", 
-    dcmtab$"0020-000E-SeriesInstanceUID"))
+    dcmtab$"0020-000E-SeriesInstanceUID", useNA = useNA))
   colnames(df) = c("0020-000D-StudyInstanceUID", "0020-000E-SeriesInstanceUID", "N")
   df = df[df$N > 0,]
 
@@ -1039,7 +1120,7 @@ acpc_reorient <- function(infiles,
   verbose=TRUE){
   
   require(stringr)
-  if (verbose) print(paste0("Gantry correction ", infiles))
+  if (verbose) print(paste0("Reorientation ", infiles))
   find.matlab <- system("which matlab")
   cmd <- 'matlab -nodesktop -nosplash -nodisplay -r '  
   if (find.matlab != 0){
@@ -1057,15 +1138,20 @@ acpc_reorient <- function(infiles,
 
   limgs = length(infiles)
    imgs = sprintf("'%s',", infiles[1])
-  for (ifile in 2:length(infiles)){
-    imgs = paste( imgs, sprintf("'%s',", 
-      infiles[ifile]))
+  if (limgs > 1){
+    for (ifile in 2:limgs){
+      imgs = paste( imgs, sprintf("'%s',", 
+        infiles[ifile]))
+    }
   }
   imgs = str_trim(imgs)
   imgs = gsub(",$", "", imgs)
   cmd <- paste(cmd, sprintf("runimgs = strvcat(%s);", imgs))
   cmd <- paste(cmd, "nii_setorigin(runimgs);")
+  cmd <- paste(cmd, "catch err;")
+  cmd <- paste(cmd, "disp(err); ")
   cmd <- paste0(cmd, 'end; quit"')
+  # if (verbose) cat(cmd, "\n")
   x <- system(cmd, ignore.stdout = !verbose )
   
   return(x)
