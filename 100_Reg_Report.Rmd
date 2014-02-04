@@ -1,0 +1,353 @@
+
+
+```{r knit-setup, echo=FALSE, results='hide'}
+library(knitr)
+opts_chunk$set(message=FALSE, warning=FALSE,
+               comment="",
+               echo=FALSE, results='hide')
+opts_knit$set(error = FALSE)
+
+# options(rstudio.markdownToHTML =
+#   function(inputFile, outputFile) {
+#     library(knitrBootstrap)
+#     knit_bootstrap_md(input=inputFile, output=outputFile, code_style="Brown Paper", chooser=c("boot", "code"), show_code=FALSE)
+#   }
+# )
+```
+ 
+
+```{r, echo=FALSE}
+rm(list=ls())
+library(R.matlab)
+library(oro.nifti)
+library(plyr)
+library(ggplot2)
+library(reshape2)
+library(RColorBrewer)
+library(knitrBootstrap)
+library(xtable)
+homedir = "/Applications"
+rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
+if (Sys.info()[["user"]] %in% "jmuschel") {
+  homedir = "~"
+  rootdir = "/dexter/disk2/smart/stroke_ct/ident"
+}
+progdir = file.path(rootdir, "programs")
+source(file.path(progdir, "convert_DICOM.R"))
+source(file.path(progdir, "fslhd.R"))
+basedir = file.path(rootdir, "Registration")
+tempdir = file.path(rootdir, "Template")
+outdir = file.path(basedir, "results")
+whichdir = "reoriented"
+# whichdir = "FLIRT"
+rerun = FALSE
+
+template = file.path(tempdir, "scct_unsmooth.nii.gz")
+temp = readNIfTI(template)
+setwd(progdir)
+
+
+get.overlap <-  function(dman, dauto){
+	dman = c(dman > 0)
+	dauto = c(dauto > 0)	
+	stopifnot(length(dman) == length(dauto))	
+	
+	ab <- as.numeric(t(dman) %*% dauto)
+	plus = dman + dauto
+	aplusb <- sum(plus)
+	### different way of doing a + b
+	aorb <- sum(plus > 0)
+	dice <- 2 * ab/aplusb
+	jaccard <- ab/aorb 
+	
+#	tab <- table(cdman, cdauto, dnn=c("dman", "dauto"))
+	sens <- mean(dauto[dman]) ##tab[2,2]/sum(tab[2,])
+	spec <- mean(!dauto[!dman])
+	accur <- mean( dauto == dman )
+	res <- c(dice=dice, jaccard=jaccard, sens=sens, spec = spec, accur=accur)
+	# print(res)
+	return(res)
+}
+
+
+```
+
+
+
+
+```{r templatestuff}
+
+tempmask.fname = file.path(tempdir, "scct_mask.nii.gz")
+tempmask = readNIfTI(tempmask.fname)
+
+
+tempskull = file.path(tempdir, "scct_unsmooth_skull_400_1000.nii.gz")
+skullpng = gsub("\\.nii\\.gz", ".png", tempskull)
+
+if (!file.exists(skullpng)){
+
+	tskull = readNIfTI(tempskull)
+
+	png(skullpng)
+
+	orthographic(tskull)
+
+	dev.off()
+}
+
+```
+
+
+```{r}
+
+dtemp = dim(temp)
+
+run.data = function(whichdir, outdir, rerun=FALSE){
+	redir = file.path(basedir, whichdir)
+	if (!file.exists(redir)){
+		system('mkdir -p "%s"', redir)
+	}
+	imgs = list.files(pattern='ROI.*.nii', full.names=TRUE, path=redir)
+	imgs = imgs[ !grepl("2mm_", imgs)]
+	if (grepl("reoriented", whichdir)) imgs = imgs[ grepl("bws", imgs)]
+	imgs = imgs[ !grepl("affine9", imgs)]
+
+	rawimgs = gsub("bws", "w", imgs)
+	rawimgs = gsub("^ROI_", "", rawimgs)
+	rawimgs = gsub("ROI\\.", ".", rawimgs)
+
+	bin.popimg = popimg = array(0, dim=dtemp)
+
+	# rois = lapply(imgs, readNIfTI)
+	nimgs = length(imgs)
+	ids = opngs = rawpngs = rep(NA, nimgs)
+	dices = matrix(nrow=nimgs, ncol= 5)
+	colnames(dices) = c("dice", "jaccard", "sens", "spec", "accur")
+
+	iimg = 1;
+
+	resdir = file.path(redir, "results")
+	if (!file.exists(resdir)){
+		system('mkdir -p "%s"', resdir)
+	}
+
+	for (iimg in seq(nimgs)){
+		print(iimg)
+		id = basename(rawimgs[iimg])
+		id = gsub("\\.gz$", "", id)
+		iid = id = gsub("\\.nii$", "", id)
+		id = gsub("^w", "spm_", id)
+		id = gsub("^affine", "flirt_dof", id)
+
+		ids[iimg] = gsub("^(w|affine(9|12)_)", "", iid)
+		rawpngs[iimg] = file.path(outdir, paste0("raw_", id, ".png"))
+		opngs[iimg] = file.path(outdir, paste0("roi_", id, ".png"))
+
+		if (rerun){
+
+			rawimg = readNIfTI(rawimgs[iimg])
+			rawimg[ rawimg > 100 | rawimg < 0] = 0
+			rawmask = rawimg > 0
+			dices[iimg, ] = get.overlap(tempmask, rawmask)
+
+			img = readNIfTI(imgs[iimg])
+			tt = temp
+			tt[ tt >= 99 | tt < 0] = 0
+			tt[ img > 0 ] = 100
+			popimg = popimg + img
+			bin.popimg = bin.popimg + (img > 0)
+
+			## get cross hair information
+			chair = round(colMeans(which(img > 0, arr.ind=TRUE)))
+			png(opngs[iimg])
+
+				orthographic(tt, 
+					col= c(gray(0), gray(1:60/60), hotmetal(1)), 
+					xyz=chair)
+
+			dev.off()
+
+			png(rawpngs[iimg])
+
+				orthographic(rawimg,  
+					xyz=chair)
+
+			dev.off()
+		}
+	}
+	popimg 		= popimg 		/ nimgs
+	bin.popimg 	= bin.popimg 	/ nimgs
+
+	dice.fname = file.path(resdir, "DICE_overlap.Rda")
+	if (rerun) {
+		save(dices, file=dice.fname )
+	} else {
+		load(dice.fname)
+	}
+	dice.df = data.frame(dices)
+	dice.df$id = ids
+
+	popimg.fname = file.path(resdir, "Weighted_Sum_Image")
+	binimg.fname = file.path(resdir, "Binary_Sum_Image")
+
+	if (rerun){
+		nim = temp
+		nim@.Data = popimg
+		nim@cal_min = min(nim, na.rm=TRUE)
+		nim@cal_max = max(nim, na.rm=TRUE)
+		nim@scl_inter = 0
+		nim@scl_slope = 1
+  	  	nim@datatype	= 16
+  	  	nim@bitpix 		= 32		
+		writeNIfTI(nim, filename=popimg.fname)
+
+		nim@.Data = bin.popimg
+		nim@cal_min = min(nim, na.rm=TRUE)
+		nim@cal_max = max(nim, na.rm=TRUE)
+		nim@scl_inter = 0
+		nim@scl_slope = 1		
+  	  	nim@datatype	= 16
+  	  	nim@bitpix 		= 32		
+		writeNIfTI(nim, filename=binimg.fname)
+	}
+	return(list(nimgs=nimgs, ids=ids, 
+		opngs=opngs, rawpngs=rawpngs, 
+		popimg.fname=popimg.fname,
+		binimg.fname = binimg.fname, 
+		dice.df = dice.df))
+}
+
+```
+
+```{r spmrundata}
+
+whichdir = "reoriented"
+run = run.data(whichdir, rerun)
+nimgs = run$nimgs
+ids = run$ids
+opngs = run$opngs
+rawpngs = run$rawpngs
+dice.df = run$dice.df
+spm.popimg = paste0(run$popimg.fname, ".nii.gz")
+spm.binimg = paste0(run$binimg.fname, ".nii.gz")
+load(file=file.path(basedir, whichdir, 
+	"ROI_Overlap_Measures.Rda"))
+allres = allres
+allres$fname = gsub("_ROI", "", allres$fname)
+allres[, c("raw", "bin", "weighted")] = 
+	round(allres[, c("raw", "bin", "weighted")] *100, 1)
+
+```
+
+# Report 
+
+## Registrations
+We used Chris Rorden's [toolbox](http://www.mccauslandcenter.sc.edu/CRNL/clinical-toolbox) to spatially coregistered the CT data to a temmplate, masking out the lesions created from the reading center.We also coregistered using [FLIRT](http://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FLIRT) using the CT Template from the aforementioned toolbox using only the skull, with Hounsfield Units (HU) from 400 to 1000.  Each scan was threshholded and then coregistered using an affine (with 12 degrees of freedom) coregistration.  
+
+### Skull Template Image
+
+```{r, results='asis'}
+img.tag = '<img src="%s" alt="%s" style="width: 400px;"/>\n\n'
+cat(sprintf(img.tag, skullpng, skullpng))
+cat("\n")
+```
+
+## Reporting Tools
+For each patient, the ROI is overlaid on the template, where the ROI is bright white.  The coregistered image is also printed.  A table of the percent overlap of regions of the ROI on the template (downsampled to 2mm) as were labeled in the [AAL atlas](http://www.ncbi.nlm.nih.gov/pubmed/11771995).  Any region from the ROI was not labeled, was considered "Uncategorized".  
+
+Three measures of overlap were created.  Since the data was downsampled to 2mm, the binary image mask was smoothed/blurred so that not all voxels are 0 or 1.  The three measures are calculated as follows:
+1. Voxels with intensity > 0 are summed as in the hemorrhage by region. "Percent Over 0"
+2. Voxels with > 0.95 are summmed in the hemorrhage by region. "Percent over 95% Probability"
+3. The smoothed values (think of them as probabilities in some sense) are summed by region. "Weighted Sum"
+
+Each region is then scaled by the total number of voxels to give the percent engagement of that region.
+
+
+```{r catinfo}
+
+cat.info = function(){
+	for (iimg in seq(nimgs)){
+		id = ids[iimg]
+		df = allres[ allres$fname == id, ]
+		df = df[df$raw != 0, ]
+
+		agg = aggregate(cbind(raw, bin, weighted) ~ col_name, 
+			data=df, sum)
+		df = df[, c("area", "raw", "bin", "weighted")]		
+		colnames(df) = colnames(agg) = c("Area", "Percent Over 0", "Percent Over 95% Probability", "Weighted Sum")
+
+		xtab = xtable(df)
+		cat(sprintf('## %s\n\n', id))
+		img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
+
+		# cat("### Overlaid ROI ##\n\n")
+		cat(sprintf(img.tag, opngs[iimg], opngs[iimg]))
+
+		#cat("### Registered Image ##\n\n")
+		cat(sprintf(img.tag, rawpngs[iimg], rawpngs[iimg]))
+
+		print.xtable(xtab, type="html", include.rownames=FALSE, comment=FALSE)
+
+		aggxtab = xtable(agg)
+		# print.xtable(aggxtab, type="html", include.rownames=FALSE, comment=FALSE)
+
+		cat("\n\n")
+	}
+}
+```
+
+# Registration with SPM 
+
+```{r spmrun, results='asis'}
+
+cat.info()
+```
+
+
+
+# Population Images
+## SPM
+
+```{r orthos_spm, results='hide'}
+
+spm1.png = gsub("\\.nii\\.gz", ".png", spm.popimg)
+if (!file.exists(spm1.png) | rerun){
+	spm.pimg = readNIfTI(spm.popimg)
+	png(spm1.png)
+	orthographic(spm.pimg, text="Weighted Average")
+	dev.off()
+}
+
+spm2.png = gsub("\\.nii\\.gz", ".png", spm.binimg)
+if (!file.exists(spm2.png) | rerun){
+	spm.bimg = readNIfTI(spm.binimg)
+
+	png(spm2.png)
+	orthographic(spm.bimg, text="Binary Average")
+	dev.off()
+}
+# img.tag = '<img src="%s" alt="%s" style="width: 400px;"/>\n\n'
+# cat(sprintf(img.tag, skullpng, skullpng))
+# cat("\n")
+```
+
+```{r, results='asis'}
+img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
+cat(sprintf(img.tag, spm1.png, spm1.png))
+cat(sprintf(img.tag, spm2.png, spm2.png))
+cat("\n\n")
+```
+
+
+```{r, results='asis'}
+img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
+cat(sprintf(img.tag, f1.png, f1.png))
+cat(sprintf(img.tag, f2.png, f2.png))
+cat("\n\n\n")
+```
+
+### Session Info
+
+```{r, echo=TRUE, results='markup'}
+sessionInfo()
+```

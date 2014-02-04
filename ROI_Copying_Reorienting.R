@@ -141,7 +141,7 @@ m_ply(function(value, copydir) {
 }, .data = melted, .progress = "text")
 
 ##########################################
-## Unzipping files
+## Unzipping files - for SPM
 ##########################################
 melted$image = file.path(melted$copydir, basename(melted$value))
 l_ply(.data=melted$image, .fun =function(x) {

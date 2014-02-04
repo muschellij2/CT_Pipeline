@@ -192,3 +192,19 @@ fslfill = function(file, outfile = file, bin=TRUE, intern=TRUE,
   cmd <- paste(cmd, sprintf('fslmaths "%s" %s -fillh "%s"', file, runbin, outfile))
   system(cmd, intern=intern)
 }
+
+
+fslsub2 = function(file, outfile = file, intern=TRUE, 
+                   local=FALSE, unzip=FALSE){
+  cmd <- NULL
+  fsldir <- system("echo $FSLDIR", intern=TRUE)
+	niiftype = "FSLOUTPUTTYPE=NIFTI_GZ;"
+	if (unzip) niiftype = "FSLOUTPUTTYPE=NIFTI;"
+	if (fsldir == "" | local) {
+	  if (local) cmd <- paste("FSLDIR=/usr/local/fsl; ", 
+	                          "export FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
+	}
+	cmd = paste(cmd, niiftype)
+  cmd <- paste(cmd, sprintf('fslmaths "%s" -subsamp2 "%s"', file, outfile))
+  system(cmd, intern=intern)
+}
