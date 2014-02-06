@@ -1472,7 +1472,7 @@ readCT = function (fname, hdr=NULL, endian = "little",
 
 
 
-create_hull = function(mask, writeFile = FALSE, outfile=NULL, 
+create_bbox = function(mask, writeFile = FALSE, outfile=NULL, 
   gzipped = TRUE){
     nii.end = FALSE
     if (!inherits(mask, "nifti")){
