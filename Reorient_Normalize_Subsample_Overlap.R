@@ -45,9 +45,9 @@ library(reshape2)
 load(file.path(rootdir, "Registration", 
   "Registration_Image_Names.Rda"))
 xdf = df
-reorient = TRUE
-normalize = TRUE
-subsamp = TRUE
+reorient = FALSE
+normalize = FALSE
+subsamp = FALSE
 imgs = mlply(.fun = function(outfile, roi.nii, raw, ss){
   c(outfile, roi.nii, raw, ss)
 }, .data=df[, c("outfile", "roi.nii", "raw", "ss")])
@@ -59,6 +59,10 @@ if (reorient){
     acpc_reorient(infiles = x)
   }, .progress="text")
   stopifnot(all(rets == 0))
+  rois = df$roi.nii
+  l_ply(.data=rois, .fun = fslthresh, unzip=TRUE, 
+    .progress = "text")
+  # acpc_reorient(infiles = x)
 }
 
 
@@ -91,7 +95,11 @@ df$raw = file.path(dirname(df$raw),
 
 exists = t(apply(df, 1, file.exists))
 aexists = apply(exists, 1, all)
-df[which(!aexists),]
+nonorm = xdf[which(!aexists),]
+nonorm = gsub(rootdir, "", nonorm$copydir)
+nonorm = gsub("reoriented", "", nonorm)
+
+sum(!aexists)
 df = df[aexists,]
 df$id = 1:nrow(df)
 melted = melt(df, id.vars="id")

@@ -1468,3 +1468,56 @@ readCT = function (fname, hdr=NULL, endian = "little",
     x = window.img(x, window=window, replace= replace)
     orthographic(x=x, ...)
   }
+
+
+
+
+create_hull = function(mask, writeFile = FALSE, outfile=NULL, 
+  gzipped = TRUE){
+    nii.end = FALSE
+    if (!inherits(mask, "nifti")){
+      stopifnot(inherits(mask,'character'))
+      if (is.null(outfile) & writeFile) {
+        nii.end = grepl('\\.nii$', mask)
+        outfile = gsub("\\.gz$", "", mask)
+        outfile = gsub('\\.nii$', outfile)
+        outfile = paste0(outfile, "_Hull")
+      }
+      mask = readNIfTI(mask)
+    }
+
+    ### get the range of voxels 
+    nii.end = ifelse(gzipped, FALSE, nii.end)
+    dimg = dim(mask)
+    mask.log = mask > 0
+    ind = which(mask.log, arr.ind=TRUE)
+    ranges = apply(ind, 2, range)
+    ndim = ncol(ranges)
+    seqs = vector(mode="list", length=ndim)
+    ### dimensions converted to 9mm
+    vox.sizes = pixdim(mask)[2:4]
+    vox.sizes = ceiling(10/vox.sizes)
+    for (idim in 1:ndim){
+
+      seqs[[idim]] = seq(
+        max(ranges[1, idim]-vox.sizes[idim], 1), 
+        min(ranges[2, idim]+vox.sizes[idim], dimg[idim]))
+    }
+    all.ind = as.matrix(expand.grid(seqs))
+    mask.log[all.ind] = 1L
+
+    mask.log@datatype <- 2
+    mask.log@bitpix <- 8   
+    mask.log@cal_max = as.integer(max(mask.log, na.rm=TRUE))
+    mask.log@cal_min = as.integer(min(mask.log, na.rm=TRUE))
+    # convert.datatype()$UINT8
+    # convert.bitpix()$UINT8
+
+
+    if (writeFile){
+      stopifnot(!is.null(outfile))
+      writeNIfTI(mask.log, filename= outfile, gzipped = !nii.end)
+    }
+    return(mask.log)
+}
+

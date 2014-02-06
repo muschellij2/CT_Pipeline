@@ -167,6 +167,7 @@ check_sform_file <- function(file, value=0){
 ## if sign(det(res$sform)) == sign(det(res$qform)) and res$ssor[1] == res$sqor[1] then all good
 
 
+
 fslrange <- function(file, intern=TRUE, local=FALSE){
 	cmd <- NULL
 	fsldir <- system("echo $FSLDIR", intern=TRUE)
@@ -193,6 +194,22 @@ fslfill = function(file, outfile = file, bin=TRUE, intern=TRUE,
   system(cmd, intern=intern)
 }
 
+
+fslthresh = function(file, outfile = file, thresh = 0, intern=TRUE, 
+                   local=FALSE, unzip=FALSE){
+  cmd <- NULL
+  fsldir <- system("echo $FSLDIR", intern=TRUE)
+	niiftype = "FSLOUTPUTTYPE=NIFTI_GZ;"
+	if (unzip) niiftype = "FSLOUTPUTTYPE=NIFTI;"
+	if (fsldir == "" | local) {
+	  if (local) cmd <- paste("FSLDIR=/usr/local/fsl; ", 
+	                          "export FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
+	}
+	cmd = paste(cmd, niiftype)
+  cmd <- paste(cmd, sprintf('fslmaths "%s" -thr %f "%s"', 
+  	file, thresh, outfile))
+  system(cmd, intern=intern)
+}
 
 fslsub2 = function(file, outfile = file, intern=TRUE, 
                    local=FALSE, unzip=FALSE){
