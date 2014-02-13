@@ -26,7 +26,7 @@ library(plyr)
   #   dpath <- study <- "ICES" 
   # }
 
-  study = "Registration_ICES"
+  study = "Registration"
   todir <- file.path(rootdir, study)
   fromstudy = "ICES_raw"
   fromdir = file.path(rootdir, fromstudy)

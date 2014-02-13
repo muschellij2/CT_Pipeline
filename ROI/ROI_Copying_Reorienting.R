@@ -74,15 +74,15 @@ ids = list.dirs(homedir, recursive=FALSE, full.names=FALSE)
 ids = grep("\\d\\d\\d-(\\d|)\\d\\d\\d", ids, value=TRUE)
 length(ids)
 
-iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+# iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 1
+# if (is.na(iid)) iid <- 1
 
-# for (iid in seq_along(ids)){
+# # for (iid in seq_along(ids)){
 
-  id = ids[iid]
+#   id = ids[iid]
 
-  setup(id)
+#   setup(id)
 
 niis = list.files(path = homedir, 
   pattern= "\\.nii\\.gz", 
@@ -97,8 +97,9 @@ id.vals = basename(dn)
 
 pid = as.numeric(gsub("(\\d\\d\\d)-((\\d|)\\d\\d\\d)", 
   "\\2", id.vals))
-topdirs = sapply(pid, function(x) ifelse(x < 500, "Registration", 
-  "Registration_ICES"))
+# topdirs = sapply(pid, function(x) ifelse(x < 500, "Registration", 
+#   "Registration_ICES"))
+topdirs = sapply(pid, function(x) "Registration")
 raw.nii = gsub("ROI\\.nii", ".nii", bn)
 
 iddir = file.path(rootdir, topdirs, id.vals)

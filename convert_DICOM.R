@@ -1471,7 +1471,6 @@ readCT = function (fname, hdr=NULL, endian = "little",
 
 
 
-
 create_bbox = function(mask, writeFile = FALSE, outfile=NULL, 
   gzipped = TRUE){
     nii.end = FALSE
@@ -1481,7 +1480,7 @@ create_bbox = function(mask, writeFile = FALSE, outfile=NULL,
         nii.end = grepl('\\.nii$', mask)
         outfile = gsub("\\.gz$", "", mask)
         outfile = gsub('\\.nii$', outfile)
-        outfile = paste0(outfile, "_Hull")
+        outfile = paste0(outfile, "_BBox")
       }
       mask = readNIfTI(mask)
     }
