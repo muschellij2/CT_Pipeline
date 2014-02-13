@@ -15,7 +15,7 @@ library(scales)
     cluster =TRUE;
   }
     rootdir <- path.expand(rootdir)
-  study = "Registration_ICES"
+  study = "Registration"
 
 
   rootdir <- path.expand(rootdir)

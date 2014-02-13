@@ -1,0 +1,1 @@
+R CMD BATCH collapsed_models_prob_maps.R

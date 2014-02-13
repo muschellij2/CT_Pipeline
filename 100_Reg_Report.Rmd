@@ -1,5 +1,3 @@
-
-
 ```{r knit-setup, echo=FALSE, results='hide'}
 library(knitr)
 opts_chunk$set(message=FALSE, warning=FALSE,
@@ -36,15 +34,35 @@ progdir = file.path(rootdir, "programs")
 source(file.path(progdir, "convert_DICOM.R"))
 source(file.path(progdir, "fslhd.R"))
 basedir = file.path(rootdir, "Registration")
+
+
+#### baseline NIHSSS ata 
+nihss = read.csv(file.path(basedir, "baseline_NIHSS.csv"), 
+                 stringsAsFactors=FALSE)
 tempdir = file.path(rootdir, "Template")
+atlasdir = file.path(tempdir, "atlases")
+
 outdir = file.path(basedir, "results")
 whichdir = "reoriented"
+
 # whichdir = "FLIRT"
 rerun = FALSE
 
 template = file.path(tempdir, "scct_unsmooth.nii.gz")
 temp = readNIfTI(template)
 setwd(progdir)
+
+
+all.ids = list.dirs(basedir, recursive=FALSE, full.names=FALSE)
+all.ids = all.ids[grepl("\\d\\d\\d-(\\d|)\\d\\d\\d", all.ids)]
+redir = file.path(basedir, all.ids, whichdir)
+redir = redir[file.exists(redir)]
+nfiles = sapply(redir, function(x) 
+	length(dir(path=x, pattern="ROI*.nii.*")))
+redir = redir[nfiles > 0]
+## those that have ROIs
+all.ids = gsub(paste0(basedir, "/(.*)/", whichdir), "\\1", redir)
+# all.ids = all.ids[file.exists(redir)]
 
 
 get.overlap <-  function(dman, dauto){
@@ -101,11 +119,14 @@ if (!file.exists(skullpng)){
 ```{r}
 
 dtemp = dim(temp)
-
-run.data = function(whichdir, outdir, rerun=FALSE){
-	redir = file.path(basedir, whichdir)
+ID = "100-318"
+run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
+	### go to id directory
+	# if (verbose) print(ID)
+	iddir = file.path(basedir, ID)
+	redir = file.path(iddir, whichdir)
 	if (!file.exists(redir)){
-		system('mkdir -p "%s"', redir)
+		system(sprintf('mkdir -p "%s"', redir))
 	}
 	imgs = list.files(pattern='ROI.*.nii', full.names=TRUE, path=redir)
 	imgs = imgs[ !grepl("2mm_", imgs)]
@@ -124,15 +145,17 @@ run.data = function(whichdir, outdir, rerun=FALSE){
 	dices = matrix(nrow=nimgs, ncol= 5)
 	colnames(dices) = c("dice", "jaccard", "sens", "spec", "accur")
 
+	df = df
 	iimg = 1;
 
 	resdir = file.path(redir, "results")
 	if (!file.exists(resdir)){
-		system('mkdir -p "%s"', resdir)
+		system(sprintf('mkdir -p "%s"', resdir))
 	}
 
 	for (iimg in seq(nimgs)){
-		print(iimg)
+		# if (verbose) print(iimg)
+
 		id = basename(rawimgs[iimg])
 		id = gsub("\\.gz$", "", id)
 		iid = id = gsub("\\.nii$", "", id)
@@ -140,17 +163,23 @@ run.data = function(whichdir, outdir, rerun=FALSE){
 		id = gsub("^affine", "flirt_dof", id)
 
 		ids[iimg] = gsub("^(w|affine(9|12)_)", "", iid)
-		rawpngs[iimg] = file.path(outdir, paste0("raw_", id, ".png"))
-		opngs[iimg] = file.path(outdir, paste0("roi_", id, ".png"))
+		rawpngs[iimg] = file.path(resdir, paste0("raw_", id, ".png"))
+		opngs[iimg] = file.path(resdir, paste0("roi_", id, ".png"))
 
 		if (rerun){
 
+			if (verbose) print(rawimgs[iimg])
+
 			rawimg = readNIfTI(rawimgs[iimg])
+			rawimg[is.nan(rawimg) | is.na(rawimg)] = 0
 			rawimg[ rawimg > 100 | rawimg < 0] = 0
 			rawmask = rawimg > 0
 			dices[iimg, ] = get.overlap(tempmask, rawmask)
 
+			if (verbose) print(imgs[iimg])
+
 			img = readNIfTI(imgs[iimg])
+			img[is.nan(img) | is.na(img)] = 0
 			tt = temp
 			tt[ tt >= 99 | tt < 0] = 0
 			tt[ img > 0 ] = 100
@@ -159,6 +188,8 @@ run.data = function(whichdir, outdir, rerun=FALSE){
 
 			## get cross hair information
 			chair = round(colMeans(which(img > 0, arr.ind=TRUE)))
+
+			chair[is.nan(chair)] = dtemp[is.nan(chair)]/2
 			png(opngs[iimg])
 
 				orthographic(tt, 
@@ -209,7 +240,12 @@ run.data = function(whichdir, outdir, rerun=FALSE){
   	  	nim@datatype	= 16
   	  	nim@bitpix 		= 32		
 		writeNIfTI(nim, filename=binimg.fname)
-	}
+	} 
+	# if (!rerun){
+	# 	popimg = readNIfTI(nim, filename=popimg.fname)
+	# 	bin.popimg = readNIfTI(nim, filename=binimg.fname)
+	# }
+
 	return(list(nimgs=nimgs, ids=ids, 
 		opngs=opngs, rawpngs=rawpngs, 
 		popimg.fname=popimg.fname,
@@ -217,25 +253,98 @@ run.data = function(whichdir, outdir, rerun=FALSE){
 		dice.df = dice.df))
 }
 
+get.popimg = function(res, rerun=TRUE){
+	if (rerun){
+		bin.popimg = popimg = array(0, dim=dtemp)
+		l_ply(res, function(x) {
+			tmp = readNIfTI(x$popimg.fname)
+			popimg <<- tmp + popimg
+			return(NULL)
+		}, .progress="text")
+		l_ply(res, function(x) {
+			tmp = readNIfTI(x$binimg.fname)
+			bin.popimg <<- tmp + bin.popimg
+			return(NULL)
+		}, .progress="text")
+
+		return(list(bin.popimg=bin.popimg, popimg=popimg))
+	} else {
+		return(NULL)
+	}
+}
+
+get.run = function(res){
+	nimgs = sapply(res, function(x) x$nimgs)
+	nimgs = sum(nimgs)
+
+	ids = sapply(res, function(x) x$ids)
+
+	opngs = sapply(res, function(x) x$opngs)
+
+	rawpngs = sapply(res, function(x) x$rawpngs)
+
+	dice.df = lapply(res, function(x) x$dice.df)
+	dice.df = do.call("rbind", dice.df)
+
+	return(list(nimgs=nimgs, ids=ids, 
+		opngs=opngs, rawpngs=rawpngs, dice.df=dice.df))
+}
+
+write.popimg = function(img, fname){
+	nim = temp
+	nim@.Data = img
+	nim@cal_min = min(nim, na.rm=TRUE)
+	nim@cal_max = max(nim, na.rm=TRUE)
+	nim@scl_inter = 0
+	nim@scl_slope = 1
+	nim@datatype	= 16
+	nim@bitpix 		= 32		
+	writeNIfTI(nim, filename=fname)
+	return(NULL)
+}
+
 ```
 
 ```{r spmrundata}
 
 whichdir = "reoriented"
-run = run.data(whichdir, rerun)
+# run1 = run.id("100-318", whichdir=whichdir, rerun=TRUE)
+res = llply(all.ids, run.id, whichdir=whichdir, rerun=rerun,
+	.progress ="text")
+run = get.run(res)
+# run = run.data(whichdir, rerun)
 nimgs = run$nimgs
 ids = run$ids
 opngs = run$opngs
 rawpngs = run$rawpngs
 dice.df = run$dice.df
-spm.popimg = paste0(run$popimg.fname, ".nii.gz")
-spm.binimg = paste0(run$binimg.fname, ".nii.gz")
-load(file=file.path(basedir, whichdir, 
-	"ROI_Overlap_Measures.Rda"))
-allres = allres
-allres$fname = gsub("_ROI", "", allres$fname)
-allres[, c("raw", "bin", "weighted")] = 
-	round(allres[, c("raw", "bin", "weighted")] *100, 1)
+
+
+spm.popimg = file.path(outdir, paste0(whichdir, "_Weighted_Sum_Image"))
+spm.binimg = file.path(outdir, paste0(whichdir, "_Binary_Sum_Image"))
+
+
+
+if (rerun){
+	pop.res = get.popimg(res, rerun=rerun)
+
+	popimg = pop.res$popimg
+	bin.popimg = pop.res$bin.popimg
+
+	write.popimg(popimg, spm.popimg)
+	write.popimg(bin.popimg, spm.binimg)
+}
+
+spm.popimg = paste0(spm.popimg, ".nii.gz")
+spm.binimg = paste0(spm.binimg, ".nii.gz")
+outfile = file.path(atlasdir, 
+  paste0(whichdir, "_All_Atlas_ROI_Overlap_Measures.Rda"))
+
+load(file=outfile)
+# allres = allres
+# allres$fname = gsub("_ROI", "", allres$fname)
+# allres[, c("raw", "bin", "weighted")] = 
+# 	round(allres[, c("raw", "bin", "weighted")] *100, 1)
 
 ```
 
@@ -271,11 +380,13 @@ cat.info = function(){
 		df = allres[ allres$fname == id, ]
 		df = df[df$raw != 0, ]
 
-		agg = aggregate(cbind(raw, bin, weighted) ~ col_name, 
+		agg = aggregate(cbind(raw, bin, weighted) ~ area, 
 			data=df, sum)
 		df = df[, c("area", "raw", "bin", "weighted")]		
 		colnames(df) = colnames(agg) = c("Area", "Percent Over 0", "Percent Over 95% Probability", "Weighted Sum")
 
+		ss = strsplit(id, "_CT_")[[1]]
+		id = ss[1]
 		xtab = xtable(df)
 		cat(sprintf('## %s\n\n', id))
 		img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
@@ -294,11 +405,17 @@ cat.info = function(){
 		cat("\n\n")
 	}
 }
+
 ```
 
 # Registration with SPM 
 
 ```{r spmrun, results='asis'}
+allres= mni.allres
+allres$fname = gsub("^bws", "", allres$fname)
+allres$fname = gsub("ROI$", "", allres$fname)
+allres[, c("raw", "bin", "weighted")] = 
+	round(allres[, c("raw", "bin", "weighted")] *100, 1)
 
 cat.info()
 ```
@@ -339,12 +456,6 @@ cat("\n\n")
 ```
 
 
-```{r, results='asis'}
-img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
-cat(sprintf(img.tag, f1.png, f1.png))
-cat(sprintf(img.tag, f2.png, f2.png))
-cat("\n\n\n")
-```
 
 ### Session Info
 

@@ -45,9 +45,9 @@ library(reshape2)
 load(file.path(rootdir, "Registration", 
   "Registration_Image_Names.Rda"))
 xdf = df
-reorient = FALSE
-normalize = FALSE
-subsamp = FALSE
+reorient = TRUE
+normalize = TRUE
+subsamp = TRUE
 imgs = mlply(.fun = function(outfile, roi.nii, raw, ss){
   c(outfile, roi.nii, raw, ss)
 }, .data=df[, c("outfile", "roi.nii", "raw", "ss")])
@@ -78,7 +78,8 @@ if (normalize){
   gwd = getwd()
   setwd("~/")
   rets = laply(.data=imgs, .fun = function(x){
-      r = run_ctnorm(rawfile = x[1], roifile = x[2])
+      r = run_ctnorm(rawfile = x[1], roifile = x[2], 
+        deleteinter = FALSE)
       return(r)
     }, .progress="text")
   setwd(gwd)
@@ -117,7 +118,7 @@ if (subsamp){
         # niigz = list.files(outdir, full.names=TRUE, 
         # pattern="*.nii.gz")
         # file.remove(niigz)
-        file.remove(outfile)
+        if (file.exists(outfile)) file.remove(outfile)
         fslsub2(value, outfile, unzip=TRUE)
       }, 
     .progress= "text")

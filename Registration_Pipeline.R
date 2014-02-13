@@ -4,7 +4,7 @@ library(oro.nifti)
 library(plyr)
 library(scales)
 
-study = "Registration_ICES"
+study = "Registration"
 
 
 setup <- function(id, study = "Registration"){
@@ -71,12 +71,13 @@ if (study %in% "Registration") {
 "210-344", "216-390", "216-414", "219-340", "219-350", "222-337", 
 "222-357", "222-358", "223-355", "223-369", "223-407", "230-346", 
 "230-352", "230-356", "230-363", "230-366", "230-371", "230-377", 
-"234-385", "265-389", "265-398")
+"234-385", "265-389", "265-398", "205-509", "205-517", "205-519", 
+"225-502", "225-503", "225-504", "225-505", "225-506", "225-507", 
+"225-510", "225-511", "225-515", "225-522", "225-523", "225-524", 
+"232-512", "232-513", "232-514", "232-516", "232-521", "232-526", 
+"289-518", "289-525", "301-520")
 } else {
-  ids = all.ids = c("205-509", "205-517", "205-519", "225-502", "225-503", "225-504", 
-"225-505", "225-506", "225-507", "225-510", "225-511", "225-515", 
-"225-522", "225-523", "225-524", "232-512", "232-513", "232-514", 
-"232-516", "232-521", "232-526", "289-518", "289-525", "301-520")
+  stop("what study are you doing")
 }
 
 # bad.ids = c(16, 27, 28, 33, 38, 40, 43, 57, 59, 61, 62, 63, 64, 65, 66, 
@@ -221,6 +222,15 @@ if (regantry){
   if (skullstrip){
 
     if (runall) {
+      outdir <- file.path(basedir, "Skull_Stripped")
+      niis <- dir(path=basedir, pattern=".nii.gz", 
+      full.names=TRUE, recursive=FALSE)
+        
+      # for (inii in niis){
+        Skull_Strip_file(img=inii, progdir=progdir, 
+          outdir=outdir, opts=opts, verbose=verbose)
+      # }
+
 
       system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, 
         opts="-f 0.1 -b", 

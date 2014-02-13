@@ -1,0 +1,94 @@
+################################
+# Written 2013Oct24
+# Author: John Muschelli
+# Purpose: Run Predictions from Collapsed model
+# Output: ROC Curve
+# Use of output: prediction model for classifier
+################################
+
+rm(list=ls())
+library(oro.dicom)
+library(plyr)
+library(AnalyzeFMRI)
+library(car)
+library(ROCR)
+basedir <- "/Volumes/DATA_LOCAL/Image_Processing/Test_5"
+if (Sys.info()[["user"]] %in% "jmuschel") basedir <- "/dexter/disk2/smart/stroke_ct/ident/Test_5"
+progdir <- file.path(dirname(basedir), "programs")
+source(file.path(progdir, "Zscore.R"))
+source(file.path(progdir, "List_Moment_Generator.R"))
+
+files <- list.files(path=basedir, pattern="*.nii.gz", full.names=TRUE)
+stubs <- gsub(".nii.gz", "", files, fixed=TRUE)
+mat <- matrix(stubs, ncol=2, byrow=TRUE)
+mat <- data.frame(mat, stringsAsFactors=FALSE)
+
+
+### make sure the data only has images and ROIS
+colnames(mat) <- c("img", "roi")
+test <- gsub("_ROI", "", mat$roi)
+stopifnot(all(test == mat$img))
+
+mat$ss.img <- paste0(mat$img, "_SS_No1024_Mask_0.1")
+mat$ss.img <- file.path(dirname(mat$ss.img), 
+  "Skull_Stripped", 
+  basename(mat$ss.img))
+
+### test to see if all files exist
+imgs <- unlist(mat)
+imgs <- paste0(imgs, ".nii.gz")
+stopifnot(all(file.exists(imgs)))
+
+rda <- file.path(basedir, "Collaped_Model.rda")
+load(file=rda)
+cmod <- mod
+
+irow <- scan.to.drop
+rda <- paste0(mat$img[irow], ".rda")
+load(file=rda)
+df$fname <- /Volumes/DATA/Image_Processing/Test_5/301520_20110714_2219
+
+test <- df
+mod <- cmod
+  ##########################
+  ###Getting predictions####
+  ##Faster than predict#####
+  ##########################
+  get.stuff <- function(mod){
+    var.used <- attr(mod$terms, "term.labels")
+    var.classes <- attr(mod$terms, "dataClasses")
+    var.classes <- var.classes[var.used]
+  }
+  var.classes <- get.stuff(mod)
+
+
+  ### checking to see if we used factors or not in the model
+  stopifnot(all(var.classes %in% c('numeric', 'logical')))
+  coefs <- coef(mod)
+  have.log <- var.classes %in% "logical"
+  if (any(have.log)){
+    vars <- names(var.classes)[have.log]
+    for (ivar in vars){
+      names(coefs) <- gsub(paste0(ivar, "TRUE"), ivar, names(coefs))
+    }
+  }
+  ## just getting the intercept - not needed in matrix mult
+  intercept <- ifelse("(Intercept)" %in% names(coefs), 
+    coefs["(Intercept)"], 
+    0)
+  coefs <- coefs[ !names(coefs) %in% "(Intercept)" ]
+  tt <- test[, names(coefs)]
+
+  ### getting predictions - prob slower than matrix multiplication
+  ### but more control
+  for (icoef in names(coefs)){
+    tt[, icoef] <- coefs[names(coefs) == icoef] * tt[, icoef]
+    print(icoef)
+  }
+  pred <- rowSums(tt)
+  pred <- pred + intercept
+  pred <- exp(pred)/(1+exp(pred))
+
+  ss.img <- readNIfTI(mat$ss.img[irow], reorient=FALSE)
+  mask <- ss.img > 0  
+  ss.img[mask] <- pred
