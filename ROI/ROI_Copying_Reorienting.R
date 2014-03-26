@@ -115,24 +115,44 @@ df = data.frame(roi.nii = niis, raw = raw.nii, copydir, pid,
   stringsAsFactors=FALSE)
 
 df$ss = gsub("\\.nii\\.gz", "_SS_Mask_0.01.nii.gz", df$raw)
-df$ss = file.path(iddir, "Skull_Stripped", df$ss)
-df$raw = file.path(iddir, df$raw)
+df$ss = file.path(df$iddir, "Skull_Stripped", df$ss)
+df$raw = file.path(df$iddir, df$raw)
 
 
 exists = t(apply(df[, c("roi.nii", "raw", "ss")], 1, file.exists))
 aexists = apply(exists, 1, all)
-stopifnot(all(aexists))
+# stopifnot(all(aexists))
 df[which(!aexists),]
+df = df[aexists, ]
+
+#### save names of .nii files
+xdf = df
 
 
-melted = melt(df[, c("id", "raw", "copydir", "ss", "roi.nii")], 
+df$raw = file.path(df$copydir, basename(df$raw))
+df$ss = file.path(df$copydir, basename(df$ss))
+df$roi.nii = file.path(df$copydir, basename(df$roi.nii))
+
+df$raw = gsub("\\.gz$", "", df$raw)
+df$ss = gsub("\\.gz$", "", df$ss)
+df$roi.nii = gsub("\\.gz$", "", df$roi.nii)
+
+df$outfile = gsub("\\.nii", "_Masked.nii", df$raw)
+
+save(df, file=file.path(rootdir, "Registration", 
+  "Registration_Image_Names.Rda"))
+
+##########################################
+# Copy files, unzip them, then mask the files
+##########################################
+melted = melt(xdf[, c("id", "raw", "copydir", "ss", "roi.nii")], 
   id.vars = c("id", "copydir"))
 melted = melted[, c("value", "copydir")]
 
 ##########################################
 ## Copying files over
 ##########################################
-overwrite = FALSE
+overwrite = TRUE
 m_ply(function(value, copydir) {
   del.file = file.path(copydir, 
     gsub(".nii.gz", ".nii", basename(value), fixed=TRUE)
@@ -153,18 +173,6 @@ l_ply(.data=melted$image, .fun =function(x) {
 ##########################################
 ## Making masked files
 ##########################################
-df$raw = file.path(df$copydir, basename(df$raw))
-df$ss = file.path(df$copydir, basename(df$ss))
-df$roi.nii = file.path(df$copydir, basename(df$roi.nii))
-
-df$raw = gsub("\\.gz$", "", df$raw)
-df$ss = gsub("\\.gz$", "", df$ss)
-df$roi.nii = gsub("\\.gz$", "", df$roi.nii)
-
-df$outfile = gsub("\\.nii", "_Masked.nii", df$raw)
-
-
-
 m_ply(.data=df[, c("raw", "ss", "outfile")], 
   .fun = function(raw, ss, outfile) {
   fslmask(file=raw, mask=ss, outfile=outfile, unzip = TRUE)
@@ -172,6 +180,3 @@ m_ply(.data=df[, c("raw", "ss", "outfile")],
 
 
 
-
-save(df, file=file.path(rootdir, "Registration", 
-  "Registration_Image_Names.Rda"))

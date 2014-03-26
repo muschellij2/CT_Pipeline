@@ -2,7 +2,7 @@ require(stringr)
 require(plyr)
 require(oro.nifti)
 require(oro.dicom)
-
+options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
 
 
 #### wrapper to convert an entire directory to sort/move/nifti
@@ -47,11 +47,14 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
 
   if (is.null(isSorted)) {
     isSorted = sorted.data(basedir)
+    force = FALSE
+  } else {
+    force = !isSorted
   }
   ### Moving files into one big directory
   ### watch out for / ending in basedir
   if (!isSorted) {
-    onedir(basedir, verbose)
+    onedir(basedir, verbose, force=force)
   }
 
   ## putting into respective folders using dcmdump
@@ -93,7 +96,8 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
     }
 
   } else {
-    dcmsort(basedir, progdir, sortdir, verbose, ...)
+    dcmsort(basedir, progdir, sortdir, verbose, 
+      ...)
     dcmtables = NULL
   }
 
@@ -102,14 +106,17 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
   }
     
   ## gantry tilt correction
-  file_gc(basedir, progdir, verbose, ...)
+  droppaths = file_gc(basedir, progdir, verbose, ...)
   
   ## conversion
   if (useRdcm2nii) {
-    ret = Rdcm2nii(basedir, sortdir, verbose=verbose, ...)
+    ret = Rdcm2nii(basedir, sortdir, verbose=verbose, droppaths,
+    ROIformat= ROIformat, 
+    ...)
   } else {
     dcm2niicmd = dcm2niicmd
-    dcm2nii(basedir, progdir, sortdir, verbose,
+    dcm2nii(basedir, progdir, sortdir, verbose, droppaths=droppaths, 
+      ROIformat= ROIformat,
       ...)
   }
   
@@ -121,9 +128,15 @@ convert_DICOM <- function(basedir, progdir, verbose=TRUE,
   expaths <- expaths[!(expaths %in% gf$paths)]
   expaths <- expaths[!grepl("plots|Skull_Stripped|Registered|RawNIfTI|reoriented|FLIRT", 
     expaths)]
-  for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
-  for (ipath in expaths) system(sprintf('rmdir "%s"', ipath))
-
+  for (ipath in expaths) {
+    system(sprintf('rmdir "%s"', ipath), 
+      ignore.stdout=TRUE, ignore.stderr=TRUE)
+  }
+  for (ipath in expaths) {
+    system(sprintf('rmdir "%s"', ipath), 
+      ignore.stdout=TRUE, ignore.stderr=TRUE)
+  }
+  
   return(TRUE)
 } ###end function
 
@@ -137,7 +150,8 @@ movefiles <- function(files, indices, outdir, num=6, verbose=TRUE){
   x = llply(files, function(file){
       ind = indices[i]
       new <- file.path(outdir, sprintf(fmt, ind))
-      system(sprintf('mv "%s" "%s"', file, new))   
+      res = system(sprintf('mv "%s" "%s"', file, new), intern=TRUE,
+        ignore.stdout = TRUE, ignore.stderr=TRUE)   
       i <<- i + 1;
       return(NULL)
   }, .progress = ifelse(verbose, "text", "none"))
@@ -154,11 +168,11 @@ run_ctnorm <- function(rawfile, roifile=NULL,
   
   stopifnot(length(rawfile) == 1)
   require(stringr)
-  if (verbose) print(paste0("Co-registration to Template ", rawfile))
-  find.matlab <- system("which matlab")
+  if (verbose) cat(paste0("\nCo-registration to Template ", rawfile))
+  find.matlab <- system("which matlab", ignore.stdout=TRUE)
   cmd <- 'matlab -nodesktop -nosplash -nodisplay -r'  
   if (find.matlab != 0){
-    cmd <- paste0('/Applications/MATLAB_R2012b.app/bin/', cmd)
+    cmd <- file.path(getOption("matlab.path"), cmd)
   }
   matcmd = cmd
 
@@ -179,6 +193,7 @@ run_ctnorm <- function(rawfile, roifile=NULL,
   cmd <- paste(cmd, sprintf("addpath('%s/toolbox');", spmdir))
   cmd <- paste(cmd, sprintf("addpath('%s/toolbox/rorden');", spmdir))
   cmd <- paste(cmd, sprintf("addpath('%s/toolbox/Clinical');", spmdir))
+  cmd <- paste(cmd, "addpath(genpath('~/images'));")
 
   cmd <- paste(cmd, sprintf("job = load('%s');", matfile))
 
@@ -200,7 +215,7 @@ run_ctnorm <- function(rawfile, roifile=NULL,
 
   cmd <- paste(cmd, "spm_jobman('initcfg');")
   cmd <- paste(cmd, "spm_jobman('run', job.matlabbatch);")
-  cmd <- paste(cmd, "catch, exit(1);")
+  cmd <- paste(cmd, "catch err, disp(err);   exit(1);")
   # cmd <- paste(cmd, "disp(err); ")
   cmd <- paste0(cmd, 'end; exit(0);')
   if (!makescript) {
@@ -216,7 +231,8 @@ run_ctnorm <- function(rawfile, roifile=NULL,
   if (makescript) {
     cmd = paste0(matcmd, ' "', "run('", sname, "');", '"')
   } 
-  x <- system(cmd, ignore.stdout = !verbose )
+  x <- system(cmd, ignore.stdout = !verbose, 
+    ignore.stderr = !verbose)
   if (makescript) file.remove(sname)
   return(x)
 }
@@ -279,10 +295,10 @@ sorted.data = function(basedir){
 
 }
 
-onedir <- function(basedir, verbose=TRUE){
+onedir <- function(basedir, verbose=TRUE, force=TRUE){
     gf <- getfiles(basedir)
 
-  if (sorted.data(basedir)) {
+  if (sorted.data(basedir) & !force) {
       return(TRUE)
   } else {
   ### Moving files into one big directory
@@ -456,11 +472,14 @@ group.hdr = function(hdrl, id,
     "0008-0020-StudyDate")
 
     # "230-356" has weird dtimes
-  dcmtab$Time = dcmtab$"0008-0032-AcquisitionTime"  
+  dcmtab$Time = dcmtab$"0008-0032-AcquisitionTime"
   dcmtab$Time[is.na(dcmtab$Time)] =  get.col(dcmtab$Time,
     "0008-0031-SeriesTime")
   dcmtab$Time[is.na(dcmtab$Time)] =  get.col(dcmtab$Time,
-    "0008-0020-StudyTime") 
+    "0008-0020-StudyTime")
+  dcmtab$Time[is.na(dcmtab$Time)] =  get.col(dcmtab$Time,
+    "0008-0033-ContentTime")
+  if (is.null(dcmtab$Time)) dcmtab$Time = NA
 
   dcmtab$Time = sprintf("%04.0f", dcmtab$Time/100)
   dcmtab$Time = gsub(" ", "", dcmtab$Time)
@@ -564,7 +583,7 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
 
     groups = group.hdr(hdrl, id = id, ROIformat = ROIformat)
     filenames = groups$fnames
-
+    print(filenames[1])
     basenames = basename(dcms)
 
     new.dirs = file.path(sortdir, filenames)
@@ -633,12 +652,15 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
 }
 
 dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE, 
-                    dcm2niicmd = "dcm2nii_2009", ...){
+                    droppaths = "",
+                    dcm2niicmd = "dcm2nii_2009", ROIformat = FALSE,
+                    ...){
 
   gf <- getfiles(basedir)
   files <- gf$files
   paths <- gf$paths
 
+  paths = paths[ !(paths %in% droppaths)]
   ## THEN PIPELINE TEST
   ipath <- 1
   lpath <- length(paths)
@@ -654,7 +676,8 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
 
     for (ipath in 1:length(paths)){
       path <- paths[ipath]
-      x = system(sprintf('rm "%s"/*.nii.gz', path), intern=TRUE)
+      x = system(sprintf('rm "%s"/*.nii.gz', path), intern=TRUE, 
+          ignore.stdout =TRUE, ignore.stderr = TRUE)
       intern=TRUE
       res <- system(sprintf('%s -b "%s"/CT_dcm2nii.ini "%s"', 
           dcm2niicmd, progdir, path), intern=intern)
@@ -667,7 +690,8 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       }
       stopifnot(length(errs) == 1)
       if ( errs ){
-              system(sprintf('rm "%s"/*.nii.gz', path))
+              system(sprintf('rm "%s"/*.nii.gz', path),
+                ignore.stdout = TRUE, ignore.stderr = TRUE)
               print("Error in DCM2NII")
               next
       }        
@@ -706,7 +730,8 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
   #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         cmd <- c('fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         system(sprintf(cmd, iddir, name, path))
-        system(sprintf('rm "%s"/*.nii.gz', path))
+        system(sprintf('rm "%s"/*.nii.gz', path), 
+          ignore.stdout = TRUE, ignore.stderr=TRUE)
           
       }
       if (length(niis) == 1){
@@ -722,30 +747,15 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
         overwrite=TRUE)
       ### rescaling
       if (verbose) cat("Rescaling Image to -1024 to 3071\n")
-      img = readNIfTI(outfile, reorient=FALSE)
-      # inter = as.numeric(img@scl_inter)
-      # slope = as.numeric(img@scl_slope)
-      # img = (img * slope + inter)
-      img[img < -1024] = -1024
-      img[img > 3071] = 3071
-      img@scl_slope = 1
-      img@scl_inter = 0  
-      img@cal_max = max(img, na.rm=TRUE)       
-      img@cal_min = min(img, na.rm=TRUE)
-      img@descrip = paste0("written by dcm2nii - ", img@descrip)
-      outfile = file.path(iddir, name)
-
-      #### create histograms
-      pngname = file.path(iddir, "Hists")
-      dir.create(pngname, showWarnings=FALSE)
+      histdir = file.path(iddir, "Hists")
+      dir.create(histdir, showWarnings=FALSE)
           
-      pngname = file.path(pngname, paste0(name, ".png"))
-      options(bitmapType = 'cairo')      
-      png(pngname)
-        hist(img)
-      dev.off()
+      pngname = file.path(histdir, paste0(name, ".png"))
 
-      writeNIfTI(img, file=outfile)
+      rescale_img(outfile=outfile, 
+        pngname=pngname, 
+        ROIformat = ROIformat,
+        writer= "dcm2nii")
 
       newpath <- file.path(dirname(path), name)            
       # system(sprintf('mv "%s" "%s"', path, newpath))
@@ -759,7 +769,8 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
       system(sprintf('rm -R "%s"', newpath))
 
       if (verbose) print(newpath)
-    #http://www.medical.siemens.com/siemens/en_GLOBAL/rg_marcom_FBAs/files/brochures/DICOM/ct/DICOM_VA70C.pdf for 4095 ranges
+#http://www.medical.siemens.com/siemens/en_GLOBAL/rg_marcom_FBAs/files/brochures/DICOM/ct/DICOM_VA70C.pdf 
+# for 4095 ranges
 
     }
   } # end loop over paths
@@ -767,7 +778,34 @@ dcm2nii <- function(basedir, progdir, sortdir, verbose=TRUE,
 } ## end dcm2nii
 
 
+### rescale image to correct CT range
+rescale_img = function(outfile, pngname, ROIformat=FALSE, 
+    writer= "dcm2nii"){
+      img = readNIfTI(outfile, reorient=FALSE)
+      # inter = as.numeric(img@scl_inter)
+      # slope = as.numeric(img@scl_slope)
+      # img = (img * slope + inter)
+      img[img < -1024] = -1024
+      img[img > 3071] = 3071
+      img@scl_slope = 1
+      img@scl_inter = 0  
+      if (ROIformat) img[img < 0] = 0
+      img@cal_max = max(img, na.rm=TRUE)       
+      img@cal_min = min(img, na.rm=TRUE)
+      img@descrip = paste0("written by ", writer, " - ", img@descrip)
 
+      #### create histograms
+
+      options(bitmapType = 'cairo')      
+      png(pngname)
+        hist(img)
+      dev.off()
+
+      outfile = gsub("\\.gz$", "", outfile)
+      outfile = gsub("\\.nii$", "", outfile)
+
+      writeNIfTI(img, file=outfile)
+}
 
 
 Skull_Strip <- function(basedir, progdir, CTonly=TRUE, 
@@ -941,10 +979,11 @@ file_gc <- function(basedir, progdir, verbose=TRUE, ...){
   lpath <- length(paths)
   
   ### read headers and then the gantry tilt correction
+  res = rep("", max(lpath, 1))
   if (lpath >= 1){
     if (verbose) cat("Gantry Tilt Correction \n")
     
-    for (ipath in 1:length(paths)){
+    for (ipath in 1:lpath){
       path <- paths[ipath]
       files <- getfiles(path)$files
       hdr = rereadDICOMHeader(files[1])[[1]]
@@ -957,11 +996,12 @@ file_gc <- function(basedir, progdir, verbose=TRUE, ...){
       }
       if (length(row) == 1){
         tilt <- as.numeric(hdr[row, "value"])
-        if (tilt != 0) gantry_correct(indir=path, 
+        if (tilt != 0) res[ipath] = gantry_correct(indir=path, 
           progdir=progdir, verbose=verbose)
       }
     }
   }
+  return(res)
 } # end function
 
 
@@ -1057,10 +1097,10 @@ rereadDICOMHeader = function(dcm, pixelData=FALSE,...){
 ### gantry2_edit script
 gantry_correct <- function(indir, progdir, verbose=TRUE){
   if (verbose) print(paste0("Gantry correction ", indir))
-  find.matlab <- system("which matlab")
+  find.matlab <- system("which matlab", ignore.stdout=TRUE)
   cmd <- 'matlab -nodesktop -nosplash -nodisplay -r '  
   if (find.matlab != 0){
-    cmd <- paste0('/Applications/MATLAB_R2012b.app/bin/', cmd)
+    cmd <- file.path(getOption("matlab.path"), cmd)
   }
   ### gantry tilt correction - make new folder
   ### ranem old folder - zip it and then run matlab script
@@ -1070,23 +1110,38 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   outname <- paste0(folname, "_ungantry")
   outdir <- file.path(dname, outname)
   if (!file.exists(outdir)) dir.create(outdir)
-  system(sprintf('rm "%s"/*', outdir))
+  system(sprintf('rm "%s"/*', outdir), 
+    ignore.stdout = TRUE,
+    ignore.stderr = TRUE)
   system(sprintf('cp "%s"/*.dcm "%s"', indir, outdir))
   cmd <- paste(cmd, '"try, ')
   cmd <- paste(cmd, sprintf("addpath('%s');", file.path(progdir, "gantry")))
+  cmd <- paste(cmd, "addpath(genpath('~/images'));")  
   cmd <- paste(cmd, sprintf("DIRlist(1,1).path_in = '%s';", indir))
   cmd <- paste(cmd, sprintf("DIRlist(1,1).path_out = '%s';", indir))
   cmd <- paste(cmd, "DIRlist(1,1).status = 'PROGRESS 0';")
   cmd <- paste(cmd, sprintf("DIRlist(1,1).skip = false;"))
   cmd <- paste(cmd, sprintf("gantry2_edit(DIRlist);"))
-  cmd <- paste0(cmd, 'end; quit"')
-  x <- system(cmd, ignore.stdout = !verbose )
+  cmd <- paste(cmd, "catch err, disp(err); exit(1);")
+  cmd <- paste0(cmd, 'end; exit(0);"')
+  x <- system(cmd, 
+    ignore.stdout = !verbose,
+    ignore.stderr = !verbose )
   lastchar <- substr(outdir, nchar(outdir), nchar(outdir))
   while (lastchar == "/"){
     outdir <- substr(outdir, 1, nchar(outdir)-1)
     lastchar <- substr(outdir, nchar(outdir), nchar(outdir))
   }
-  stopifnot( x== 0)
+  if (x != 0){
+    # stop("Failed Gantry Tilt Correction")
+    print(paste0("Failed indir is ", indir, " command was:"))
+    cat(cmd, "\n")
+    system(sprintf('rm -r "%s"', indir), 
+      ignore.stdout = TRUE,
+      ignore.stderr = TRUE)
+    return(outdir)
+  }
+  # stopifnot( x== 0)
   
 
   
@@ -1110,7 +1165,7 @@ gantry_correct <- function(indir, progdir, verbose=TRUE){
   setwd(gd)
   # header_txt(indir)
   
-  return(outdir)
+  return("")
 }
 
 
@@ -1120,11 +1175,11 @@ acpc_reorient <- function(infiles,
   verbose=TRUE){
   
   require(stringr)
-  if (verbose) print(paste0("Reorientation ", infiles))
-  find.matlab <- system("which matlab")
+  if (verbose) cat(paste0("\nReorientation ", infiles[1]))
+  find.matlab <- system("which matlab", ignore.stdout=TRUE)
   cmd <- 'matlab -nodesktop -nosplash -nodisplay -r '  
   if (find.matlab != 0){
-    cmd <- paste0('/Applications/MATLAB_R2012b.app/bin/', cmd)
+    cmd <- file.path(getOption("matlab.path"), cmd)
   }
   ### gantry tilt correction - make new folder
   ### ranem old folder - zip it and then run matlab script
@@ -1135,6 +1190,7 @@ acpc_reorient <- function(infiles,
   cmd <- paste(cmd, sprintf("addpath('%s');", spmdir))
   cmd <- paste(cmd, sprintf("addpath('%s/toolbox');", spmdir))
   cmd <- paste(cmd, sprintf("addpath('%s/toolbox/rorden');", spmdir))
+  cmd <- paste(cmd, "addpath(genpath('~/images'));")
 
   limgs = length(infiles)
    imgs = sprintf("'%s',", infiles[1])
@@ -1148,11 +1204,11 @@ acpc_reorient <- function(infiles,
   imgs = gsub(",$", "", imgs)
   cmd <- paste(cmd, sprintf("runimgs = strvcat(%s);", imgs))
   cmd <- paste(cmd, "nii_setorigin(runimgs);")
-  cmd <- paste(cmd, "catch err;")
-  cmd <- paste(cmd, "disp(err); ")
-  cmd <- paste0(cmd, 'end; quit"')
+  cmd <- paste(cmd, "catch err, disp(err); exit(1);")
+  cmd <- paste0(cmd, 'end; exit(0);"')
   # if (verbose) cat(cmd, "\n")
-  x <- system(cmd, ignore.stdout = !verbose )
+  x <- system(cmd, 
+    ignore.stdout = !verbose )
   
   return(x)
 }
@@ -1211,8 +1267,13 @@ dcm2nii_worker <- function(path, outfile="output",
     # if (verbose) print(range(dcm$img[[iimg]]))
     dcm$img[[iimg]][x < -1024] = -1024
     dcm$img[[iimg]][x > 3071] = 3071
-    #http://www.medical.siemens.com/siemens/en_GLOBAL/rg_marcom_FBAs/files/brochures/DICOM/ct/DICOM_VA70C.pdf for 4095 ranges
+#http://www.medical.siemens.com/siemens/en_GLOBAL/rg_marcom_FBAs/files/brochures/DICOM/ct/DICOM_VA70C.pdf 
+    # for 4095 ranges
   }
+
+  ord = order(as.numeric(dcmtable$"0020-0013-InstanceNumber"))
+  dcm$hdr = dcm$hdr[ord]
+  dcm$img = dcm$img[ord]
 
   # res = try({ 
   #   dcmNifti <- dicom2nifti(dcm, rescale=FALSE, reslice=FALSE, 
@@ -1260,12 +1321,14 @@ dcm2nii_worker <- function(path, outfile="output",
 }
 
 
-Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
+Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, 
+  ROIformat = FALSE, ...){
   
   gf <- getfiles(basedir)
   files <- gf$files
   paths <- gf$paths
   
+  paths = paths[ !(paths %in% droppaths)]  
   ## THEN PIPELINE TEST
   ipath <- 1
   lpath <- length(paths)
@@ -1281,7 +1344,8 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
     
     for (ipath in 1:lpath){
       path <- paths[ipath]
-      res <- system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
+      res <- system(sprintf('rm "%s"/*.nii.gz', path), 
+        ignore.stdout = !verbose)
       
       res = dcm2nii_worker(path)
       results[ipath] = res
@@ -1317,29 +1381,50 @@ Rdcm2nii <- function(basedir, sortdir, verbose=TRUE, ...){
   # cmd <- paste0(cmd, 'echo $FSLDIR; sh ${FSLDIR}/etc/fslconf/fsl.sh; ', 
   #   '/usr/local/fsl/bin/fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
         cmd <- c('fslmerge -z "%s"/"%s".nii.gz "%s"/*.nii.gz')
-        system(sprintf(cmd, iddir, name, path), ignore.stdout = !verbose)
+        system(sprintf(cmd, iddir, name, path), 
+          ignore.stdout = !verbose)
         
       }
       if (length(niis) == 1){
         system(sprintf('mv "%s"/*.nii.gz "%s"/"%s".nii.gz', path, iddir, name), 
                ignore.stdout = !verbose)
       }
+      outfile = file.path(outdir, paste0(name, ".nii.gz"))
       file.copy(file.path(iddir, paste0(name, ".nii.gz")), 
-        file.path(outdir, paste0(name, ".nii.gz")))
+         outfile)
 
-      system(sprintf('rm "%s"/*.nii.gz', path), ignore.stdout = !verbose)
+
+     histdir = file.path(iddir, "Hists")
+      dir.create(histdir, showWarnings=FALSE)
+          
+      pngname = file.path(histdir, paste0(name, ".png"))
+
+      rescale_img(outfile=outfile, 
+        pngname=pngname, 
+        ROIformat = ROIformat,
+        writer= "Rdcm2nii")
+
+
+      system(sprintf('rm "%s"/*.nii.gz', path), 
+        ignore.stdout = !verbose,
+        ignore.stderr = !verbose)
       setwd(dirname(path))
       #     stop("me")
       newpath <- file.path(dirname(path), name)
-      system(sprintf('mv "%s" "%s"', path, newpath), ignore.stdout = !verbose)
+      system(sprintf('mv "%s" "%s"', path, newpath), 
+        ignore.stdout = !verbose,
+        ignore.stderr = !verbose)
       
       # setwd(basename(newpath))
       # tarfile <- paste(newpath, ".tar.gz", sep="")
       # tar(tarfile, compression="gzip")
       system(sprintf('tar -czf "%s" ./"%s"', paste(newpath, ".tar.gz", sep=""), 
-                     basename(newpath)), ignore.stdout = !verbose)
+                     basename(newpath)), 
+      ignore.stdout = !verbose, ignore.stderr = !verbose)
       
-      system(sprintf('rm -R "%s"', newpath), ignore.stdout = !verbose)
+      system(sprintf('rm -R "%s"', newpath), 
+        ignore.stdout = !verbose,
+        ignore.stderr = !verbose)
     }
   } # end loop over paths
 
@@ -1415,7 +1500,8 @@ readCT = function (fname, hdr=NULL, endian = "little",
 
 #####PLOTTING FUNCTIONS for orthographics
   mask.overlay = function(fimg, fmask, window=c(0, 100),  
-    col= c(gray(0), gray(1:59/60)), col.y = alpha("red", 0.5), ...){
+    col= c(gray(0), gray(1:59/60)), col.y = alpha("red", 0.5), 
+    newOrtho = TRUE, ...){
     
     if (inherits(fimg, "character")) {
       img = readNIfTI(fimg, reorient=FALSE)
@@ -1445,7 +1531,11 @@ readCT = function (fname, hdr=NULL, endian = "little",
 
     img.mask[img.mask <= 0] = NA
 
-    orthographic(img, img.mask, col=col, col.y = col.y, ...)
+    if (newOrtho) {
+      ortho2(img, img.mask, col=col, col.y = col.y, ...)
+    } else {
+      orthographic(img, img.mask, col=col, col.y = col.y, ...)
+    }
   }
 
   window.img = function(x, window=c(0, 100), 
@@ -1479,14 +1569,15 @@ create_bbox = function(mask, writeFile = FALSE, outfile=NULL,
       if (is.null(outfile) & writeFile) {
         nii.end = grepl('\\.nii$', mask)
         outfile = gsub("\\.gz$", "", mask)
-        outfile = gsub('\\.nii$', outfile)
+        outfile = gsub('\\.nii$', "", outfile)
         outfile = paste0(outfile, "_BBox")
       }
-      mask = readNIfTI(mask)
+      mask = readNIfTI(mask, reorient=FALSE)
     }
 
     ### get the range of voxels 
-    nii.end = ifelse(gzipped, FALSE, nii.end)
+    nii.end = ifelse(is.null(gzipped), nii.end, gzipped)
+    stopifnot(inherits(nii.end,'logical'))
     dimg = dim(mask)
     mask.log = mask > 0
     ind = which(mask.log, arr.ind=TRUE)
@@ -1520,3 +1611,126 @@ create_bbox = function(mask, writeFile = FALSE, outfile=NULL,
     return(mask.log)
 }
 
+
+
+
+### orthographic that allows for LR/ A/P designatino
+ortho2 = function (x, y = NULL, xyz = NULL, w = 1, col = gray(0:64/64), 
+                   col.y = hotmetal(), zlim = NULL, zlim.y = NULL, crosshairs = TRUE, 
+                   col.crosshairs = "red", xlab = "", ylab = "", axes = FALSE, 
+                   oma = rep(0, 4), mar = rep(0, 4), bg = "black", text = NULL, 
+                   text.color = "white", text.cex = 2, add.orient=TRUE,
+                   mfrow=c(2,2), ...) 
+{
+  if (!is.null(y)) {
+    if (!all(dim(x)[1:3] == dim(y)[1:3])) {
+      stop("dimensions of \"x\" and \"y\" must be equal")
+    }
+  }
+  X <- nrow(x)
+  Y <- ncol(x)
+  Z <- nsli(x)
+  W <- ntim(x)
+  mXY = max(X, Y)
+  lr.shift = 4
+  ud.shift = 6
+  if (is.null(xyz)) {
+    xyz <- ceiling(c(X, Y, Z)/2)
+  }
+  if (X == 0 || Y == 0 || Z == 0) {
+    stop("size of NIfTI volume is zero, nothing to plot")
+  }  
+  if (is.null(zlim)) {
+    zlim <- c(x@cal_min, x@cal_max)
+    if (any(!is.finite(zlim)) || diff(zlim) == 0) {
+      zlim <- c(x@glmin, x@glmax)
+    }
+    if (any(!is.finite(zlim)) || diff(zlim) == 0) {
+      zlim <- range(x, na.rm = TRUE)
+    }
+  }
+  breaks <- c(min(x, zlim, na.rm = TRUE), seq(min(zlim, na.rm = TRUE), 
+                                              max(zlim, na.rm = TRUE), length = length(col) - 1), max(x, 
+                                                                                                      zlim, na.rm = TRUE))
+  if (!is.null(y) && is.null(zlim.y)) {
+    zlim.y <- c(y@cal_min, y@cal_max)
+    if (max(zlim.y) == 0) {
+      zlim.y <- c(x@glmin, x@glmax)
+    }
+  }
+  oldpar <- par(no.readonly = TRUE)
+  par(mfrow = mfrow, oma = oma, mar = mar, bg = bg)
+  
+  if (!is.na(W)) {
+    if (w < 1 || w > W) {
+      stop("volume \"w\" out of range")
+    }
+    x = x[, , , w]
+  }
+  graphics::image(1:X, 1:Z, x[, xyz[2], ], col = col, zlim = zlim, 
+                  breaks = breaks, asp = x@pixdim[4]/x@pixdim[2], xlab = ylab, 
+                  ylab = xlab, axes = axes, ...)
+  if (!is.null(y)) {
+    graphics::image(1:X, 1:Z, y[, xyz[2], ], col = col.y, 
+                    zlim = zlim.y, add = TRUE)
+  }
+  if (crosshairs) {
+    abline(h = xyz[3], v = xyz[1], col = col.crosshairs)
+  }
+  if (add.orient){
+    text("L", x = X + lr.shift, y = Z/2, las = 1, col="white")
+    text("R", x = -lr.shift, y = Z/2, las = 1, col="white")
+    text("S", x = X/2-.5, y = Z-ud.shift, las = 1, col="white")
+    text("I", x = X/2-.5, y = ud.shift, las = 1, col="white")
+  }
+  graphics::image(1:Y, 1:Z, x[xyz[1], , ], col = col, breaks = breaks, 
+                  asp = x@pixdim[4]/x@pixdim[3], xlab = xlab, ylab = ylab, 
+                  axes = axes, ...)
+  if (!is.null(y)) {
+    graphics::image(1:Y, 1:Z, y[xyz[1], , ], col = col.y, 
+                    zlim = zlim.y, add = TRUE)
+  }
+  if (crosshairs) {
+    abline(h = xyz[3], v = xyz[2], col = col.crosshairs)
+  }
+  if (add.orient){
+    text("A", x = Y, y = Z/2, las = 1, col="white")
+    text("P", x = 0, y = Z/2, las = 1, col="white")
+    text("S", x = Y/2-.5, y = Z-ud.shift, las = 1, col="white")
+    text("I", x = Y/2-.5, y = ud.shift, las = 1, col="white")
+    #     
+    #     mtext("A", side=4, las = 1, outer=FALSE, adj=0)
+    #     mtext("P", side=2, las = 1, outer=FALSE, adj= 0, padj=0)
+    #     mtext("S", side=3, las = 1, outer=FALSE)
+    #     mtext("I", side=1, las = 1, outer=FALSE)
+  }    
+  graphics::image(1:X, 1:Y, x[, , xyz[3]], col = col, breaks = breaks, 
+                  asp = x@pixdim[3]/x@pixdim[2], xlab = xlab, ylab = ylab, 
+                  axes = axes, ...)
+  if (!is.null(y)) {
+    graphics::image(1:X, 1:Y, y[, , xyz[3]], col = col.y, 
+                    zlim = zlim.y, add = TRUE)
+  }
+  if (crosshairs) {
+    abline(h = xyz[2], v = xyz[1], col = col.crosshairs)
+  }
+  if (add.orient){
+    text("L", x = X + lr.shift, y = Y/2, las = 1, col="white")
+    text("R", x = -lr.shift, y = Y/2, las = 1, col="white")
+    text("P", x = X/2-.5, y = Y-ud.shift, las = 1, col="white")
+    text("A", x = X/2-.5, y = ud.shift, las = 1, col="white")
+    
+    #     mtext("L", side=4, las = 1, outer=FALSE, adj=0)
+    #     mtext("R", side=2, las = 1, outer=FALSE, adj= 0, padj=0)
+    #     mtext("A", side=3, las = 1, outer=FALSE)
+    #     mtext("P", side=1, las = 1, outer=FALSE)
+  }    
+  
+  if (!is.null(text)) {
+    graphics::image(1:64, 1:64, matrix(NA, 64, 64), xlab = "", 
+                    ylab = "", axes = FALSE)
+    text(32, 32, text, col = text.color, cex = text.cex)
+  }
+  par(oldpar)
+  invisible()
+}

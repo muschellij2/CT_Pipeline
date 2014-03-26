@@ -44,16 +44,20 @@ library(reshape2)
 
 load(file.path(rootdir, "Registration", 
   "Registration_Image_Names.Rda"))
+# df = df[grep("101-307|101-308|102-317|102-322", df$roi.nii), ]
+
 xdf = df
 reorient = TRUE
 normalize = TRUE
 subsamp = TRUE
+rerun = TRUE
 imgs = mlply(.fun = function(outfile, roi.nii, raw, ss){
   c(outfile, roi.nii, raw, ss)
 }, .data=df[, c("outfile", "roi.nii", "raw", "ss")])
 attr(imgs, "split_labels") <- NULL
 
-x = imgs[[2]]
+x = imgs[[1]]
+
 if (reorient){
   rets = laply(.data=imgs, .fun = function(x){
     acpc_reorient(infiles = x)
@@ -66,25 +70,37 @@ if (reorient){
 }
 
 
-imgs = mlply(.fun = function( raw, roi.nii){
-  c(raw, roi.nii)
-}, .data=df[, c("raw", "roi.nii")])
+df$out.roi.nii = file.path(dirname(df$roi.nii), 
+  paste0("bws", basename(df$roi.nii)))
+df$out.raw = file.path(dirname(df$raw), 
+  paste0("w", basename(df$raw)))
+
+### create list of data
+imgs = mlply(.fun = function( raw, roi.nii, out.raw, out.roi.nii){
+  c(raw=raw, roi.nii=roi.nii, 
+    out.raw=out.raw, out.roi.nii=out.roi.nii)
+}, .data=df[, c("raw", "roi.nii", "out.raw", "out.roi.nii")])
 attr(imgs, "split_labels") <- NULL
 
-x = imgs[[2]]
-
+x = imgs[[1]]
+## 131-310
 if (normalize){
   ### matlab problems if I don't change directories
   gwd = getwd()
   setwd("~/")
+  ### delete previous iterations of normalization
   rets = laply(.data=imgs, .fun = function(x){
-      r = run_ctnorm(rawfile = x[1], roifile = x[2], 
-        deleteinter = FALSE)
+      suppressWarnings(y <- 
+        file.remove(x[c("out.raw", "out.roi.nii")])
+        )
+      r = run_ctnorm(rawfile = x["raw"], roifile = x["roi.nii"], 
+        deleteinter = TRUE)
       return(r)
     }, .progress="text")
   setwd(gwd)
 }
 
+which(rets != 0)
 ### after orientation
 
 ##### subsampling to 2mm - for atlas overlap

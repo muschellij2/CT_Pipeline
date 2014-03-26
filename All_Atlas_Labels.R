@@ -19,7 +19,8 @@ if (Sys.info()[["user"]] %in% "jmuschel") {
 }
 spmdir = file.path(homedir, "spm8")
 
-outdir = file.path(basedir, "Template", "atlases")
+tempdir = file.path(basedir, "Template")
+outdir = file.path(tempdir, "atlases")
 
 fsldir <- system("echo $FSLDIR", intern=TRUE)
 if (fsldir == "") {
@@ -176,6 +177,48 @@ img = cutdown(img)
 
 hoxsubcort.img = img
 
+#### extracting JHU Eve atlas Type I an labels###########
+
+atlas = "JHU_MNI_SS_WMPM_Type-I"
+tatlas_dir = file.path(tempdir)
+txtfile = file.path(tempdir, paste0(atlas, "_SlicerLUT.txt"))
+
+xx = read.table(txtfile)
+xx = xx[, 1:2]
+colnames(xx) = c("index", "Label")
+jhut1.df = xx
+
+img = readNIfTI(
+	file.path(tatlas_dir, 
+		paste0(atlas, ".nii.gz")))
+uimg = sort(unique(c(img)))
+all.ind = jhut1.df$index
+stopifnot(all(uimg %in% all.ind))
+
+jhut1.img = img
+
+
+
+
+#### extracting JHU Eve atlas Type II an labels###########
+
+atlas = "JHU_MNI_SS_WMPM_Type-II"
+tatlas_dir = file.path(tempdir)
+txtfile = file.path(tempdir, paste0(atlas, "_SlicerLUT.txt"))
+
+xx = read.table(txtfile)
+xx = xx[, 1:2]
+colnames(xx) = c("index", "Label")
+jhut2.df = xx
+
+img = readNIfTI(
+	file.path(tatlas_dir, 
+		paste0(atlas, ".nii.gz")))
+uimg = sort(unique(c(img)))
+all.ind = jhut2.df$index
+stopifnot(all(uimg %in% all.ind))
+
+jhut2.img = img
 
 
 ############## 
@@ -230,12 +273,16 @@ mni.list = get.ind(mni.img, mni.df)
 hoxcort.list = get.ind(hoxcort.img, hoxcort.df)
 hoxsubcort.list = get.ind(hoxsubcort.img, hoxsubcort.df)
 
+jhut1.list = get.ind(jhut1.img, jhut1.df)
+jhut2.list = get.ind(jhut2.img, jhut2.df)
 
 
 save(tal.df, tal.img, tal.list,
 	mni.df, mni.img, mni.list,
 	hoxcort.df, hoxcort.img, hoxcort.list,
 	hoxsubcort.df, hoxsubcort.img, hoxsubcort.list,
+	jhut2.df, jhut1.df, jhut2.img, jhut1.img,
+	jhut1.list, jhut2.list,
 	file= file.path(outdir, "All_FSL_Atlas_Labels.Rda"))
 
 
