@@ -48,17 +48,28 @@ end
 %%% Check DICOM headers %%%
 for d = 1 : length(DIRlist)
     info = dicominfo([DIRlist(d,1).path_in '/' DIRlist(d,1).files(1,1).name]);
+    info = orderfields(info);
     len_f = length(DIRlist(d,1).files);
     check = false(len_f,1);
     ifn = fieldnames(info);
     for q = 2 : len_f
+        ifn = fieldnames(info);
         dinfo = dicominfo([DIRlist(d,1).path_in '/' DIRlist(d,1).files(q,1).name]);
+        dinfo = orderfields(dinfo);
+
         dfn = fieldnames(dinfo);
-        if (length(dfn) > length(ifn))
+        % Changed this for weird longer field names
+        % if (length(dfn) > length(ifn))
             idx = getnameidx( ifn, dfn);
             idx = idx == 0;
             dinfo = rmfield(dinfo, dfn(idx));  
-        end
+        % end
+        % if (length(ifn) > length(dfn))
+            idx = getnameidx( dfn, ifn);
+            idx = idx == 0;
+            info = rmfield(info, ifn(idx));  
+        % end
+
         info(q,1) = dinfo;
         if strcmp(info(q,1).SeriesInstanceUID, info(q,1).SeriesInstanceUID) == false
             DIRlist(d,1).status = 'ERROR: Files from different series';
@@ -104,13 +115,15 @@ for d = 1 : length(DIRlist)
                 init_offset = 0;
             else offset = round(tan(convang(INFO.GantryDetectorTilt,'deg','rad')) * (INFO.SliceLocation - first) / INFO.PixelSpacing(2,1)) + init_offset;
             end
+            INFO.TransferSyntaxUID = deblank(INFO.TransferSyntaxUID);
+            IN = dicomread(INFO);
 %             disp(INFO.GantryDetectorTilt);
-            IN = dicomread(INFO.Filename);
+%             IN = dicomread(INFO.Filename);
             shift = 0;
             if INFO.GantryDetectorTilt > 0
                 mtx = [1 0 0;0 1 0;0 -offset 1];
                 shift = round(INFO.GantryDetectorTilt);
-            elseif INFO.GantryDetectorTilt < 0
+            elseif INFO.GantryDetectorTilt <= 0
                 mtx = [1 0 0;0 1 0;0 offset 1];
                 shift = round(INFO.GantryDetectorTilt);
             end

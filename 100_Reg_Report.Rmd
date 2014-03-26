@@ -24,6 +24,9 @@ library(reshape2)
 library(RColorBrewer)
 library(knitrBootstrap)
 library(xtable)
+library(scales)
+### need cairo for cluster
+options(bitmapType='cairo')
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -50,6 +53,10 @@ rerun = FALSE
 
 template = file.path(tempdir, "scct_unsmooth.nii.gz")
 temp = readNIfTI(template)
+
+t.t1 = file.path(tempdir, "sct1_unsmooth.nii.gz")
+temp.t1 = readNIfTI(t.t1)
+
 setwd(progdir)
 
 
@@ -63,6 +70,19 @@ redir = redir[nfiles > 0]
 ## those that have ROIs
 all.ids = gsub(paste0(basedir, "/(.*)/", whichdir), "\\1", redir)
 # all.ids = all.ids[file.exists(redir)]
+uid = as.numeric(gsub("-", "", all.ids))
+
+### get clot location
+demog = read.csv(file.path(basedir, 
+	"All_180_FollowUp_wDemographics.csv"), 
+                 stringsAsFactors=FALSE)
+demog$Sex = factor(demog$Gender, levels=c("Female", "Male"))
+demog$Diagnostic_ICH = demog$ICH_Dx_10 *10
+
+demog = demog[ demog$patientName %in% uid, ]
+dd = demog[ order(demog$patientName), ]
+dd = dd[, c("patientName", "Clot_Location_RC")]
+colnames(dd) = c("id", "clot_location")
 
 
 get.overlap <-  function(dman, dauto){
@@ -106,7 +126,7 @@ if (!file.exists(skullpng)){
 
 	tskull = readNIfTI(tempskull)
 
-	png(skullpng)
+	png(skullpng, type="cairo")
 
 	orthographic(tskull)
 
@@ -119,7 +139,7 @@ if (!file.exists(skullpng)){
 ```{r}
 
 dtemp = dim(temp)
-ID = "100-318"
+ID = "100-365"
 run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 	### go to id directory
 	# if (verbose) print(ID)
@@ -140,20 +160,24 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 	bin.popimg = popimg = array(0, dim=dtemp)
 
 	# rois = lapply(imgs, readNIfTI)
+	keep.imgs = 1
+	imgs = imgs[keep.imgs]
 	nimgs = length(imgs)
 	ids = opngs = rawpngs = rep(NA, nimgs)
 	dices = matrix(nrow=nimgs, ncol= 5)
+	rownames(dices) = imgs
 	colnames(dices) = c("dice", "jaccard", "sens", "spec", "accur")
 
 	df = df
-	iimg = 1;
 
 	resdir = file.path(redir, "results")
 	if (!file.exists(resdir)){
 		system(sprintf('mkdir -p "%s"', resdir))
 	}
+	iimg = 1;
 
-	for (iimg in seq(nimgs)){
+
+	# for (iimg in seq(nimgs)){
 		# if (verbose) print(iimg)
 
 		id = basename(rawimgs[iimg])
@@ -166,14 +190,16 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 		rawpngs[iimg] = file.path(resdir, paste0("raw_", id, ".png"))
 		opngs[iimg] = file.path(resdir, paste0("roi_", id, ".png"))
 
-		if (rerun){
+		if (rerun | 
+			!file.exists(opngs[iimg]) |
+			!file.exists(rawpngs[iimg]) ){
 
 			if (verbose) print(rawimgs[iimg])
 
 			rawimg = readNIfTI(rawimgs[iimg])
 			rawimg[is.nan(rawimg) | is.na(rawimg)] = 0
-			rawimg[ rawimg > 100 | rawimg < 0] = 0
-			rawmask = rawimg > 0
+			# rawimg[ rawimg > 100 | rawimg < 0] = 0
+			rawmask = rawimg >= 0 & rawimg <= 100
 			dices[iimg, ] = get.overlap(tempmask, rawmask)
 
 			if (verbose) print(imgs[iimg])
@@ -190,7 +216,7 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 			chair = round(colMeans(which(img > 0, arr.ind=TRUE)))
 
 			chair[is.nan(chair)] = dtemp[is.nan(chair)]/2
-			png(opngs[iimg])
+			png(opngs[iimg], type="cairo")
 
 				orthographic(tt, 
 					col= c(gray(0), gray(1:60/60), hotmetal(1)), 
@@ -198,14 +224,16 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 
 			dev.off()
 
-			png(rawpngs[iimg])
+			png(rawpngs[iimg], type="cairo")
 
-				orthographic(rawimg,  
-					xyz=chair)
+				# orthographic(rawimg,  
+				# 	xyz=chair)
+				mask.overlay(rawimg, img, xyz=chair, 
+					col.y=alpha("red", 0.25))
 
 			dev.off()
 		}
-	}
+	# }
 	popimg 		= popimg 		/ nimgs
 	bin.popimg 	= bin.popimg 	/ nimgs
 
@@ -215,6 +243,7 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 	} else {
 		load(dice.fname)
 	}
+	dices = dices[keep.imgs, ]
 	dice.df = data.frame(dices)
 	dice.df$id = ids
 
@@ -253,7 +282,7 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 		dice.df = dice.df))
 }
 
-get.popimg = function(res, rerun=TRUE){
+get.popimg = function(res, rerun=TRUE, rescale=TRUE){
 	if (rerun){
 		bin.popimg = popimg = array(0, dim=dtemp)
 		l_ply(res, function(x) {
@@ -267,6 +296,11 @@ get.popimg = function(res, rerun=TRUE){
 			return(NULL)
 		}, .progress="text")
 
+		if (rescale){
+			nimgs = length(res)
+			bin.popimg = bin.popimg / nimgs
+			popimg = popimg / nimgs
+		}
 		return(list(bin.popimg=bin.popimg, popimg=popimg))
 	} else {
 		return(NULL)
@@ -290,30 +324,37 @@ get.run = function(res){
 		opngs=opngs, rawpngs=rawpngs, dice.df=dice.df))
 }
 
-write.popimg = function(img, fname){
-	nim = temp
-	nim@.Data = img
-	nim@cal_min = min(nim, na.rm=TRUE)
-	nim@cal_max = max(nim, na.rm=TRUE)
-	nim@scl_inter = 0
-	nim@scl_slope = 1
-	nim@datatype	= 16
-	nim@bitpix 		= 32		
-	writeNIfTI(nim, filename=fname)
-	return(NULL)
+write.popimg = function(img, fname, rerun=TRUE){
+	if (rerun){
+		nim = temp
+		nim@.Data = img
+		nim@cal_min = min(nim, na.rm=TRUE)
+		nim@cal_max = max(nim, na.rm=TRUE)
+		nim@scl_inter = 0
+		nim@scl_slope = 1
+		nim@datatype	= 16
+		nim@bitpix 		= 32		
+		writeNIfTI(nim, filename=fname)
+	} else {
+		fname = gsub("\\.gz$", "", fname)
+		fname = gsub("\\.nii$", "", fname)
+		fname = paste0(fname, ".nii.gz")
+		nim = readNIfTI(fname)
+	}
+	return(nim)
 }
 
 ```
 
 ```{r spmrundata}
 
-whichdir = "reoriented"
 # run1 = run.id("100-318", whichdir=whichdir, rerun=TRUE)
 res = llply(all.ids, run.id, whichdir=whichdir, rerun=rerun,
 	.progress ="text")
 run = get.run(res)
 # run = run.data(whichdir, rerun)
 nimgs = run$nimgs
+stopifnot(length(res) == nimgs)
 ids = run$ids
 opngs = run$opngs
 rawpngs = run$rawpngs
@@ -324,16 +365,22 @@ spm.popimg = file.path(outdir, paste0(whichdir, "_Weighted_Sum_Image"))
 spm.binimg = file.path(outdir, paste0(whichdir, "_Binary_Sum_Image"))
 
 
+pop.res = get.popimg(res, rerun=rerun, rescale=TRUE)
 
 if (rerun){
-	pop.res = get.popimg(res, rerun=rerun)
 
-	popimg = pop.res$popimg
-	bin.popimg = pop.res$bin.popimg
+	if ( is.null(pop.res) ) {
+		warning("Rerun should not result in NULL img", 
+			immediate. = TRUE)
+	}
 
-	write.popimg(popimg, spm.popimg)
-	write.popimg(bin.popimg, spm.binimg)
 }
+
+popimg = pop.res$popimg
+bin.popimg = pop.res$bin.popimg
+popimg = write.popimg(popimg, spm.popimg, rerun = rerun)
+bin.popimg = write.popimg(bin.popimg, 
+	spm.binimg, rerun = rerun)
 
 spm.popimg = paste0(spm.popimg, ".nii.gz")
 spm.binimg = paste0(spm.binimg, ".nii.gz")
@@ -341,6 +388,19 @@ outfile = file.path(atlasdir,
   paste0(whichdir, "_All_Atlas_ROI_Overlap_Measures.Rda"))
 
 load(file=outfile)
+
+makeres = function(allres){
+	allres$fname = gsub("^bws", "", allres$fname)
+	allres$fname = gsub("ROI$", "", allres$fname)
+	allres[, c("raw", "bin", "weighted")] = 
+		round(allres[, c("raw", "bin", "weighted")] *100, 1)
+	ss = strsplit(allres$fname, "_")
+	allres$id = sapply(ss, function(x) x[1])
+	return(allres)
+}
+mni.allres = makeres(mni.allres)
+tal.allres = makeres(tal.allres)
+jhut1.allres = makeres(jhut1.allres)
 # allres = allres
 # allres$fname = gsub("_ROI", "", allres$fname)
 # allres[, c("raw", "bin", "weighted")] = 
@@ -373,12 +433,18 @@ Each region is then scaled by the total number of voxels to give the percent eng
 
 
 ```{r catinfo}
+pt_to_id = function(x){
+	as.numeric(gsub("-", "", x))
+}
 
 cat.info = function(){
-	for (iimg in seq(nimgs)){
+	for (iimg in seq(ids)){
 		id = ids[iimg]
 		df = allres[ allres$fname == id, ]
 		df = df[df$raw != 0, ]
+		ID = df$id[1]
+		ID = pt_to_id(ID)
+		clot.loc = dd[dd$id == ID, "clot_location"]
 
 		agg = aggregate(cbind(raw, bin, weighted) ~ area, 
 			data=df, sum)
@@ -387,6 +453,7 @@ cat.info = function(){
 
 		ss = strsplit(id, "_CT_")[[1]]
 		id = ss[1]
+
 		xtab = xtable(df)
 		cat(sprintf('## %s\n\n', id))
 		img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
@@ -399,6 +466,7 @@ cat.info = function(){
 
 		print.xtable(xtab, type="html", include.rownames=FALSE, comment=FALSE)
 
+		cat(paste0("Reading Center location was: ", clot.loc, "\n"))
 		aggxtab = xtable(agg)
 		# print.xtable(aggxtab, type="html", include.rownames=FALSE, comment=FALSE)
 
@@ -411,11 +479,7 @@ cat.info = function(){
 # Registration with SPM 
 
 ```{r spmrun, results='asis'}
-allres= mni.allres
-allres$fname = gsub("^bws", "", allres$fname)
-allres$fname = gsub("ROI$", "", allres$fname)
-allres[, c("raw", "bin", "weighted")] = 
-	round(allres[, c("raw", "bin", "weighted")] *100, 1)
+allres = mni.allres
 
 cat.info()
 ```
@@ -427,31 +491,69 @@ cat.info()
 
 ```{r orthos_spm, results='hide'}
 
-spm1.png = gsub("\\.nii\\.gz", ".png", spm.popimg)
-if (!file.exists(spm1.png) | rerun){
-	spm.pimg = readNIfTI(spm.popimg)
-	png(spm1.png)
-	orthographic(spm.pimg, text="Weighted Average")
-	dev.off()
+rr = rerun
+rr = TRUE
+##### write out the pngs
+writepng = function(fname, tempimg= NULL, adder ='', rerun=TRUE, 
+	text = "", col.y = alpha(hotmetal(10), 0.7), ...){
+	pngname = gsub("\\.nii\\.gz", 
+		paste0(adder, ".png"), fname)
+	if (!file.exists(pngname) | rerun){
+		pimg = readNIfTI(fname)
+# mask.overlay		
+		png(pngname, type="cairo")
+		if (is.null(tempimg)) {
+			orthographic(pimg, text=text, ...)
+		} else {
+			mask.overlay(tempimg, pimg, col.y=col.y, ...)
+		}
+		dev.off()
+	}
+	return(pngname)
 }
 
-spm2.png = gsub("\\.nii\\.gz", ".png", spm.binimg)
-if (!file.exists(spm2.png) | rerun){
-	spm.bimg = readNIfTI(spm.binimg)
-
-	png(spm2.png)
-	orthographic(spm.bimg, text="Binary Average")
-	dev.off()
+view.png = function(fname){
+	system(sprintf("display %s", fname))
 }
-# img.tag = '<img src="%s" alt="%s" style="width: 400px;"/>\n\n'
-# cat(sprintf(img.tag, skullpng, skullpng))
-# cat("\n")
+
+spm1.png = writepng(spm.popimg, adder = "", 
+	rerun=rr, text ="Weighted Image")
+spm2.png = writepng(spm.binimg, adder = "", 
+	rerun=rr, text ="Binary Average")
+spm1_hot.png = writepng(spm.popimg, adder = "_heat", 
+	rerun=rr,  text ="Weighted Image", 
+	col=hotmetal(10))
+spm2_hot.png = writepng(spm.binimg, adder = "_heat", 
+	rerun=rr, text ="Binary Average", 
+	col=hotmetal(10))
+
+
+spm1_hot_overlay.png = writepng(spm.popimg, tempimg= temp, 
+	adder = "_heat_overlay", 
+	rerun=rr,  text ="Weighted Image")
+spm2_hot_overlay.png = writepng(spm.binimg, tempimg= temp, 
+	adder = "_heat_overlay", 
+	rerun=rr, text ="Weighted Average")
+
+spm1_t1_hot_overlay.png = writepng(spm.popimg, tempimg= temp.t1, 
+	adder = "_t1_heat_overlay", window = c(500, 1000),
+	rerun=rr,  text ="Weighted Image")
+spm2_t1_hot_overlay.png = writepng(spm.binimg, tempimg= temp.t1, 
+	adder = "_t1_heat_overlay", window = c(500, 1000),
+	rerun=rr, text ="Weighted Average")
+
+# view.png(spm1_t1_hot_overlay.png)
+
 ```
 
 ```{r, results='asis'}
 img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
 cat(sprintf(img.tag, spm1.png, spm1.png))
 cat(sprintf(img.tag, spm2.png, spm2.png))
+cat(sprintf(img.tag, spm1_hot.png, spm1_hot.png))
+cat(sprintf(img.tag, spm2_hot.png, spm2_hot.png))
+cat(sprintf(img.tag, spm1_hot_overlay.png, spm2_hot_overlay.png))
+cat(sprintf(img.tag, spm1_t1_hot_overlay.png, spm2_t1_hot_overlay.png))
 cat("\n\n")
 ```
 

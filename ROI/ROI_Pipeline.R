@@ -48,7 +48,7 @@ setup <- function(id){
 
 #### setting up if things are on the cluster or not
 verbose =TRUE
-untar = TRUE
+untar = FALSE
 convert <- TRUE
 skullstrip <- FALSE
 plotss = TRUE
@@ -77,8 +77,9 @@ iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
 if (is.na(iid)) iid <- 4
 
+# ids = c("191-311", "205-517", "222-337")
 
-for (iid in seq_along(ids)){
+for (iid in rev(seq_along(ids))){
 
   id = ids[iid]
 

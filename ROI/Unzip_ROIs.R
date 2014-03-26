@@ -1,9 +1,13 @@
+###################################
+# Create directories for all ROI files 
+###################################
 rm(list=ls())
 library(oro.dicom)
 library(oro.nifti)
 library(plyr)
 library(scales)
 
+########### UNZIP ROIS.zip then run this progrma
 #### delete all ROI files
 ### find . -regextype posix-extended -regex "^./[0-9].*[0-9]$" -exec rm -r {} \;
 
@@ -46,21 +50,6 @@ setup <- function(id){
 
 }
 
-#### setting up if things are on the cluster or not
-verbose =TRUE
-untar = TRUE
-convert <- FALSE
-skullstrip <- FALSE
-plotss = TRUE
-regantry <- FALSE
-untgantry <- FALSE
-runall <- TRUE
-useRdcmsort= TRUE
-useRdcm2nii= FALSE
-removeDups = TRUE
-ROIformat = TRUE
-dcm2niicmd = "dcm2nii_2009"
-
 ### initial setup
 # iid <- length(ids)
 
@@ -69,7 +58,8 @@ dcm2niicmd = "dcm2nii_2009"
 # for (iid in 1:length(ids)){
 rerunroi = TRUE
 
-setup("ROIS")
+setup("Long_ROIS")
+# setup("ROIS")
 
     gf = getfiles(basedir)
     all.files = paths = gf$files
@@ -92,8 +82,10 @@ setup("ROIS")
       new.name = new.names,
       stringsAsFactors=FALSE)
 
+    # df = df[ grepl("100-365", df$filename), ]
+
     m_ply(function(filename, new.name){
-      file.copy(filename, new.name, overwrite=TRUE)
+      file.rename(filename, new.name)
       return(NULL)
     }, .data=df, .progress = "text")
 

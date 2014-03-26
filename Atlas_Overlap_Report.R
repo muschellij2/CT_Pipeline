@@ -170,22 +170,22 @@ whichdir = "reoriented"
 
 iid = all.ids[57]
 
-mni.allres = tal.allres = NULL 
+jhut2.allres = jhut1.allres = mni.allres = tal.allres = NULL 
 
 outfile = file.path(atlasdir, 
   paste0(whichdir, "_All_Atlas_ROI_Overlap_Measures.Rda"))
 
 if (file.exists(outfile)) file.remove(outfile)
 
-for (iid in all.ids){
+for (iiid in seq_along(all.ids)){
   
-### create directories
+
+  iid = all.ids[iiid]
+  ### create directories
   redir = file.path(basedir, iid, whichdir)
   imgdir <- file.path(redir, "results")
   
 
-  
-  
   imgs = list.files(path=redir, 
                     full.names=TRUE, 
                     recursive=FALSE, 
@@ -198,6 +198,8 @@ for (iid in all.ids){
   # for (iimg in seq_along(imgs)){
   res.list = llply(imgs, function(x){
     # print(x)
+    my.pb = txtProgressBar(min = 0, max=4, style=3)
+    
     img.fname = x
     img = readNIfTI(img.fname)
     res = get.pct(img, tempimg=mni.img, Labels= mni.df$Label, 
@@ -205,6 +207,8 @@ for (iid in all.ids){
     mni.cres = collapse.res(res, add.binval=FALSE)
     mni.cres$fname = x
 
+    ### talairach
+    setTxtProgressBar(my.pb, 1)
     Labels = apply(tal.df[, 
       c("Area", "Lobe", "Lobule", "Tissue_Type", "Broadmann")], 
       1, paste, sep='', collapse=".")
@@ -213,38 +217,62 @@ for (iid in all.ids){
     tal.cres = collapse.res(res, add.binval=FALSE)
     tal.cres$fname = x
 
+    setTxtProgressBar(my.pb, 2)
+    ## EVE Template 1
+    res = get.pct(img, tempimg=jhut1.img, Labels= jhut1.df$Label, 
+      ind.list = jhut1.list, keepall=TRUE)
+    jhut1.cres = collapse.res(res, add.binval=FALSE)
+    jhut1.cres$fname = x    
+
+    setTxtProgressBar(my.pb, 3)
+    ## EVE Template 2
+    res = get.pct(img, tempimg=jhut2.img, Labels= jhut2.df$Label, 
+      ind.list = jhut2.list, keepall=TRUE)
+    jhut2.cres = collapse.res(res, add.binval=FALSE)
+    jhut2.cres$fname = x        
+    setTxtProgressBar(my.pb, 4)
+    close(my.pb)
     # iimg <<- iimg + 1
-    return(list(mni.cres=mni.cres, tal.cres = tal.cres))
+    return(list(mni.cres=mni.cres, 
+      tal.cres = tal.cres,
+      jhut1.cres = jhut1.cres,
+      jhut2.cres = jhut2.cres
+      ))
   }, .progress= "text")
   
   mni.res = lapply(res.list, function(x) x$mni.cres)
   tal.res = lapply(res.list, function(x) x$tal.cres)
+  jhut1.res = lapply(res.list, function(x) x$jhut1.cres)
+  jhut2.res = lapply(res.list, function(x) x$jhut2.cres)
 
+  make.mat = function(res){
+    res = do.call("rbind", res)
+    res$fname = basename(res$fname)
+    res$fname = gsub("\\.gz$", "", res$fname)
+    res$fname = gsub("\\.nii$", "", res$fname)
+    res$fname = gsub("^2mm_", "", res$fname)
+    res$fname = gsub("affine(9|12)_", "", res$fname)
+    res = res[ res$raw > 0, ]
+    return(res)
+  }
 
-  mni.res = do.call("rbind", mni.res)
-  mni.res$fname = basename(mni.res$fname)
-  mni.res$fname = gsub("\\.gz$", "", mni.res$fname)
-  mni.res$fname = gsub("\\.nii$", "", mni.res$fname)
-  mni.res$fname = gsub("^2mm_", "", mni.res$fname)
-  mni.res$fname = gsub("affine(9|12)_", "", mni.res$fname)
+  mni.res = make.mat(mni.res)
+  tal.res = make.mat(tal.res)
+  jhut1.res = make.mat(jhut1.res)
+  jhut2.res = make.mat(jhut2.res)
 
-  tal.res = do.call("rbind", tal.res)
-  tal.res$fname = basename(tal.res$fname)
-  tal.res$fname = gsub("\\.gz$", "", tal.res$fname)
-  tal.res$fname = gsub("\\.nii$", "", tal.res$fname)
-  tal.res$fname = gsub("^2mm_", "", tal.res$fname)
-  tal.res$fname = gsub("affine(9|12)_", "", tal.res$fname)
-
-  mni.res = mni.res[ mni.res$raw > 0, ]
-  tal.res = tal.res[ tal.res$raw > 0, ]
 
   tal.allres = rbind(tal.allres, tal.res)
   mni.allres = rbind(mni.allres, mni.res)
+  jhut1.allres = rbind(jhut1.allres, jhut1.res)
+  jhut2.allres = rbind(jhut2.allres, jhut2.res)  
   print(iid)
 }
 
   save(mni.allres, tal.allres, 
+      jhut1.allres, jhut2.allres, 
        file=outfile)
+
 # }
 # cres = cres[order(cres$weighted),]
 # }
