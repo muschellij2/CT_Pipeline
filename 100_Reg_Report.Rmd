@@ -4,7 +4,7 @@ opts_chunk$set(message=FALSE, warning=FALSE,
                comment="",
                echo=FALSE, results='hide')
 opts_knit$set(error = FALSE)
-
+opts_knit$set(progress = TRUE, verbose = TRUE)
 # options(rstudio.markdownToHTML =
 #   function(inputFile, outputFile) {
 #     library(knitrBootstrap)
@@ -401,6 +401,7 @@ makeres = function(allres){
 mni.allres = makeres(mni.allres)
 tal.allres = makeres(tal.allres)
 jhut1.allres = makeres(jhut1.allres)
+jhut2.allres = makeres(jhut2.allres)
 # allres = allres
 # allres$fname = gsub("_ROI", "", allres$fname)
 # allres[, c("raw", "bin", "weighted")] = 
@@ -440,21 +441,31 @@ pt_to_id = function(x){
 cat.info = function(){
 	for (iimg in seq(ids)){
 		id = ids[iimg]
-		df = allres[ allres$fname == id, ]
-		df = df[df$raw != 0, ]
-		ID = df$id[1]
-		ID = pt_to_id(ID)
-		clot.loc = dd[dd$id == ID, "clot_location"]
 
-		agg = aggregate(cbind(raw, bin, weighted) ~ area, 
-			data=df, sum)
-		df = df[, c("area", "raw", "bin", "weighted")]		
-		colnames(df) = colnames(agg) = c("Area", "Percent Over 0", "Percent Over 95% Probability", "Weighted Sum")
+		nm = names(allreses)
+		xtabs = vector(mode = "list", length=length(allreses))
+		for (itab in seq(allreses)){
+			allres = allreses[[itab]]
+			df = allres[ allres$fname == id, ]
+			df = df[df$raw != 0, ]
+			ID = df$id[1]
+			ID = pt_to_id(ID)
+			clot.loc = dd[dd$id == ID, "clot_location"]
+
+			agg = aggregate(cbind(raw) ~ area, 
+				data=df, sum)
+			df = df[, c("area", "raw")]		
+			colnames(df) = colnames(agg) = c("Area", nm[itab])
+			xtabs[[itab]] = xtable(df)
+		}
+
+		names(xtabs) = nm
 
 		ss = strsplit(id, "_CT_")[[1]]
 		id = ss[1]
 
-		xtab = xtable(df)
+
+
 		cat(sprintf('## %s\n\n', id))
 		img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
 
@@ -464,7 +475,25 @@ cat.info = function(){
 		#cat("### Registered Image ##\n\n")
 		cat(sprintf(img.tag, rawpngs[iimg], rawpngs[iimg]))
 
-		print.xtable(xtab, type="html", include.rownames=FALSE, comment=FALSE)
+		makebtn = function(viewname){
+			btn = paste0('<a class="btn" data-toggle="collapse" data-target="#', 
+			viewname, 
+			'">View details </a>\n')
+		}
+
+		cat.table = function(name){
+
+			viewname = paste0(id, name)
+			cat(makebtn(viewname))
+			html.table.attributes = paste0('border = 1, id=', viewname)
+			print.xtable(xtabs[[name]], type="html", 
+				include.rownames=FALSE, comment=FALSE, 
+				html.table.attributes = html.table.attributes)
+		}
+		cat.table("MNI")
+		cat.table("EVE_1")
+		cat.table("EVE_2")
+
 
 		cat(paste0("Reading Center location was: ", clot.loc, "\n"))
 		aggxtab = xtable(agg)
@@ -479,7 +508,10 @@ cat.info = function(){
 # Registration with SPM 
 
 ```{r spmrun, results='asis'}
-allres = mni.allres
+allreses = list(MNI=mni.allres, 
+	Talairach=tal.allres, 
+	EVE_1 =jhut1.allres, 
+	EVE_2 =jhut1.allres)
 
 cat.info()
 ```
