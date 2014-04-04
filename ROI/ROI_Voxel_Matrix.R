@@ -63,7 +63,10 @@ df = ddply(df, .(id), function(x){
 })
 
 nimgs = nrow(df)
-mat = matrix(FALSE, nrow=prod(dtemp), ncol=nimgs)
+dn = vector("list", length=2)
+dn[[1]] = 1:prod(dtemp)
+dn[[2]] = df$fname
+mat = matrix(FALSE, nrow=prod(dtemp), ncol=nimgs, dimnames = dn)
 read.img = function(fname){
 	img = readNIfTI(fname)
 	img[is.nan(img) | is.na(img)] = 0
@@ -80,6 +83,7 @@ for (iimg in seq(nimgs)){
 }
 
 rs = rowSums(mat)
+colnames(mat) = df$fname
 
 outfile = file.path(outdir, "Voxel_Matrix.Rda")
 save(mat, rs, df, file=outfile )

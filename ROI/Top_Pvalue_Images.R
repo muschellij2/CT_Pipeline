@@ -8,6 +8,8 @@ library(plyr)
 library(scales)
 library(RColorBrewer)
 library(data.table)
+library(cttools)
+library(fslr)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -15,8 +17,8 @@ if (Sys.info()[["user"]] %in% "jmuschel") {
   rootdir = "/dexter/disk2/smart/stroke_ct/ident"
 }
 progdir = file.path(rootdir, "programs")
-source(file.path(progdir, "convert_DICOM.R"))
-source(file.path(progdir, "fslhd.R"))
+# source(file.path(progdir, "convert_DICOM.R"))
+# source(file.path(progdir, "fslhd.R"))
 basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
@@ -49,7 +51,7 @@ stopifnot(all(diag(dice) == 1))
 y = res[,"X","mod.1"]
 rrn = which(rs > ncut)
 rrn = rrn[order(y)]
-
+yord = y[order(y)]
 
 
 #### reading in template
@@ -81,7 +83,15 @@ view.png = function(fname){
 
 device = "png"
 
-for (nkeep in c(30, 100, 500, 1000)){
+nkeeps = c(30, 100, 500, 1000, 2000, 3000)
+
+for (pval in c(0.05, .01, .001)){
+
+	nkeeps = c(nkeeps, sum(yord <= pval))
+}
+
+
+for (nkeep in nkeeps){
 	rn = rrn[seq(nkeep)]
 
 	fp = file.path(outdir, 
@@ -101,15 +111,39 @@ for (nkeep in c(30, 100, 500, 1000)){
 }
 
 
-nkeep = 1000
-rn = rrn[seq(nkeep)]
+for (nkeep in c(1000, 2000, 3000)){
 
-submat = mat[rn,]
-wi = colSums(submat)
+# nkeep = 3000
+	rn = rrn[seq(nkeep)]
+
+	submat = mat[rn,]
+	wi = colSums(submat)
 
 
-outfile = file.path(outdir, 
-	paste0("Top_", nkeep, "_Pvalues_df.Rda"))
-save(submat, rs, rn, wi, nkeep, 
-	dist.mat, dice, 
-	file=outfile)
+	outfile = file.path(outdir, 
+		paste0("Top_", nkeep, "_Pvalues_df.Rda"))
+	save(submat, rs, rn, wi, nkeep, 
+		dist.mat, dice, 
+		file=outfile)
+}
+
+for (pval in c(0.05, .01, .001)){
+
+# nkeep = 3000
+	nkeep = sum(yord <= pval)
+	rn = rrn[seq(nkeep)]
+	submat = mat[rn,]
+	wi = colSums(submat)
+
+
+	outfile = file.path(outdir, 
+		paste0("Top_", pval, "_Pvalues_df.Rda"))
+	save(submat, rs, rn, wi, pval, nkeep,
+		dist.mat, dice, 
+		file=outfile)
+}
+
+
+# Top 2000 %
+# Top 3000 %
+# 0.05 0.01

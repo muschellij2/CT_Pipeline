@@ -18,7 +18,12 @@ if (Sys.info()[["user"]] %in% "jmuschel") {
 basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 outdir = file.path(basedir, "results")
+fsldir = Sys.getenv("FSLDIR")
+fsltemp = file.path(fsldir, "data", "standard")
 whichdir = "reoriented"
+
+bmask = readNIfTI(
+  file.path(fsltemp, "MNI152_T1_1mm_brain_mask.nii.gz"))
 
 
 all.ids = list.dirs(basedir, recursive=FALSE, full.names=FALSE)
@@ -38,14 +43,26 @@ spmdir = file.path(homedir, "spm8")
 atlasdir = file.path(tempdir, "atlases")
 
 
+tab.area2 = function(img, ind.list, keepall) {
+  ## get overlap of indices
+  raw.mat = sapply(ind.list, function(x) sum(img[x]))
+  names(raw.mat) = names(ind.list)
+  ## cs is sum of indices of overlap
+  cs.raw = data.frame(nvox=raw.mat) 
+  if (!keepall) cs.raw = cs.raw[cs.raw != 0, , drop=FALSE]
+  rownames(cs.raw) = names(ind.list)
+  return(cs.raw)
+}
+
 tab.area = function(binimg, ind.list, keepall) {
   ## get overlap of indices
   raw.ind = which(binimg)
   raw.mat = sapply(ind.list, function(x) raw.ind %in% x)
   ## cs is sum of indices of overlap
   cs.raw = colSums(raw.mat)
-  if (!keepall) cs.raw = cs.raw[cs.raw != 0]
+  if (!keepall) cs.raw = cs.raw[cs.raw != 0, , drop=FALSE]
   cs.raw = data.frame(nvox=cs.raw)  
+  rownames(cs.raw) = names(ind.list)  
   return(cs.raw)
 }
 bin.val = 0.95
@@ -153,7 +170,6 @@ collapse.res = function(res, add.binval=FALSE){
 
 
 
-
 load(file.path(atlasdir, "All_FSL_Atlas_Labels.Rda"))
 ### contents
 # tal.df, tal.img, 
@@ -175,7 +191,8 @@ jhut2.allres = jhut1.allres = mni.allres = tal.allres = NULL
 outfile = file.path(atlasdir, 
   paste0(whichdir, "_All_Atlas_ROI_Overlap_Measures.Rda"))
 
-if (file.exists(outfile)) file.remove(outfile)
+### REMOVED
+# if (file.exists(outfile)) file.remove(outfile)
 
 for (iiid in seq_along(all.ids)){
   
@@ -269,9 +286,10 @@ for (iiid in seq_along(all.ids)){
   print(iid)
 }
 
-  save(mni.allres, tal.allres, 
-      jhut1.allres, jhut2.allres, 
-       file=outfile)
+save(mni.allres, tal.allres, 
+    jhut1.allres, jhut2.allres, 
+    collapse.res, get.pct,
+    tab.area, tab.area2, file=outfile)
 
 # }
 # cres = cres[order(cres$weighted),]

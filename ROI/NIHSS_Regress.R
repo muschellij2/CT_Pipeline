@@ -32,11 +32,13 @@ load(file=outfile )
 
 #### keeping if over 10 people have ICH in that locaiton
 ncut = 10
+all.nvox = sum(rs > 0)
 mat = mat[rs > ncut, ]
 
 #### getting unique rows and duplications
 dups = duplicated(mat)
-cn = paste0("V", 1:ncol(mat))
+# cn = paste0("V", 1:ncol(mat))
+cn = colnames(mat)
 mm = cbind(mat, id = 1:nrow(mat))
 dt = data.table(mm, key=cn)
 urows = unique(dt)
@@ -53,7 +55,7 @@ where = "NIHSS_Regress.R"
 
 output = file.path(outdir, "Voxel_Info.Rda")
 save(nvox, ncut, nuniq.rows, 
-	dups, group, where,
+	dups, group, where, 
 	file=output)
 
 class(mat) = "numeric"
