@@ -55,7 +55,7 @@ where = "NIHSS_Regress.R"
 
 output = file.path(outdir, "Voxel_Info.Rda")
 save(nvox, ncut, nuniq.rows, 
-	dups, group, where, 
+	dups, group, where, all.nvox,
 	file=output)
 
 class(mat) = "numeric"
