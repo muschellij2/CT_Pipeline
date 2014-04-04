@@ -22,11 +22,12 @@ spmdir = file.path(homedir, "spm8")
 tempdir = file.path(basedir, "Template")
 outdir = file.path(tempdir, "atlases")
 
-fsldir <- system("echo $FSLDIR", intern=TRUE)
+fsldir = Sys.getenv("FSLDIR")
 if (fsldir == "") {
   cmd <- paste("FSLDIR=/usr/local/fsl; FSLOUTPUTTYPE=NIFTI_GZ; ", 
     "export FSLDIR FSLOUTPUTTYPE; sh ${FSLDIR}/etc/fslconf/fsl.sh;")
 }
+fsltemp = file.path(fsldir, "data", "standard")
 
 atlas_dir = file.path(fsldir, "data", "atlases")
 
@@ -43,6 +44,13 @@ cutdown = function(img, outdim= c(181, 217, 181)){
 	return(img)
 }
 
+
+bmask = readNIfTI(
+  file.path(fsltemp, "MNI152_T1_1mm_brain_mask.nii.gz"))
+reg.bmask = bmask > 0
+bmask = cutdown(bmask)
+bmask = bmask > 0
+
 #### extracting Talairach Image an labels###########
 
 atlas = "Talairach"
@@ -58,8 +66,9 @@ labs = do.call("rbind", labs)
 
 df = data.frame(labs, stringsAsFactors=FALSE)
 colnames(df) = c("Area", "Lobe", "Lobule", "Tissue_Type", "Broadmann")
+df = rbind(rep("Outside Brain Mask", ncol(df)), df)
 df = rbind(rep("Uncategorized", ncol(df)), df)
-df$index = c(0, as.numeric(indices) + 1)
+df$index = c(0, -99, as.numeric(indices) + 1)
 
 tal.df = df
 
@@ -67,6 +76,7 @@ tal.df = df
 img = readNIfTI(
 	file.path(tatlas_dir, 
 		"Talairach-labels-1mm.nii.gz"))
+img[ !reg.bmask ] = -99
 uimg = sort(unique(c(img)))
 all.ind = c(0, df$index)
 stopifnot(all(uimg %in% all.ind))
@@ -90,8 +100,9 @@ labs = str_trim(labels)
 
 df = data.frame(labs, stringsAsFactors=FALSE)
 colnames(df) = "Label"
+df = rbind(rep("Outside Brain Mask", ncol(df)), df)
 df = rbind(rep("Uncategorized", ncol(df)), df)
-df$index = c(0, as.numeric(indices) + 1)
+df$index = c(0, -99, as.numeric(indices) + 1)
 
 mni.df = df
 
@@ -99,6 +110,7 @@ mni.df = df
 img = readNIfTI(
 	file.path(tatlas_dir, 
 		"MNI-maxprob-thr0-1mm.nii.gz"))
+img[ !reg.bmask ] = -99
 uimg = sort(unique(c(img)))
 all.ind = c(0, df$index)
 stopifnot(all(uimg %in% all.ind))
@@ -128,16 +140,18 @@ labs = do.call("rbind", labs)
 
 df = data.frame(labs, stringsAsFactors=FALSE)
 colnames(df) = c("Label", "Division")
+df = rbind(rep("Outside Brain Mask", ncol(df)), df)
 df = rbind(rep("Uncategorized", ncol(df)), df)
-df$index = c(0, as.numeric(indices) + 1)
+df$index = c(0, -99, as.numeric(indices) + 1)
 
 hoxcort.df = df
 
 img = readNIfTI(
 	file.path(tatlas_dir, 
 		"HarvardOxford-cort-maxprob-thr0-1mm.nii.gz"))
+img[ !reg.bmask ] = -99
 uimg = sort(unique(c(img)))
-all.ind = c(0, df$index)
+all.ind = c(0, -99, df$index)
 stopifnot(all(uimg %in% all.ind))
 
 img = cutdown(img)
@@ -159,8 +173,9 @@ labs = str_trim(labels)
 
 df = data.frame(labs, stringsAsFactors=FALSE)
 colnames(df) = c("Label")
+df = rbind(rep("Outside Brain Mask", ncol(df)), df)
 df = rbind(rep("Uncategorized", ncol(df)), df)
-df$index = c(0, as.numeric(indices) + 1)
+df$index = c(0, -99, as.numeric(indices) + 1)
 
 hoxsubcort.df = df
 hoxsubcort.df$Label = gsub("Ventrical", "Ventricle", 
@@ -169,6 +184,7 @@ hoxsubcort.df$Label = gsub("Ventrical", "Ventricle",
 img = readNIfTI(
 	file.path(tatlas_dir, 
 		"HarvardOxford-sub-maxprob-thr0-1mm.nii.gz"))
+img[ !reg.bmask ] = -99
 uimg = sort(unique(c(img)))
 all.ind = c(0, df$index)
 stopifnot(all(uimg %in% all.ind))
@@ -183,14 +199,17 @@ atlas = "JHU_MNI_SS_WMPM_Type-I"
 tatlas_dir = file.path(tempdir)
 txtfile = file.path(tempdir, paste0(atlas, "_SlicerLUT.txt"))
 
-xx = read.table(txtfile)
+xx = read.table(txtfile, stringsAsFactors=FALSE)
 xx = xx[, 1:2]
 colnames(xx) = c("index", "Label")
+xx = rbind(xx, c(-99, "Outside Brain Mask"))
+xx$index = as.numeric(xx$index)
 jhut1.df = xx
 
 img = readNIfTI(
 	file.path(tatlas_dir, 
 		paste0(atlas, ".nii.gz")))
+img[ !bmask ] = -99
 uimg = sort(unique(c(img)))
 all.ind = jhut1.df$index
 stopifnot(all(uimg %in% all.ind))
@@ -206,14 +225,17 @@ atlas = "JHU_MNI_SS_WMPM_Type-II"
 tatlas_dir = file.path(tempdir)
 txtfile = file.path(tempdir, paste0(atlas, "_SlicerLUT.txt"))
 
-xx = read.table(txtfile)
+xx = read.table(txtfile, stringsAsFactors = FALSE)
 xx = xx[, 1:2]
 colnames(xx) = c("index", "Label")
+xx = rbind(xx, c(-99, "Outside Brain Mask"))
+xx$index = as.numeric(xx$index)
 jhut2.df = xx
 
 img = readNIfTI(
 	file.path(tatlas_dir, 
 		paste0(atlas, ".nii.gz")))
+img[ !bmask ] = -99
 uimg = sort(unique(c(img)))
 all.ind = jhut2.df$index
 stopifnot(all(uimg %in% all.ind))
@@ -265,6 +287,7 @@ get.ind = function(img, df){
 	ind.list = llply(df$index, function(x){
 		return(which(img == x))
 	}, .progress = "text")
+	names(ind.list) = df$Label
 	return(ind.list)
 }
 

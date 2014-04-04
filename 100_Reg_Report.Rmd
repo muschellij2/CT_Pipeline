@@ -15,6 +15,7 @@ opts_knit$set(progress = TRUE, verbose = TRUE)
  
 
 ```{r, echo=FALSE}
+
 rm(list=ls())
 library(R.matlab)
 library(oro.nifti)
@@ -25,6 +26,8 @@ library(RColorBrewer)
 library(knitrBootstrap)
 library(xtable)
 library(scales)
+library(fslr)
+library(cttools)
 ### need cairo for cluster
 options(bitmapType='cairo')
 homedir = "/Applications"
@@ -34,8 +37,8 @@ if (Sys.info()[["user"]] %in% "jmuschel") {
   rootdir = "/dexter/disk2/smart/stroke_ct/ident"
 }
 progdir = file.path(rootdir, "programs")
-source(file.path(progdir, "convert_DICOM.R"))
-source(file.path(progdir, "fslhd.R"))
+# source(file.path(progdir, "convert_DICOM.R"))
+# source(file.path(progdir, "fslhd.R"))
 basedir = file.path(rootdir, "Registration")
 
 
@@ -44,6 +47,8 @@ nihss = read.csv(file.path(basedir, "baseline_NIHSS.csv"),
                  stringsAsFactors=FALSE)
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
+
+load(file.path(atlasdir, "All_FSL_Atlas_Labels.Rda"))
 
 outdir = file.path(basedir, "results")
 whichdir = "reoriented"
@@ -139,7 +144,7 @@ if (!file.exists(skullpng)){
 ```{r}
 
 dtemp = dim(temp)
-ID = "100-365"
+ID = "100-318"
 run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 	### go to id directory
 	# if (verbose) print(ID)
@@ -176,7 +181,11 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 	}
 	iimg = 1;
 
+	popimg.fname = file.path(resdir, "Weighted_Sum_Image")
+	binimg.fname = file.path(resdir, "Binary_Sum_Image")
 
+	popimg.nii = paste0(popimg.fname, ".nii.gz")
+	binimg.nii = paste0(binimg.fname, ".nii.gz")
 	# for (iimg in seq(nimgs)){
 		# if (verbose) print(iimg)
 
@@ -189,10 +198,14 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 		ids[iimg] = gsub("^(w|affine(9|12)_)", "", iid)
 		rawpngs[iimg] = file.path(resdir, paste0("raw_", id, ".png"))
 		opngs[iimg] = file.path(resdir, paste0("roi_", id, ".png"))
+	
 
 		if (rerun | 
 			!file.exists(opngs[iimg]) |
-			!file.exists(rawpngs[iimg]) ){
+			!file.exists(rawpngs[iimg]) |
+			!file.exists(popimg.nii) |
+			!file.exists(binimg.nii)
+			){
 
 			if (verbose) print(rawimgs[iimg])
 
@@ -247,10 +260,10 @@ run.id = function(ID, whichdir, rerun=TRUE, verbose=TRUE){
 	dice.df = data.frame(dices)
 	dice.df$id = ids
 
-	popimg.fname = file.path(resdir, "Weighted_Sum_Image")
-	binimg.fname = file.path(resdir, "Binary_Sum_Image")
-
-	if (rerun){
+	if (rerun | 
+		!file.exists(popimg.nii) |
+		!file.exists(binimg.nii)
+		) {
 		nim = temp
 		nim@.Data = popimg
 		nim@cal_min = min(nim, na.rm=TRUE)
@@ -367,6 +380,63 @@ spm.binimg = file.path(outdir, paste0(whichdir, "_Binary_Sum_Image"))
 
 pop.res = get.popimg(res, rerun=rerun, rescale=TRUE)
 
+aids =  as.numeric(gsub("-", "", all.ids))
+r0.ids = demog$patientName[demog$Bad_Outcome_Day_180 %in% 0]
+r1.ids = demog$patientName[demog$Bad_Outcome_Day_180 %in% 1]
+
+r0.res = res[aids %in% r0.ids]
+r1.res = res[aids %in% r1.ids]
+
+r0.img = get.popimg(r0.res, rerun=TRUE, rescale=TRUE)
+r1.img = get.popimg(r1.res, rerun=TRUE, rescale=TRUE)
+
+r0 = r0.img$popimg
+r1 = r1.img$popimg
+r.diff = r1 - r0
+
+r0.var = r0*(1-r0)/length(r0.res)
+r1.var = r1*(1-r1)/length(r1.res)
+
+rdiff.se = sqrt(r0.var + r1.var)
+z.stat = r.diff/rdiff.se
+zabs = abs(z.stat)
+p.data = pnorm(zabs, lower.tail=FALSE)
+
+na.res = temp
+na.res [!is.na(na.res)] = NA
+res.p = na.res
+sig = p.data
+sig[is.nan(sig)] = 1
+sig.level = 0.05
+res.p[ sig <= sig.level ] = 1
+orthographic(res.p, text = paste0("Level ", sig.level))
+
+n.r0 = r0 * length(r0.res)
+n.r1 = r1 * length(r1.res)
+
+res.p2 = na.res
+res.p2[ sig < sig.level & n.r0 > 2 & n.r1 > 2 ] = 1
+orthographic(res.p2, text = paste0("Level ", sig.level))
+
+
+
+# dd = array(NA, dim=dim(n.r0))
+# dims = dim(dd)
+# for (irow in seq(dims[1])){
+# 	for (icol in seq(dims[2])){
+# 		for (iz in seq(dims[3])){
+# 			dd[irow, icol, iz] = prop.test(
+# 				x = c(n.r0[irow, icol, iz],
+# 					n.r1[irow, icol, iz]),
+# 				n = c(length(r0.res),
+# 					length(r1.res))
+# 			)$p.value
+# 		}
+# 	}
+# }
+
+pop.res = get.popimg(res, rerun=TRUE, rescale=TRUE)
+
 if (rerun){
 
 	if ( is.null(pop.res) ) {
@@ -438,16 +508,52 @@ pt_to_id = function(x){
 	as.numeric(gsub("-", "", x))
 }
 
+
+makebtn = function(viewname, adder){
+	btn = paste0('<a class="btn" data-toggle="collapse" data-target="#', 
+	viewname, 
+	'">View ', adder, ' </a>\n')
+}
+
+# makebtn = function(name, adder){
+# 	btn = paste0('<a class="btn" data-toggle="collapse" ', 
+# 		'data-target="#', name, 
+# 	'">View ', adder, ' </a>\n')
+# }
+
+cat.table = function(name, id, tops, xtabs){
+	cat('<div class="panel panel-default">\n')
+	adder = tops[[name]]
+	viewname = paste0(id, name)
+	cat(makebtn(viewname, 
+		paste0(name, ": Top Location: ", adder))
+	)
+	# cat(makebtn(name, 
+	# 	paste0(name, ": Top Location: ", adder))
+	# )			
+	html.table.attributes = paste0('border = 1, id="', viewname,
+		'"')
+	print.xtable(xtabs[[name]], type="html", 
+		include.rownames=FALSE, comment=FALSE, 
+		html.table.attributes = html.table.attributes)
+	cat('</div>\n ')
+
+	return(viewname)
+}
+
 cat.info = function(){
+	my.ids = NULL
 	for (iimg in seq(ids)){
 		id = ids[iimg]
 
 		nm = names(allreses)
-		xtabs = vector(mode = "list", length=length(allreses))
+		tops = xtabs = 
+			vector(mode = "list", length=length(allreses))
 		for (itab in seq(allreses)){
 			allres = allreses[[itab]]
 			df = allres[ allres$fname == id, ]
-			df = df[df$raw != 0, ]
+			df = df[df$raw != 0, , drop=FALSE]
+			df = df[order(df$raw, decreasing=TRUE), , drop=FALSE]
 			ID = df$id[1]
 			ID = pt_to_id(ID)
 			clot.loc = dd[dd$id == ID, "clot_location"]
@@ -455,11 +561,14 @@ cat.info = function(){
 			agg = aggregate(cbind(raw) ~ area, 
 				data=df, sum)
 			df = df[, c("area", "raw")]		
+			top = df[ order(df$raw, decreasing=TRUE), ]
+			top.area = top$area[1]
 			colnames(df) = colnames(agg) = c("Area", nm[itab])
 			xtabs[[itab]] = xtable(df)
+			tops[[itab]] = top.area 
 		}
 
-		names(xtabs) = nm
+		names(tops) = names(xtabs) = nm
 
 		ss = strsplit(id, "_CT_")[[1]]
 		id = ss[1]
@@ -467,7 +576,7 @@ cat.info = function(){
 
 
 		cat(sprintf('## %s\n\n', id))
-		img.tag = '<img src="%s" alt="%s" style="width: 400px;float: left;"/>'
+		img.tag = '<img src="%s" alt="%s" style="width: 400px;display:inline-block;"/>'
 
 		# cat("### Overlaid ROI ##\n\n")
 		cat(sprintf(img.tag, opngs[iimg], opngs[iimg]))
@@ -475,32 +584,20 @@ cat.info = function(){
 		#cat("### Registered Image ##\n\n")
 		cat(sprintf(img.tag, rawpngs[iimg], rawpngs[iimg]))
 
-		makebtn = function(viewname){
-			btn = paste0('<a class="btn" data-toggle="collapse" data-target="#', 
-			viewname, 
-			'">View details </a>\n')
-		}
-
-		cat.table = function(name){
-
-			viewname = paste0(id, name)
-			cat(makebtn(viewname))
-			html.table.attributes = paste0('border = 1, id=', viewname)
-			print.xtable(xtabs[[name]], type="html", 
-				include.rownames=FALSE, comment=FALSE, 
-				html.table.attributes = html.table.attributes)
-		}
-		cat.table("MNI")
-		cat.table("EVE_1")
-		cat.table("EVE_2")
+		cat(paste0("\nReading Center location was: ", clot.loc, "\n"))
 
 
-		cat(paste0("Reading Center location was: ", clot.loc, "\n"))
+		my.ids =  c(my.ids, cat.table("MNI", id, tops, xtabs))
+		my.ids =  c(my.ids, cat.table("EVE_1", id, tops, xtabs))
+		my.ids =  c(my.ids, cat.table("EVE_2", id, tops, xtabs))
+
+
 		aggxtab = xtable(agg)
 		# print.xtable(aggxtab, type="html", include.rownames=FALSE, comment=FALSE)
 
 		cat("\n\n")
 	}
+	return(my.ids)
 }
 
 ```
@@ -513,7 +610,7 @@ allreses = list(MNI=mni.allres,
 	EVE_1 =jhut1.allres, 
 	EVE_2 =jhut1.allres)
 
-cat.info()
+my.ids = cat.info()
 ```
 
 
@@ -544,8 +641,21 @@ writepng = function(fname, tempimg= NULL, adder ='', rerun=TRUE,
 	return(pngname)
 }
 
+centroid = function(img){
+	mimg = max(img, na.rm=TRUE)
+	max.ind = which(img== mimg, arr.ind=TRUE)
+	max.mn = colMeans(max.ind)
+	ind = which(img > 0, arr.ind=TRUE)
+	cm = colMeans(ind)
+	xx = img[img > 0]
+	wi = xx/sum(xx)
+	wind = ind * wi
+	w.mn = colSums(wind)
+	return(list(cent=cm, wcent = w.mn, max.mn = max.mn))
+}
+
 view.png = function(fname){
-	system(sprintf("display %s", fname))
+	system(sprintf("display %s&", fname))
 }
 
 spm1.png = writepng(spm.popimg, adder = "", 
@@ -565,16 +675,115 @@ spm1_hot_overlay.png = writepng(spm.popimg, tempimg= temp,
 	rerun=rr,  text ="Weighted Image")
 spm2_hot_overlay.png = writepng(spm.binimg, tempimg= temp, 
 	adder = "_heat_overlay", 
-	rerun=rr, text ="Weighted Average")
+	rerun=rr, text ="Binary Average")
 
 spm1_t1_hot_overlay.png = writepng(spm.popimg, tempimg= temp.t1, 
 	adder = "_t1_heat_overlay", window = c(500, 1000),
 	rerun=rr,  text ="Weighted Image")
 spm2_t1_hot_overlay.png = writepng(spm.binimg, tempimg= temp.t1, 
 	adder = "_t1_heat_overlay", window = c(500, 1000),
-	rerun=rr, text ="Weighted Average")
+	rerun=rr, text ="Binary Average")
+
+
+###########
+# TRying divergent palette
+#########
+coly = alpha(div_gradient_pal(low="blue", 
+	mid=muted("red"), 
+	high="yellow")(
+	seq(0, 1, length=100)
+	), .7)
+img = readNIfTI(spm.binimg)
+center = centroid(img)
+spm2_t1_hot_div1.png = writepng(spm.binimg, tempimg= temp.t1, 
+	adder = "_t1_heat_diverge_cent", window = c(500, 1000),
+	rerun=rr, text ="Weighted Average", col.y=coly,
+	xyz=  center$cent)
+# view.png(spm2_t1_hot_div.png)
+spm2_t1_hot_div2.png = writepng(spm.binimg, tempimg= temp.t1, 
+	adder = "_t1_heat_diverge_wcent", window = c(500, 1000),
+	rerun=rr, text ="Weighted Average", col.y=coly,
+	xyz=  center$wcent)
+# view.png(spm2_t1_hot_div.png)
+
+spm2_t1_hot_div3.png = writepng(spm.binimg, tempimg= temp.t1, 
+	adder = "_t1_heat_diverge_maxcent", window = c(500, 1000),
+	rerun=rr, text ="Weighted Average", col.y=coly,
+	xyz=  center$max.mn)
+
+########## 
+# TRying a cooler pattern
+###########
+coly = alpha(div_gradient_pal(low="blue", 
+	mid=muted("green"), 
+	high="yellow")(
+	seq(0, 1, length=100)
+	), .7)
+spm2_t1_cool_div1.png = writepng(spm.binimg, tempimg= temp.t1, 
+	adder = "_t1_cool_diverge_cent", window = c(500, 1000),
+	rerun=rr, text ="Weighted Average", col.y=coly,
+	xyz=  center$cent)
+# view.png(spm2_t1_hot_div.png)
+spm2_t1_cool_div2.png = writepng(spm.binimg, tempimg= temp.t1, 
+	adder = "_t1_cool_diverge_wcent", window = c(500, 1000),
+	rerun=rr, text ="Weighted Average", col.y=coly,
+	xyz=  center$wcent)
+# view.png(spm2_t1_hot_div.png)
+
+spm2_t1_cool_div3.png = writepng(spm.binimg, tempimg= temp.t1, 
+	adder = "_t1_cool_diverge_maxcent", window = c(500, 1000),
+	rerun=rr, text ="Weighted Average", col.y=coly,
+	xyz=  center$max.mn)
+# view.png(spm2_t1_hot_div.png)
+
+
+
+```
+
+```{r pop_table, results='hide', echo=FALSE}
 
 # view.png(spm1_t1_hot_overlay.png)
+lists = list(mni.list, jhut1.list, jhut2.list)
+pop.tab = llply(lists, function(x) {
+	tt = tab.area2(popimg, ind.list=x, keepall=TRUE)
+}, .progress= "text")
+sums = sapply(pop.tab, colSums)
+stopifnot(all(diff(sums) == 0))
+
+##### scaling them to %
+pop.tab = llply(pop.tab, function(x) {
+	x$nvox = x$nvox/sum(x$nvox) * 100
+	x = x[order(x$nvox, decreasing=TRUE), , drop=FALSE]
+	x$area = rownames(x)
+	x
+}, .progress= "text")
+
+nm = names(pop.tab) = c("MNI", "EVE_1", "EVE_2")
+
+tops = xtabs = 
+	vector(mode = "list", length=length(pop.tab))
+for (itab in seq(pop.tab)){
+	df = allres = pop.tab[[itab]]
+	df$nvox = round(df$nvox, 2)
+	df = df[df$nvox != 0, , drop=FALSE]
+	top.area = rownames(df)[1]
+	df = df[, c("area", "nvox")]		
+
+	colnames(df) = c("Area", nm[itab])
+	xtabs[[itab]] = xtable(df)
+	tops[[itab]] = top.area 
+}
+names(tops) = names(xtabs) = nm
+id = "Population"
+```
+
+## Population Breakdown
+
+```{r print_pop_table, results='asis'}
+
+my.ids = c(my.ids, cat.table("MNI", id, tops, xtabs))
+my.ids = c(my.ids, cat.table("EVE_1", id, tops, xtabs))
+my.ids = c(my.ids, cat.table("EVE_2", id, tops, xtabs))
 
 ```
 
@@ -586,6 +795,10 @@ cat(sprintf(img.tag, spm1_hot.png, spm1_hot.png))
 cat(sprintf(img.tag, spm2_hot.png, spm2_hot.png))
 cat(sprintf(img.tag, spm1_hot_overlay.png, spm2_hot_overlay.png))
 cat(sprintf(img.tag, spm1_t1_hot_overlay.png, spm2_t1_hot_overlay.png))
+cat(sprintf(img.tag, spm2_t1_hot_div1.png, spm2_t1_hot_div1.png))
+cat(sprintf(img.tag, spm2_t1_hot_div3.png, spm2_t1_hot_div3.png))
+cat(sprintf(img.tag, spm2_t1_cool_div1.png, spm2_t1_cool_div1.png))
+cat(sprintf(img.tag, spm2_t1_cool_div3.png, spm2_t1_cool_div3.png))
 cat("\n\n")
 ```
 
@@ -595,4 +808,20 @@ cat("\n\n")
 
 ```{r, echo=TRUE, results='markup'}
 sessionInfo()
+```
+
+```{r, results='asis'}
+
+cat('<script type="text/javascript">\n')
+  # // $('#collapseOne').collapse("hide");
+collapser = function(x) {
+	cat(paste0("$('#", x, "').collapse(", 
+	'"hide"', 
+	');\n'))
+}
+for (iid in seq_along(my.ids)){
+	collapser(my.ids[iid])
+}
+cat('</script>\n')
+
 ```

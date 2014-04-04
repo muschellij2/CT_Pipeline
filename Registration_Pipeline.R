@@ -1,8 +1,6 @@
 rm(list=ls())
-library(oro.dicom)
-library(oro.nifti)
-library(plyr)
-library(scales)
+library(cttools)
+options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
 
 setup <- function(id, study = "Registration"){
   username <- Sys.info()["user"][[1]]
@@ -33,8 +31,8 @@ setup <- function(id, study = "Registration"){
   homedir <<- path.expand(homedir)
 
 #progdir <- file.path(dirname(basedir), "programs")
-  progdir <<- file.path(rootdir, "programs")
-  source(file.path(progdir, "convert_DICOM.R"))
+  progdir <- file.path(rootdir, "programs")
+  # source(file.path(progdir, "convert_DICOM.R"))
   source(file.path(progdir, "fslhd.R"))
 
   basedir <<- file.path(homedir, id)
@@ -140,7 +138,7 @@ if (regantry){
 
 setup(id, study=study)
 
-for (iid in seq(ids)){
+# for (iid in seq(ids)){
   
   id <- ids[iid]
 
@@ -151,7 +149,7 @@ for (iid in seq(ids)){
 
 
 
-  if (convert) {
+  # if (convert) {
     ### convert the dicoms
   infofile <- file.path(basedir, "Dropout_Information.Rda")
   if (file.exists(infofile)) file.remove(infofile)
@@ -164,7 +162,7 @@ for (iid in seq(ids)){
     if (length(gf$files) > 0 | untar){
 
 
-      contime <- system.time(convert_DICOM(basedir, progdir, 
+      contime <- system.time(convert_DICOM(basedir, 
                               verbose=verbose, untar=untar, 
                               useRdcmsort= useRdcmsort, 
                               useRdcm2nii= useRdcm2nii,
@@ -213,16 +211,16 @@ if (!ROIformat){
 
       if (runall) {
 
-        system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, 
+        system.time(Skull_Strip(basedir, CTonly=TRUE, 
           opts="-f 0.1 -b", 
           verbose=verbose))
 
 
-        system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, 
+        system.time(Skull_Strip(basedir, CTonly=TRUE, 
           opts="-f 0.01 -b", 
           verbose=verbose))
 
-        system.time(Skull_Strip(basedir, progdir, CTonly=TRUE, 
+        system.time(Skull_Strip(basedir, CTonly=TRUE, 
           opts="-f 0.35 -b", 
           verbose=verbose))
 
@@ -235,11 +233,11 @@ if (!ROIformat){
 
         # # for (inii in niis){
         # inii = niis[1]
-        #   Skull_Strip_file(img=inii, progdir=progdir, 
+        #   Skull_Strip_file(img=inii,  
         #     outdir=outdir, opts="-f 0.1 -b", verbose=verbose)
-        #   Skull_Strip_file(img=inii, progdir=progdir, 
+        #   Skull_Strip_file(img=inii,
         #     outdir=outdir, opts="-f 0.01 -b", verbose=verbose)       
-        #   Skull_Strip_file(img=inii, progdir=progdir, 
+        #   Skull_Strip_file(img=inii, 
         #     outdir=outdir, opts="-f 0.35 -b", verbose=verbose)                  
         # # }
 
