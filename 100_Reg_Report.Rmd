@@ -74,8 +74,13 @@ nfiles = sapply(redir, function(x)
 redir = redir[nfiles > 0]
 ## those that have ROIs
 all.ids = gsub(paste0(basedir, "/(.*)/", whichdir), "\\1", redir)
+
+ids.111 = read.csv(file.path(basedir, "111_patients.csv"), stringsAsFactors= FALSE)
+all.ids = all.ids[ all.ids %in% ids.111$id ]
 # all.ids = all.ids[file.exists(redir)]
 uid = as.numeric(gsub("-", "", all.ids))
+
+
 
 ### get clot location
 demog = read.csv(file.path(basedir, 
@@ -303,6 +308,7 @@ get.popimg = function(res, rerun=TRUE, rescale=TRUE){
 			popimg <<- tmp + popimg
 			return(NULL)
 		}, .progress="text")
+		cat("Running Binary Image\n")
 		l_ply(res, function(x) {
 			tmp = readNIfTI(x$binimg.fname)
 			bin.popimg <<- tmp + bin.popimg
@@ -380,43 +386,47 @@ spm.binimg = file.path(outdir, paste0(whichdir, "_Binary_Sum_Image"))
 
 pop.res = get.popimg(res, rerun=rerun, rescale=TRUE)
 
-aids =  as.numeric(gsub("-", "", all.ids))
-r0.ids = demog$patientName[demog$Bad_Outcome_Day_180 %in% 0]
-r1.ids = demog$patientName[demog$Bad_Outcome_Day_180 %in% 1]
+##########################################
+# Looking at over bad outcomes
+##########################################
+# aids =  as.numeric(gsub("-", "", all.ids))
+# r0.ids = demog$patientName[demog$Bad_Outcome_Day_180 %in% 0]
+# r1.ids = demog$patientName[demog$Bad_Outcome_Day_180 %in% 1]
 
-r0.res = res[aids %in% r0.ids]
-r1.res = res[aids %in% r1.ids]
+# r0.res = res[aids %in% r0.ids]
+# r1.res = res[aids %in% r1.ids]
 
-r0.img = get.popimg(r0.res, rerun=TRUE, rescale=TRUE)
-r1.img = get.popimg(r1.res, rerun=TRUE, rescale=TRUE)
+# r0.img = get.popimg(r0.res, rerun=TRUE, rescale=TRUE)
+# r1.img = get.popimg(r1.res, rerun=TRUE, rescale=TRUE)
 
-r0 = r0.img$popimg
-r1 = r1.img$popimg
-r.diff = r1 - r0
+# r0 = r0.img$popimg
+# r1 = r1.img$popimg
+# r.diff = r1 - r0
 
-r0.var = r0*(1-r0)/length(r0.res)
-r1.var = r1*(1-r1)/length(r1.res)
+# r0.var = r0*(1-r0)/length(r0.res)
+# r1.var = r1*(1-r1)/length(r1.res)
 
-rdiff.se = sqrt(r0.var + r1.var)
-z.stat = r.diff/rdiff.se
-zabs = abs(z.stat)
-p.data = pnorm(zabs, lower.tail=FALSE)
+# rdiff.se = sqrt(r0.var + r1.var)
+# z.stat = r.diff/rdiff.se
+# zabs = abs(z.stat)
+# p.data = pnorm(zabs, lower.tail=FALSE)
 
-na.res = temp
-na.res [!is.na(na.res)] = NA
-res.p = na.res
-sig = p.data
-sig[is.nan(sig)] = 1
-sig.level = 0.05
-res.p[ sig <= sig.level ] = 1
-orthographic(res.p, text = paste0("Level ", sig.level))
 
-n.r0 = r0 * length(r0.res)
-n.r1 = r1 * length(r1.res)
+# na.res = temp
+# na.res [!is.na(na.res)] = NA
+# res.p = na.res
+# sig = p.data
+# sig[is.nan(sig)] = 1
+# sig.level = 0.05
+# res.p[ sig <= sig.level ] = 1
+# orthographic(res.p, text = paste0("Level ", sig.level))
 
-res.p2 = na.res
-res.p2[ sig < sig.level & n.r0 > 2 & n.r1 > 2 ] = 1
-orthographic(res.p2, text = paste0("Level ", sig.level))
+# n.r0 = r0 * length(r0.res)
+# n.r1 = r1 * length(r1.res)
+
+# res.p2 = na.res
+# res.p2[ sig < sig.level & n.r0 > 2 & n.r1 > 2 ] = 1
+# orthographic(res.p2, text = paste0("Level ", sig.level))
 
 
 
@@ -608,7 +618,7 @@ cat.info = function(){
 allreses = list(MNI=mni.allres, 
 	Talairach=tal.allres, 
 	EVE_1 =jhut1.allres, 
-	EVE_2 =jhut1.allres)
+	EVE_2 =jhut2.allres)
 
 my.ids = cat.info()
 ```

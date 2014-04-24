@@ -32,10 +32,14 @@ pdfs = list.files(path=outdir,
 pdfs = data.frame(pdf =pdfs, stringsAsFactors=FALSE)
 pdfs$id = gsub("^(\\d\\d\\d-\\d\\d\\d(|\\d))_.*", 
 	"\\1", pdfs$pdf)
+
+pdfs$nii = gsub("\\.pdf$", ".nii.gz", pdfs$pdf)
 N = nrow(pdfs)
 ### 3 readers
 readers = c("Natalie", "Sam", "Andrew")
 fnames = file.path(outdir, pdfs$pdf)
+
+nii.fnames = gsub("\\.pdf$", ".nii.gz", fnames)
 
 ### re-runs - duplicates - so we can get intra-reader consistency
 perc = 0.2
@@ -52,6 +56,12 @@ for (iread in readers){
 		sprintf("%04.0f.pdf", pdfs[, iread]))
 	file.copy(fnames, new.fnames, overwrite=TRUE)
 
+##### copying over nifti files
+	new.nii = file.path(read.dir, 
+		sprintf("%04.0f.nii.gz", pdfs[, iread]))
+	file.copy(nii.fnames, new.nii, overwrite=TRUE)
+
+
 	dup.samp[, iread] = sample(n, replace=FALSE) + N
 
 	new.fnames = file.path(read.dir, 
@@ -59,6 +69,13 @@ for (iread in readers){
 	file.copy(file.path(outdir, dup.samp$pdf), 
 		new.fnames, 
 		overwrite=TRUE)
+
+	new.nii = file.path(read.dir, 
+		sprintf("%04.0f.nii.gz", dup.samp[, iread]))
+	file.copy(file.path(outdir, dup.samp$nii), 
+		new.nii, 
+		overwrite=TRUE)
+
 }
 
 mydate = date()

@@ -1,0 +1,106 @@
+rm(list=ls())
+library(fslr)
+library(xtable)
+library(cttools)
+### need cairo for cluster
+options(bitmapType='cairo')
+homedir = "/Applications"
+rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
+if (Sys.info()[["user"]] %in% "jmuschel") {
+  homedir = "~"
+  rootdir = "/dexter/disk2/smart/stroke_ct/ident"
+}
+progdir = file.path(rootdir, "programs")
+# source(file.path(progdir, "convert_DICOM.R"))
+# source(file.path(progdir, "fslhd.R"))
+basedir = file.path(rootdir, "Registration")
+
+outdir = file.path(basedir, "results")
+whichdir = "reoriented"
+
+tempdir = file.path(rootdir, "Template")
+atlasdir = file.path(tempdir, "atlases")
+
+load(file.path(atlasdir, "All_FSL_Atlas_Labels.Rda"))
+
+# whichdir = "FLIRT"
+rerun = FALSE
+
+template = file.path(tempdir, "scct_unsmooth.nii.gz")
+temp = readNIfTI(template)
+
+t.t1 = file.path(tempdir, "sct1_unsmooth.nii.gz")
+temp.t1 = readNIfTI(t.t1)
+
+setwd(progdir)
+
+ids.111 = read.csv(file.path(basedir, "111_patients.csv"), 
+	stringsAsFactors= FALSE)
+uid = ids.111$patientName
+all.ids = ids.111$id
+
+
+spm.popimg = file.path(outdir, paste0(whichdir, "_Weighted_Sum_Image"))
+spm.binimg = file.path(outdir, paste0(whichdir, "_Binary_Sum_Image"))
+
+spm.popimg = paste0(spm.popimg, ".nii.gz")
+spm.binimg = paste0(spm.binimg, ".nii.gz")
+
+popimg = readNIfTI(spm.popimg)
+
+outfile = file.path(atlasdir, 
+  paste0(whichdir, "_All_Atlas_ROI_Overlap_Measures.Rda"))
+
+load(file=outfile)
+
+makeres = function(allres){
+	allres$fname = gsub("^bws", "", allres$fname)
+	allres$fname = gsub("ROI$", "", allres$fname)
+	allres[, c("raw", "bin", "weighted")] = 
+		round(allres[, c("raw", "bin", "weighted")] *100, 1)
+	ss = strsplit(allres$fname, "_")
+	allres$id = sapply(ss, function(x) x[1])
+	return(allres)
+}
+
+names(mni.list)[names(mni.list) == "Uncategorized"] = "Ventricles/WM"
+names(jhut1.list)[names(jhut1.list) == "Background"] = "Ventricles"
+names(jhut2.list)[names(jhut2.list) == "Background"] = "Ventricles"
+
+
+# view.png(spm1_t1_hot_overlay.png)
+lists = list(mni.list, jhut1.list, jhut2.list)
+pop.tab = llply(lists, function(x) {
+	tt = tab.area2(popimg, ind.list=x, keepall=TRUE)
+}, .progress= "text")
+sums = sapply(pop.tab, colSums)
+stopifnot(all(diff(sums) == 0))
+
+##### scaling them to %
+pop.tab = llply(pop.tab, function(x) {
+	x$nvox = x$nvox/sum(x$nvox) * 100
+	x = x[order(x$nvox, decreasing=TRUE), , drop=FALSE]
+	x$area = rownames(x)
+	x
+}, .progress= "text")
+
+nm = names(pop.tab) = c("MNI", "EVE_1", "EVE_2")
+
+dfs = tops = xtabs = 
+	vector(mode = "list", length=length(pop.tab))
+for (itab in seq(pop.tab)){
+	df = allres = pop.tab[[itab]]
+	df$nvox = round(df$nvox, 2)
+	df = df[df$nvox != 0, , drop=FALSE]
+	top.area = rownames(df)[1]
+	df = df[, c("area", "nvox")]		
+
+	colnames(df) = c("Area", nm[itab])
+	xtabs[[itab]] = xtable(df)
+	tops[[itab]] = top.area 
+	dfs[[itab]] = df
+}
+names(dfs) = names(tops) = names(xtabs) = nm
+id = "Population"
+
+save(dfs, xtabs, tops, file=file.path(outdir, "Population_Table.Rda"))

@@ -26,9 +26,17 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 whichdir = "reoriented"
+outcome = "NIHSS"
+adder = paste0(outcome, "_")
+if (outcome == "NIHSS"){
+	adder = ""
+}
 
 
-outfile = file.path(outdir, "Pvalue_Matrix.Rda")
+rerun = FALSE
+
+
+outfile = file.path(outdir, paste0(adder, "Pvalue_Matrix.Rda"))
 load(file=outfile)
 
 #### load voxel data
@@ -38,7 +46,31 @@ vmat = load(file=outfile )
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile)
 
-ms = mat[rs > 0, ]
+###########################################
+# Get 111 patients
+###########################################
+
+ids.111 = read.csv(file.path(basedir, "111_patients.csv"), 
+	stringsAsFactors= FALSE)
+uid = ids.111$patientName
+all.ids = ids.111$id
+
+mat.ids = colnames(mat)
+mat.ids = gsub(".*(\\d\\d\\d-(\\d|)\\d\\d\\d).*", "\\1", mat.ids)
+mat = mat[ , which(mat.ids %in% all.ids)]
+
+#### reading in template
+template = file.path(tempdir, "scct_unsmooth.nii.gz")
+temp = readNIfTI(template)
+dtemp = dim(temp)
+
+
+
+############################################################
+# get the voxels that have any people with hemorrhage there
+############################################################
+
+ms = mat[which(rs > 0), ]
 dist.mat = t(ms)
 dist.mat = dist.mat %*% ms
 A = matrix(diag(dist.mat), ncol=ncol(dist.mat), nrow=nrow(dist.mat))
@@ -54,10 +86,6 @@ rrn = rrn[order(y)]
 yord = y[order(y)]
 
 
-#### reading in template
-template = file.path(tempdir, "scct_unsmooth.nii.gz")
-temp = readNIfTI(template)
-dtemp = dim(temp)
 
 
 
@@ -94,20 +122,32 @@ for (pval in c(0.05, .01, .001)){
 for (nkeep in nkeeps){
 	rn = rrn[seq(nkeep)]
 
-	fp = file.path(outdir, 
-		paste0("Top_", nkeep, "_pvalues", ".", device))
-	open.dev(fp)
-	res.p = temp
-	res.p[!is.na(res.p)] = NA
-	res.p[rn] = 1
+	outstub = file.path(outdir, 
+		paste0(adder, "Top_", nkeep, "_pvalues"))
+	fp = paste0(outstub, ".", device)
 
-	xyz= NULL
-	xyz = floor(colMeans(which(res.p > 0, arr.ind = TRUE)))
+	outimg = paste0(outstub, ".nii.gz")	
 
-	# res.p[ rs > ncut ]  = 1-y
-	# cols = c("blue", "green", "yellow", "orange", "red", "white")
-	mask.overlay(temp, res.p, col.y="red", xyz= xyz)
-	dev.off()
+	if (!file.exists(fp) | !file.exists(outimg) | rerun){
+		open.dev(fp)
+		res.p = temp
+		res.p[!is.na(res.p)] = NA
+		res.p[rn] = 1
+
+
+		xyz= NULL
+		xyz = floor(colMeans(which(res.p > 0, arr.ind = TRUE)))
+
+		# res.p[ rs > ncut ]  = 1-y
+		# cols = c("blue", "green", "yellow", "orange", "red", "white")
+		mask.overlay(temp, res.p, col.y="red", xyz= xyz)
+		dev.off()
+
+		res.p[is.na(res.p)] = 0
+		res.p = (res.p > 0)*1
+		res.p = newnii(res.p)
+		writeNIfTI(res.p, file=outstub)
+	}
 }
 
 
@@ -115,21 +155,22 @@ for (nkeep in c(1000, 2000, 3000)){
 
 # nkeep = 3000
 	rn = rrn[seq(nkeep)]
+	pval = yord[nkeep]
 
 	submat = mat[rn,]
 	wi = colSums(submat)
 
 
 	outfile = file.path(outdir, 
-		paste0("Top_", nkeep, "_Pvalues_df.Rda"))
+		paste0(adder, "Top_", nkeep, "_Pvalues_df.Rda"))
 	save(submat, rs, rn, wi, nkeep, 
-		dist.mat, dice, 
+		dist.mat, dice, pval,
 		file=outfile)
 }
 
 for (pval in c(0.05, .01, .001)){
 
-# nkeep = 3000
+	# nkeep = 3000
 	nkeep = sum(yord <= pval)
 	rn = rrn[seq(nkeep)]
 	submat = mat[rn,]
@@ -137,11 +178,13 @@ for (pval in c(0.05, .01, .001)){
 
 
 	outfile = file.path(outdir, 
-		paste0("Top_", pval, "_Pvalues_df.Rda"))
+		paste0(adder, "Top_", pval, "_Pvalues_df.Rda"))
 	save(submat, rs, rn, wi, pval, nkeep,
 		dist.mat, dice, 
 		file=outfile)
 }
+
+
 
 
 # Top 2000 %
