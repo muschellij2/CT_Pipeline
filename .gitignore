@@ -1,3 +1,4 @@
 *.pdf
 *.nii.gz
 *.stl
+gh-pages/*
