@@ -109,7 +109,9 @@ if [ -n "${best}" ]; then
   rawmask="${stub}_SS_Mask_${intensity}"
   fslmaths "${OUTDIR}/${raw}" -bin -fillh "${OUTDIR}/${rawmask}"
 
-  rm "$OUTDIR/${raw}${ext}"
+  fslmaths $file -mas "${OUTDIR}/${rawmask}" "${OUTDIR}/${raw}"
+
+  # rm "$OUTDIR/${raw}${ext}"
   exit 0
 fi
 

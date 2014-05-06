@@ -35,157 +35,103 @@ if (outcome == "NIHSS"){
 
 rerun = FALSE
 
-roi.img = readNIfTI()
-
+demog = read.csv(file=file.path(basedir, "Demog_NIHSS_Mask.csv"), 
+	stringsAsFactors=FALSE)
+demog$Base_ICH_10 = demog$Diagnostic_ICH /10
 
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Matrix.Rda")
 vmat = load(file=outfile )
 
-outfile = file.path(outdir, "Voxel_Info.Rda")
-x = load(file=outfile)
-
-###########################################
-# Get 111 patients
-###########################################
-
-ids.111 = read.csv(file.path(basedir, "111_patients.csv"), 
-	stringsAsFactors= FALSE)
-uid = ids.111$patientName
-all.ids = ids.111$id
-
-mat.ids = colnames(mat)
-mat.ids = gsub(".*(\\d\\d\\d-(\\d|)\\d\\d\\d).*", "\\1", mat.ids)
-mat = mat[ , which(mat.ids %in% all.ids)]
-
-#### reading in template
-template = file.path(tempdir, "scct_unsmooth.nii.gz")
-temp = readNIfTI(template)
-dtemp = dim(temp)
 
 
-
-############################################################
-# get the voxels that have any people with hemorrhage there
-############################################################
-
-ms = mat[which(rs > 0), ]
-dist.mat = t(ms)
-dist.mat = dist.mat %*% ms
-A = matrix(diag(dist.mat), ncol=ncol(dist.mat), nrow=nrow(dist.mat))
-At = t(A)
-
-dice = 2* dist.mat / (At + A)
-stopifnot(all(diag(dice) == 1))
-
-### get top N voxels
-y = res[,"X","mod.1"]
-rrn = which(rs > ncut)
-rrn = rrn[order(y)]
-yord = y[order(y)]
+load(file.path(atlasdir, "All_FSL_Atlas_Labels.Rda"))
 
 
+usedf = jhut1.df
+uselist = jhut1.list
 
-
-
-open.dev = function(file, type= "cairo", ...){
-	get.ext = gsub("(.*)\\.(.*)$", "\\2", file)
-	stopifnot( get.ext %in% c("pdf", "bmp", "svg", "png", 
-		"jpg", "jpeg", "tiff"))
-
-	## device is jpeg
-	if (get.ext == "jpg") get.ext = "jpeg"
-	### difff arguments for diff devices
-	if (get.ext %in% c("pdf")) {
-		do.call(get.ext, list(file=file, ...))
-	} else if (get.ext %in% 
-		c("bmp", "jpeg", "png", "tiff", "svg")) {
-		do.call(get.ext, list(filename=file, type= type,...))
-	}
+get.ind = function(df, pattern, lrsub = TRUE){
+  df$lab = tolower(df$Label)
+  if (lrsub) {
+    df$side = gsub("(.*)_(left|right)$", "\\2", df$lab)
+    df$lab = gsub("(.*)_(left|right)$", "\\1", df$lab)
+  }
+  inds = df[grep(pattern, df$lab),]
+  inds
 }
 
-view.png = function(fname){
-	system(sprintf("display %s", fname))
+####################################################################
+# Find some pattern you want - like internal capsule
+####################################################################
+mypat = "internal_capsule"
+inds = get.ind(usedf, pattern=mypat)
+
+####################################################################
+# Get the list of indices 
+####################################################################
+img.ind = uselist[inds$Label]
+
+####################################################################
+# Get number of voxels engaged for each pt
+####################################################################
+perc_engage = function(ind.list){
+	sums = sapply(ind.list, function(x){
+		submat = mat[x,]
+		cs = colSums(submat)
+	})
+
+	####################################################################
+	# Get total N of voxels for denominators
+	lengths = sapply(ind.list, length)
+	denom = matrix(lengths, nrow=nrow(sums), 
+		ncol=length(ind.list),
+		byrow=TRUE)
+	#Percentage
+	perc = sums/ denom
+	return(list(sums=sums, perc = perc))
 }
 
-device = "png"
+eng.sub.lr = perc_engage(img.ind)
 
-nkeeps = c(30, 100, 500, 1000, 2000, 3000)
+####################################################################
 
-for (pval in c(0.05, .01, .001)){
+####################################################################
+# Collapse data by common label - shedding left/right designation
 
-	nkeeps = c(nkeeps, sum(yord <= pval))
-}
+cimg.ind = dlply(inds, .(lab), function(x) {
+	xx = x$Label
+	u = unlist(img.ind[xx])
+	u
+})
+eng.sub = perc_engage(cimg.ind)
+####################################################################
 
-
-for (nkeep in nkeeps){
-	rn = rrn[seq(nkeep)]
-
-	outstub = file.path(outdir, 
-		paste0(adder, "Top_", nkeep, "_pvalues"))
-	fp = paste0(outstub, ".", device)
-
-	outimg = paste0(outstub, ".nii.gz")	
-
-	if (!file.exists(fp) | !file.exists(outimg) | rerun){
-		open.dev(fp)
-		res.p = temp
-		res.p[!is.na(res.p)] = NA
-		res.p[rn] = 1
-
-
-		xyz= NULL
-		xyz = floor(colMeans(which(res.p > 0, arr.ind = TRUE)))
-
-		# res.p[ rs > ncut ]  = 1-y
-		# cols = c("blue", "green", "yellow", "orange", "red", "white")
-		mask.overlay(temp, res.p, col.y="red", xyz= xyz)
-		dev.off()
-
-		res.p[is.na(res.p)] = 0
-		res.p = (res.p > 0)*1
-		res.p = newnii(res.p)
-		writeNIfTI(res.p, file=outstub)
-	}
-}
+####################################################################
+# Collapse data by left/right
+simg.ind = dlply(inds, .(side), function(x) {
+	xx = x$Label
+	u = unlist(img.ind[xx])
+	u
+})
+eng.lr = perc_engage(simg.ind)
 
 
-for (nkeep in c(1000, 2000, 3000)){
+xx = inds$Label
+all.ind = list(unlist(img.ind[xx]))
+names(all.ind) = mypat
 
-# nkeep = 3000
-	rn = rrn[seq(nkeep)]
-	pval = yord[nkeep]
-
-	submat = mat[rn,]
-	wi = colSums(submat)
+eng.all = perc_engage(all.ind)
 
 
-	outfile = file.path(outdir, 
-		paste0(adder, "Top_", nkeep, "_Pvalues_df.Rda"))
-	save(submat, rs, rn, wi, nkeep, 
-		dist.mat, dice, pval,
-		file=outfile)
-}
-
-for (pval in c(0.05, .01, .001)){
-
-	# nkeep = 3000
-	nkeep = sum(yord <= pval)
-	rn = rrn[seq(nkeep)]
-	submat = mat[rn,]
-	wi = colSums(submat)
+cor(demog$Q6a_motor_left_leg, eng.sub$perc, use="na.or.complete")
+cor(demog$Q6a_motor_left_leg, eng.lr$perc, use="na.or.complete")
+cor(demog$Q6a_motor_left_leg, eng.sub.lr$perc, use="na.or.complete")
+cor(demog$Q6a_motor_left_leg, eng.all$perc, use="na.or.complete")
 
 
-	outfile = file.path(outdir, 
-		paste0(adder, "Top_", pval, "_Pvalues_df.Rda"))
-	save(submat, rs, rn, wi, pval, nkeep,
-		dist.mat, dice, 
-		file=outfile)
-}
+cor(demog$Q6b_motor_right_leg, eng.sub$perc, use="na.or.complete")
+cor(demog$Q6b_motor_right_leg, eng.lr$perc, use="na.or.complete")
+cor(demog$Q6b_motor_right_leg, eng.sub.lr$perc, use="na.or.complete")
+cor(demog$Q6b_motor_right_leg, eng.all$perc, use="na.or.complete")
 
-
-
-
-# Top 2000 %
-# Top 3000 %
-# 0.05 0.01
