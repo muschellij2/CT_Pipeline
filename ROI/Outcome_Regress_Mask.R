@@ -11,6 +11,7 @@ library(RColorBrewer)
 library(data.table)
 library(cttools)
 library(fslr)
+library(smallpdf)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -30,6 +31,7 @@ adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
 	adder = ""
 }
+print(outcome)
 
 
 #### load voxel data
@@ -53,6 +55,10 @@ ugroups = ugroup$group
 
 template = file.path(tempdir, "scct_unsmooth.nii.gz")
 temp = readNIfTI(template)
+
+t1 = file.path(tempdir, "betsct1_unsmooth.nii.gz")
+temp.t1 = readNIfTI(t1)
+
 dtemp = dim(temp)
 
 stopifnot(prod(dtemp) == nrow(mat))
@@ -61,22 +67,6 @@ thresholds = c(0, 0.0001, 0.001, 0.01, 0.05, 0.1, 1)
 imod = 1;
 
 recenter = TRUE
-
-open.dev = function(file, type= "cairo", ...){
-	get.ext = gsub("(.*)\\.(.*)$", "\\2", basename(file))
-	stopifnot( get.ext %in% c("pdf", "bmp", "svg", "png", 
-		"jpg", "jpeg", "tiff"))
-
-	## device is jpeg
-	if (get.ext == "jpg") get.ext = "jpeg"
-	### difff arguments for diff devices
-	if (get.ext %in% c("pdf")) {
-		do.call(get.ext, list(file=file, ...))
-	} else if (get.ext %in% 
-		c("bmp", "jpeg", "png", "tiff", "svg")) {
-		do.call(get.ext, list(filename=file, type= type,...))
-	}
-}
 
 tt = temp
 tt[ !is.na(tt) ] = NA
@@ -87,33 +77,27 @@ inds = inds[rs > ncut, ]
 
 device = "png"
 
-view.png = function(fname, viewer = "display"){
-	system(sprintf("%s %s", viewer, fname))
-}
-
-# view.pdf = function(fname, viewer = getOption("pdfviewer")){
-view.pdf = function(fname, viewer = "xpdf"){
-	system(sprintf("%s %s", viewer, fname))
-}
-
-view.dev = function(fname, ...){
-	get.ext = gsub("(.*)\\.(.*)$", "\\2", basename(fname))
-	if (get.ext == "pdf") view.pdf(fname, ...)
-	if (get.ext == "png") view.png(fname, ...)
+overlayimg = temp.t1
+addto = ""
+if (all(overlayimg == temp.t1)){
+	addto = "_t1"
 }
 
 
 for (imod in seq(dim(res)[3])){
 
 
+
 	fp = file.path(outdir, 
-		paste0(adder, "Regression_Map_heatcol", imod, ".", device))
-	open.dev(fp)
+		paste0(adder, "Regression_Map_heatcol", imod, addto, ".", device))
+	open_dev(fp, res=600, height=7, width=7, units = "in")
 		res.p = temp
 		res.p[!is.na(res.p)] = NA
 		y = res[,"X",imod]
-		cuts = cut(y, breaks=thresholds, include.lowest=TRUE)
+		stopifnot(all(y > 0))
+		cuts = cut(y, breaks=thresholds, include.lowest=FALSE)
 		cuts = factor(cuts, levels=rev(levels(cuts)))
+		levs = levels(cuts)
 		cuts = as.numeric(cuts)
 		res.p[ rs > ncut ] = cuts
 		# res.p[rs > ncut] = -log(y)
@@ -134,7 +118,14 @@ for (imod in seq(dim(res)[3])){
 		# ucuts = c(0, 6)
 		# cols = cols[ucuts]		
 		cols = alpha(cols, .7)
-		mask.overlay(temp, res.p, col.y=cols, zlim.y = c(0, 6))
+		mask.overlay(overlayimg, res.p, window = c(0, 1000),
+			col.y=cols, zlim.y = c(0, 6),
+			addlegend = TRUE,
+			leg.x = 15, leg.y= 60, 
+			legend=rev(levs), 
+			leg.col=alpha(rev(cols), 1), leg.cex=1.5,
+			leg.title = "P-value"
+		)
 		# col.y = alpha(hotmetal(10), 0.7)	
 		# mask.overlay(temp, res.p, col.y=col.y)
 		# col.y[1] = alpha("white", 0.7)
@@ -144,22 +135,25 @@ for (imod in seq(dim(res)[3])){
 		# rm(list="res.p")
 		
 	dev.off()
+	# view.png(fp)
 # }
 
 	for (recenter in c(TRUE, FALSE)){
+		
 		app = ""
 		if (recenter) app = "_centered"
 
 
 		### 
 		fp = file.path(outdir, 
-			paste0(adder, "Regression_Map", imod, 
+			paste0(adder, "Regression_Map", imod, addto,
 				app, ".", device))
-		open.dev(fp)
+		open_dev(fp, res=600, height=7, width=7, units = "in")
 			res.p = temp
 			res.p[!is.na(res.p)] = NA
 			y = res[,"X",imod]
-			cuts = cut(y, breaks=thresholds, include.lowest=TRUE)
+			stopifnot(all(y > 0))
+			cuts = cut(y, breaks=thresholds, include.lowest=FALSE)
 			cuts = factor(cuts, levels=rev(levels(cuts)))
 			cuts = as.numeric(cuts)-1
 			# res.p[ rs > ncut ] = cuts
@@ -170,7 +164,7 @@ for (imod in seq(dim(res)[3])){
 			}			
 			# res.p[ rs > ncut ]  = 1-y
 			# cols = c("blue", "green", "yellow", "orange", "red", "white")
-			mask.overlay(temp, res.p, col.y="red", xyz= xyz)
+			mask.overlay(overlayimg, res.p, col.y="red", xyz= xyz)
 			rm(list="res.p")			
 		dev.off()
 	# system(sprintf("xpdf %s", fp))
@@ -178,9 +172,9 @@ for (imod in seq(dim(res)[3])){
 
 	#### bonferroni adjustment
 		fp = file.path(outdir, 
-			paste0(adder, "Regression_Map_Bonf_", imod, 
+			paste0(adder, "Regression_Map_Bonf_", imod, addto,
 				app, ".", device))
-		open.dev(fp)
+		open_dev(fp, res=600, height=7, width=7, units = "in")
 			res.p = temp
 			res.p[!is.na(res.p)] = NA
 			y = res[,"X",imod]		
@@ -195,16 +189,16 @@ for (imod in seq(dim(res)[3])){
 				xyz = floor(colMeans(which(res.p > 0, arr.ind = TRUE)))
 			}		
 			# res.p[ rs > ncut ]  = 1-y
-			mask.overlay(temp, res.p, col.y="red", xyz= xyz)
+			mask.overlay(overlayimg, res.p, col.y="red", xyz= xyz)
 			rm(list="res.p")
 
 		dev.off()
 
 	#### fdr adjustment
 		fp = file.path(outdir, 
-			paste0(adder, "Regression_Map_FDR_", imod, 
+			paste0(adder, "Regression_Map_FDR_", imod, addto,
 				app, ".", device))
-		open.dev(fp)
+		open_dev(fp, res=600, height=7, width=7, units = "in")
 			res.p = temp
 			res.p[!is.na(res.p)] = NA
 			y = res[,"X",imod]		
@@ -217,15 +211,15 @@ for (imod in seq(dim(res)[3])){
 				xyz = floor(colMeans(which(res.p > 0, arr.ind = TRUE)))
 			}		
 			# res.p[ rs > ncut ]  = 1-y
-			mask.overlay(temp, res.p, col.y="red", xyz= xyz)
+			mask.overlay(overlayimg, res.p, col.y="red", xyz= xyz)
 			rm(list="res.p")
 		dev.off()	
 
 	#### fdr with diff p
 		fp = file.path(outdir, paste0(adder, 
 			"Regression_Map_FDR_red_", 
-			imod, app, ".", device))
-		open.dev(fp)
+			imod, addto, app, ".", device))
+		open_dev(fp, res=600, height=7, width=7, units = "in")
 			res.p = temp
 			res.p[!is.na(res.p)] = NA
 			y = res[,"X",imod]		
@@ -237,8 +231,8 @@ for (imod in seq(dim(res)[3])){
 			y = data.frame(pval=y)
 			y$group = ugroups
 			dt.y = data.table(y, key='group')
-			setkey(group, 'group')
-			y = dt.y[group]
+			# setkey(group, 'group')
+			y = merge(dt.y, group, by="group", all=TRUE)
 			stopifnot(!any(is.na(y$pval)))
 			setkey(y, key='id')
 			y = y$pval
@@ -249,7 +243,7 @@ for (imod in seq(dim(res)[3])){
 			}
 
 			# res.p[ rs > ncut ]  = 1-y
-			mask.overlay(temp, res.p, col.y="red", xyz= xyz)
+			mask.overlay(overlayimg, res.p, col.y="red", xyz= xyz)
 			rm(list="res.p")			
 		dev.off()	
 

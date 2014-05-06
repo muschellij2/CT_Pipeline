@@ -9,6 +9,36 @@ library(knitrBootstrap)
 library(xtable)
 library(scales)
 library(animation)
+library(cttools)
+writepng = function(fname, tempimg= NULL, adder ='', rerun=TRUE, 
+	text = "", col.y = alpha(hotmetal(10), 0.7), ...){
+	pngname = gsub("\\.nii\\.gz", 
+		paste0(adder, ".png"), fname)
+	if (!file.exists(pngname) | rerun){
+		pimg = readNIfTI(fname)
+# mask.overlay		
+		png(pngname, type="cairo")
+		if (is.null(tempimg)) {
+			orthographic(pimg, text=text, ...)
+		} else {
+			mask.overlay(tempimg, pimg, col.y=col.y, ...)
+		}
+		dev.off()
+	}
+	return(pngname)
+}
+
+img_cut = function(img, breaks, ...){
+	cuts = cut(img, breaks=breaks, ...)
+	# cuts = factor(cuts, levels)
+	levs = levels(cuts)
+	cuts = as.numeric(cuts)
+	# res.p[ rs > ncut ] = cuts
+	img@.Data = array(cuts, dim=dim(img))
+	return(list(img=img, levs=levs))
+}
+
+
 ### need cairo for cluster
 options(bitmapType='cairo')
 homedir = "/Applications"
@@ -18,8 +48,8 @@ if (Sys.info()[["user"]] %in% "jmuschel") {
   rootdir = "/dexter/disk2/smart/stroke_ct/ident"
 }
 progdir = file.path(rootdir, "programs")
-source(file.path(progdir, "convert_DICOM.R"))
-source(file.path(progdir, "fslhd.R"))
+# source(file.path(progdir, "convert_DICOM.R"))
+# source(file.path(progdir, "fslhd.R"))
 basedir = file.path(rootdir, "Registration")
 
 
@@ -48,14 +78,88 @@ spm.binimg = file.path(outdir, paste0(whichdir, "_Binary_Sum_Image"))
 spm.binimg = paste0(spm.binimg, ".nii.gz")
 
 
+col.y = alpha(div_gradient_pal(low="blue", 
+	mid=muted("red"), 
+	high="yellow")(
+	seq(0, 1, length=100)
+	), 1)
+
+fname = spm.binimg
+
 spm2_t1_hot_overlay.png = writepng(spm.binimg, tempimg= temp.t1, 
 	adder = "_t1_heat_overlay", window = c(500, 1000),
-	rerun=rr, text ="Weighted Average")
-fname = spm.binimg
+	col.y = col.y,
+	rerun=TRUE, text ="Weighted Average")
 tempimg = temp.t1
-window = c(500, 1000)
+window = c(300, 1000)
 text ="Population Average"
-col.y = alpha(hotmetal(10), 0.7)
+pimg = readNIfTI(fname)
+
+#### 
+breaks = seq(0, .45, by=.05)
+col.cut = alpha(div_gradient_pal(low="blue", 
+	mid="red", 
+	high="yellow")(
+	seq(0, 1, length=length(breaks)-1)
+	), .7)
+
+img = check.nifti(tempimg)
+img.mask = check.nifti(pimg)
+img@cal_min = window[1]
+img@cal_max = window[2]
+img[img < window[1]] = window[1]
+img[img >= window[2]] = window[2]
+img.mask[img.mask <= 0] = NA
+
+clist = img_cut(pimg, breaks=breaks, include.lowest=FALSE)
+cimg = clist$img
+levs = clist$levs
+
+plevs = levs
+plevs = gsub("\\(", "", plevs)
+plevs = gsub("\\]", "", plevs)
+plevs = strsplit(plevs, ",")
+plevs = lapply(plevs, as.numeric)
+plevs = lapply(plevs, `*`, 100)
+plevs = lapply(plevs, function(x){
+	x[2] = x[2] - .01
+	x
+})
+plevs = sapply(plevs, function(x){
+	paste0(x[1], "-", x[2], "%")
+})
+fname = file.path(outdir, "Figure4_Percent.png")
+png(fname, res=600, height=7, width=7, units="in")
+ortho2(img, img.mask, col.y=col.cut, 
+	ybreaks = breaks, 
+	addlegend = TRUE,
+	leg.x = 15, leg.y= 60, 
+	legend=plevs, 
+	leg.col=col.cut, leg.cex=1.5,
+	leg.title = "Percent of Sample\n with Hemorrhage")
+dev.off()
+
+fname = file.path(outdir, "Figure4_Proportion.png")
+png(fname, res=600, height=7, width=7, units="in")
+ortho2(img, img.mask, col.y=col.cut, 
+	ybreaks = breaks, 
+	addlegend = TRUE,
+	leg.x = 13, leg.y= 60, 
+	legend=levs, 
+	leg.col=col.cut, leg.cex=1.5,
+	leg.title = "Proportion of Sample\n with Hemorrhage")
+dev.off()
+
+# mask.overlay(tempimg, cimg, col.y=col.cut, text=text, window=window,
+# 	ybreaks = seq(1, 11))
+
+
+
+
+
+
+
+
 dtemp = dim(temp.t1)
 xyz <- ceiling(dtemp/2)
 
@@ -72,9 +176,9 @@ vals = c(pimg@.Data)
 df = data.frame(x = vals)
 rm(list="vals")
 df = df[ df$x > 0, , drop=FALSE]
-g = ggplot(df, aes(x=x)) + geom_histogram() + 
+g = ggplot(df, aes(x=x)) + geom_histogram(bin=.05) + 
 	xlab("Proportion of patients with hemorrhage at voxel") +
-	ylab("Frequency")
+	ylab("Number of Voxels") +  scale_y_continuous(labels = comma)	
 pdf(gsub("\\.nii\\.gz", ".pdf", fname))
 	print(g)
 dev.off()

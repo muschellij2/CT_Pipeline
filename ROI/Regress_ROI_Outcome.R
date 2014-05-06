@@ -27,7 +27,7 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 whichdir = "reoriented"
-outcome = "GCS"
+outcome = "NIHSS"
 adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
 	adder = ""
@@ -57,7 +57,7 @@ demog$Base_ICH_10 = demog$Diagnostic_ICH /10
 measures  = c("adj.r.squared", "r.squared", "sigma")
 reses = vector("list", length=length(measures))
 names(reses) = measures
-aics = reses 
+epics = aics = reses 
 
 if (outcome == "GCS") {
 	demog$Y = demog$Enrollment_GCS_Add
@@ -67,6 +67,8 @@ if (outcome == "GCS") {
 	stop(paste0("Outcome ", outcome, " not implemented"))
 }
 
+demog$LOC = demog$Clot_Location_RC
+
 vox.nkeeps = rep(NA, length(nkeeps))
 for (meas in measures){
 
@@ -74,7 +76,7 @@ for (meas in measures){
 	colnames(res) = cn
 	# rownames(res) = nkeeps
 
-	aic = res
+	epic = aic = res
 
 	ikeep = 1
 
@@ -112,7 +114,7 @@ for (meas in measures){
 			Base_ICH_10, data=demog)
 		snmod = summary(nmod)
 		cmod = lm(Y ~ Age + Sex + 
-			Base_ICH_10 + Lobar_BG_vs, data=demog)
+			Base_ICH_10 + LOC, data=demog)
 		scmod = summary(cmod)
 
 
@@ -124,6 +126,10 @@ for (meas in measures){
 		aic[ikeep, "With_Perc"] = AIC(mod)
 		aic[ikeep, "With_Clot"] = AIC(cmod)
 		aic[ikeep, "Null"] = AIC(nmod)
+  
+	  	epic[ikeep, "With_Perc"] = AIC(mod, k=4)
+	  	epic[ikeep, "With_Clot"] = AIC(cmod, k=4)
+	  	epic[ikeep, "Null"] = AIC(nmod, k=4)  
 		#################################
 		# Run model without sex
 		#################################
@@ -135,7 +141,7 @@ for (meas in measures){
 			Base_ICH_10, data=demog)
 		snmod = summary(nmod)
 		cmod = lm(Y ~ Age + 
-			Base_ICH_10 + Lobar_BG_vs, data=demog)
+			Base_ICH_10 + LOC, data=demog)
 		scmod = summary(cmod)
 
 
@@ -148,20 +154,34 @@ for (meas in measures){
 		aic[ikeep, "Nosex_With_Clot"] = AIC(cmod)
 		aic[ikeep, "Nosex_Null"] = AIC(nmod)
 		
+	  	epic[ikeep, "Nosex_With_Perc"] = AIC(mod, k=4)
+	  	epic[ikeep, "Nosex_With_Clot"] = AIC(cmod, k=4)
+	  	epic[ikeep, "Nosex_Null"] = AIC(nmod, k=4)  
+  
 		aic[ikeep, "nkeep"] = nkeep
-		res[ikeep, "nkeep"] = nkeep
+	  	epic[ikeep, "nkeep"] = nkeep
+	  	res[ikeep, "nkeep"] = nkeep
 
 		aic[ikeep, "pval"]= pval
-		res[ikeep, "pval"] = pval		
+	  	epic[ikeep, "pval"]= pval
+    	res[ikeep, "pval"] = pval		
 	}
 	dev.off()
 	reses[[meas]] = res
 	aics[[meas]] = aic
+	epics[[meas]] = epic
 }
 
 aics = aics[[1]]
+epics = epics[[1]]
 
-save(reses, measures, nkeeps, aics, vox.nkeeps,
+loc.tab = sort(table(demog$LOC))
+loc.ptab = round(prop.table(loc.tab)*100, 1)
+loc.levs = names(loc.tab)
+
+
+save(reses, measures, nkeeps, aics, epics, vox.nkeeps,
+	loc.levs, loc.tab, loc.ptab,
 	file=file.path(outdir, 
 		paste0("Regress_ROI_", outcome, "_Results.Rda"))
 	)
