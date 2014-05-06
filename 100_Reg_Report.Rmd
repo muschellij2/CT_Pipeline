@@ -1,3 +1,4 @@
+
 ```{r knit-setup, echo=FALSE, results='hide'}
 library(knitr)
 opts_chunk$set(message=FALSE, warning=FALSE,
@@ -458,9 +459,11 @@ if (rerun){
 
 popimg = pop.res$popimg
 bin.popimg = pop.res$bin.popimg
-popimg = write.popimg(popimg, spm.popimg, rerun = rerun)
+popimg = write.popimg(popimg, 
+	spm.popimg, 
+	rerun = TRUE)
 bin.popimg = write.popimg(bin.popimg, 
-	spm.binimg, rerun = rerun)
+	spm.binimg, rerun = TRUE)
 
 spm.popimg = paste0(spm.popimg, ".nii.gz")
 spm.binimg = paste0(spm.binimg, ".nii.gz")
@@ -552,6 +555,7 @@ cat.table = function(name, id, tops, xtabs){
 }
 
 cat.info = function(){
+	ttops = xxtabs = NULL
 	my.ids = NULL
 	for (iimg in seq(ids)){
 		id = ids[iimg]
@@ -583,7 +587,8 @@ cat.info = function(){
 		ss = strsplit(id, "_CT_")[[1]]
 		id = ss[1]
 
-
+		xxtabs = c(xxtabs, xtabs)
+		ttops = c(ttops, tops)
 
 		cat(sprintf('## %s\n\n', id))
 		img.tag = '<img src="%s" alt="%s" style="width: 400px;display:inline-block;"/>'
@@ -607,6 +612,8 @@ cat.info = function(){
 
 		cat("\n\n")
 	}
+	save(tops, xxtabs, file=file.path(outdir, "Per_Patient_Table_Engagement.Rda"))
+
 	return(my.ids)
 }
 
@@ -785,6 +792,8 @@ for (itab in seq(pop.tab)){
 }
 names(tops) = names(xtabs) = nm
 id = "Population"
+save(tops, xtabs, file=file.path(outdir, "Population_Table_Engagement.Rda"))
+
 ```
 
 ## Population Breakdown
