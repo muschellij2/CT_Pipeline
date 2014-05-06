@@ -79,7 +79,7 @@ x = makeScene(cimg, cutoffs = seq_along(levs) - .01, alpha=alpha ,
 scene = c(list(brain), x)
 
 write4D(scene, 
-        outfile = "~/CT_Registration/programs/figure_for_3d_paper/100_Report_Figure.html", 
+        outfile = "~/CT_Registration/programs/100_Report_Figure.html", 
         fnames = c("brain.stl", 
                    paste0("thresh", seq_along(levs), ".stl")),
         visible = c(TRUE, rep(FALSE, length(levs))),
