@@ -47,7 +47,7 @@ id_to_pname = function(x){
 nkeeps = c(1000, 2000, 3000, .001, 0.01, 0.05)
 cn = c("With_Perc", "With_Clot", "Null", 
 	"Nosex_With_Perc", "Nosex_With_Clot", 
-	"Nosex_Null", "nkeep", "pval")
+	"Nosex_Null", "nkeep", "pval", "N_Gr0")
 
 
 demog = read.csv(file=file.path(basedir, "Demog_NIHSS_Mask.csv"), 
@@ -70,6 +70,7 @@ if (outcome == "GCS") {
 demog$LOC = demog$Clot_Location_RC
 
 vox.nkeeps = rep(NA, length(nkeeps))
+
 for (meas in measures){
 
 	res = matrix(NA, ncol = length(cn), nrow=length(nkeeps))
@@ -122,6 +123,7 @@ for (meas in measures){
 		res[ikeep, "With_Perc"] = smod[[meas]]
 		res[ikeep, "With_Clot"] = scmod[[meas]]
 		res[ikeep, "Null"] = snmod[[meas]] 
+		res[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
 
 		aic[ikeep, "With_Perc"] = AIC(mod)
 		aic[ikeep, "With_Clot"] = AIC(cmod)

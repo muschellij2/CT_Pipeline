@@ -55,42 +55,25 @@ dd = dd[, c("patientName", "Clot_Location_RC")]
 colnames(dd) = c("id", "clot_location")
 
 no.uncat = TRUE
+for (no.uncat in c(TRUE, FALSE)){
+	max.area = ddply(mni.allres, .(fname), function(x){
+		if (no.uncat) x = x[!(x$area %in% "Uncategorized"),]
+		ind = which(x$raw == max(x$raw))
+		stopifnot(length(ind) == 1)
+		x[ind, c("id", "area")]
+	})
 
-max.area = ddply(mni.allres, .(fname), function(x){
-	if (no.uncat) x = x[!(x$area %in% "Uncategorized"),]
-	ind = which(x$raw == max(x$raw))
-	stopifnot(length(ind) == 1)
-	x[ind, c("id", "area")]
-})
+	max.area = ddply(max.area, .(id), function(x){
+		x[1,]
+	})
 
-max.area = ddply(max.area, .(id), function(x){
-	x[1,]
-})
+	max.area$id = as.numeric(gsub("-", "", max.area$id))
+	max.area = max.area[, c("id", "area")]
 
-max.area$id = as.numeric(gsub("-", "", max.area$id))
-max.area = max.area[, c("id", "area")]
-
-dd = merge(dd, max.area, all=TRUE, by="id")
-dd$cat.area = dd$area
-dd$cat.area[grep("Lobe", dd$cat.area)] = "Lobar"
-
-
+	dd2 = merge(dd, max.area, all=TRUE, by="id")
+	dd2$cat.area = dd2$area
+	dd2$cat.area[grep("Lobe", dd2$cat.area)] = "Lobar"
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-with(dd, table(cat.area, clot_location))
+	print(with(dd2, table(cat.area, clot_location)))
+}
