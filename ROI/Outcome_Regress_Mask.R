@@ -26,7 +26,7 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 whichdir = "reoriented"
-outcome = "GCS"
+outcome = "NIHSS"
 adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
 	adder = ""
@@ -83,6 +83,11 @@ if (all(overlayimg == temp.t1)){
 	addto = "_t1"
 }
 
+for (imod in seq(dim(res)[3])){
+	y = res[,"X",imod]
+	y = pmin(y * nuniq.rows, 1)
+	print(any(y <= .05))
+}
 
 for (imod in seq(dim(res)[3])){
 

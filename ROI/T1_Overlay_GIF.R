@@ -157,21 +157,14 @@ dev.off()
 
 
 
-
-
-
 dtemp = dim(temp.t1)
 xyz <- ceiling(dtemp/2)
 
 
 setwd(outdir)
 
+pimg = readNIfTI(spm.binimg)
 adder = "_t1_heat_overlay"
-pngname = gsub("\\.nii\\.gz", adder, fname)
-movie.name = basename(paste0(pngname, ".gif"))
-img.name = basename(pngname)
-pimg = readNIfTI(fname)
-
 vals = c(pimg@.Data)
 df = data.frame(x = vals)
 rm(list="vals")
@@ -179,30 +172,39 @@ df = df[ df$x > 0, , drop=FALSE]
 g = ggplot(df, aes(x=x)) + geom_histogram(bin=.05) + 
 	xlab("Proportion of patients with hemorrhage at voxel") +
 	ylab("Number of Voxels") +  scale_y_continuous(labels = comma)	
-pdf(gsub("\\.nii\\.gz", ".pdf", fname))
+pdf(gsub("\\.nii\\.gz", "_histogram.pdf", spm.binimg))
 	print(g)
 dev.off()
 
-myseq= range(which(pimg > 0, arr.ind=TRUE)[,3])
-myseq = seq(from=myseq[1], to=myseq[2])
-Z = dtemp[3]
-saveGIF({
-	pb= txtProgressBar(min=0, max=length(myseq), style=3)
-	for (iz in seq_along(myseq)){
-		z = myseq[iz]
-		adder = sprintf("_t1_heat_overlay_%03d", iz)
-		pngname = gsub("\\.nii\\.gz", adder, fname)
-		xyz[3] = z
-		mask.overlay(tempimg, pimg, col.y=col.y, 
-			window=window, text=text, xyz=xyz)
-		setTxtProgressBar(pb, value=iz)
+out.rda = gsub("\\.nii\\.gz", "_histogram_data.rda", spm.binimg)
+save(df, file=out.rda)
 
-	}
+pngname = gsub("\\.nii\\.gz", adder, spm.binimg)
+movie.name = basename(paste0(pngname, ".gif"))
+img.name = basename(pngname)
 
-}, movie.name = movie.name, img.name= img.name)
 
-file.copy(file.path(tempdir(), movie.name), 
-	file.path(outdir, movie.name), overwrite=TRUE)
+
+# myseq= range(which(pimg > 0, arr.ind=TRUE)[,3])
+# myseq = seq(from=myseq[1], to=myseq[2])
+# Z = dtemp[3]
+# saveGIF({
+# 	pb= txtProgressBar(min=0, max=length(myseq), style=3)
+# 	for (iz in seq_along(myseq)){
+# 		z = myseq[iz]
+# 		adder = sprintf("_t1_heat_overlay_%03d", iz)
+# 		pngname = gsub("\\.nii\\.gz", adder, fname)
+# 		xyz[3] = z
+# 		mask.overlay(tempimg, pimg, col.y=col.y, 
+# 			window=window, text=text, xyz=xyz)
+# 		setTxtProgressBar(pb, value=iz)
+
+# 	}
+
+# }, movie.name = movie.name, img.name= img.name)
+
+# file.copy(file.path(tempdir(), movie.name), 
+# 	file.path(outdir, movie.name), overwrite=TRUE)
 
 # view.png(spm1_t1_hot_overlay.png)
 
