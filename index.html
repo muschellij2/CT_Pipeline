@@ -5,6 +5,17 @@
     <title>WebGL Export</title>
     <script type="text/javascript" src="http://get.goxtk.com/xtk_edge.js"></script>
 	<script type="text/javascript" src="http://get.goXTK.com/xtk_xdat.gui.js"></script>    
+	<style type='text/css'>
+
+/*	input {
+		float: right;
+	}*/
+
+	form {
+		line-height: 2em;
+	}
+
+	</style>	
     <script type="text/javascript">
       var run = function() {
 
@@ -282,11 +293,12 @@ function GetSliderItem(sliderID, textbox) {
 		};
 
 		
-function opac_brain(sliderID, textbox) {
-            var x = document.getElementById(textbox);
+// function opac_brain(sliderID, textbox) {
+            // var x = document.getElementById(textbox);
+function opac_brain(sliderID) {
             var y = document.getElementById(sliderID);
     var val = y.value;
-    x.value = val;
+    // x.value = val;
 	low = Math.floor(val);
 	op_low = (val - low);
 	ROI1.opacity = op_low;
@@ -295,16 +307,23 @@ function opac_brain(sliderID, textbox) {
     </script>
   </head>
   <body style="margin:0px; padding:0px;" onload="run()">
-        <div id="r0" style="background-color: #ffffff;; width: 75%; height: 75%;"></div>
+<div id="titler" style="background-color: #ffffff;; width: 75%;  margin: 0px auto;">
+<p style="text-align:center">
+<br>This interactive figure was made with <a href="http://cran.r-project.org/web/packages/brainR/index.html">brainR</a>.  It allows you to spatially orient yourself brain space while looking at 3D regions of the proportion of patients with hemorrhage at that location.  
+</div>
+<div id="r0" style="background-color: #ffffff;; width: 70%; height: 70%; margin: 0px auto;"></div>
 
 <FORM NAME = f1>
-<P align="center">
-<Input type = checkbox Name = r2 , Value = "ROI1" onClick = GetSelectedItem() checked>brain
-<input id="defaultSlider" type="range" min="2" max="10" step="1" value="2" onchange="GetSliderItem('defaultSlider', 'slider_val');" />
-<input id="slider_val" type="text" size="40"/>
-</P>
+<!-- <P align="center"> -->
+<p style="text-align:center">
+Click to show or hide the brain  <input type = checkbox Name = r2 , Value = "ROI1" onClick = GetSelectedItem() checked > &nbsp; &nbsp; &nbsp; &nbsp; This slider controls the transparency of the brain <input id="slider_brain" type="range" min="0.01" max="0.99" step="0.01" value="0.37" onchange="opac_brain('slider_brain');"/><br> 
+<!-- <input id="slider_brain" type="range" min="0.01" max="0.99" step="0.01" value="0.37" onchange="opac_brain('slider_brain','range_brain');"/> -->
+<!-- <input id="range_brain" type="text" size="10"/><br> -->
+This slider controls the ROI for the proportion of patients with ICH at given voxels:  <input id="defaultSlider" type="range" min="2" max="10" step="1" value="2" onchange="GetSliderItem('defaultSlider', 'slider_val');" /><br>
+Proportion of patients with ICH in ROI: <input id="slider_val" type="text" size="40" value="Proportion: (0,0.05]"/><br>
+</p>
 </FORM>
-Brain Alpha Blending Slider <input id="slider_brain" type="range" min="0.01" max="0.99" step="0.01" value="0.37" onchange="opac_brain('slider_brain','range_brain');"/>
-<input id="range_brain" type="text" size="10"/>
+
+
   </body>
 </html>
