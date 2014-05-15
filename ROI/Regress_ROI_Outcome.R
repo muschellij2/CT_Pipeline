@@ -11,6 +11,7 @@ library(data.table)
 library(cttools)
 library(fslr)
 library(ggplot2)
+library(grid)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -27,7 +28,7 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 whichdir = "reoriented"
-outcome = "NIHSS"
+outcome = "GCS"
 adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
 	adder = ""
@@ -67,10 +68,13 @@ if (outcome == "GCS") {
 	stop(paste0("Outcome ", outcome, " not implemented"))
 }
 
+
+demog$Clot_Location_RC = gsub("Palidus", "Pallidus", demog$Clot_Location_RC )
+demog$Clot_Location_RC = factor(demog$Clot_Location_RC, levels= c("Lobar", "Globus Pallidus", "Putamen", "Thalamus"))
 demog$LOC = demog$Clot_Location_RC
 
 vox.nkeeps = rep(NA, length(nkeeps))
-
+mods = list()
 for (meas in measures){
 
 	res = matrix(NA, ncol = length(cn), nrow=length(nkeeps))
@@ -99,6 +103,8 @@ for (meas in measures){
 		stopifnot(all(demog$patientName == check.ids))
 
 		demog$perc_ROI = perc * 100
+		### divide by 10 for 10% increases
+		demog$perc_ROI  = demog$perc_ROI / 10 
 
 		g = ggplot(aes(y=Y, x=perc_ROI), data=demog) + 
 			ggtitle(paste0("Number of Voxels: ", nkeep)) +
@@ -108,8 +114,43 @@ for (meas in measures){
 			ylab(outcome)
 		print(g)
 
+		if ( ((outcome == "GCS" & nkeep == 1000) |
+			(outcome == "NIHSS" & nkeep == 19047))
+			& meas == measures[1]
+			){
+			pngname = file.path(outdir, 
+				paste0("Regress_ROI_", outcome, "_Best_Model.png"))
+			png(pngname, res = 600, height=7, width=7, units = "in")
+				g = ggplot(aes(y=Y, x=perc_ROI), data=demog) + 
+					ggtitle(paste0(outcome, " Score-ROI Coverage Relationship")) +
+					geom_point() + geom_smooth(se=FALSE,
+						aes(colour="LOESS"), size=1.5) + 
+					geom_smooth(se=FALSE, method="lm", 
+						aes(colour="Linear Model"), size=1.5) +
+					xlab(paste0("Percent ROI Engagement ", 
+						"with Best Model Fit (V=", nkeep, ")")) + 
+					ylab(paste0(outcome, " Score"))
+				g = g + scale_colour_manual("", 
+					values = c("LOESS" = "blue", "Linear Model" = "red"))
+				g = g + guides(colour = guide_legend(override.aes = list(size=2)))
+				g = g + theme(axis.title = element_text(size = rel(1.3)),
+					axis.text = element_text(size=rel(1.1)),
+					plot.title = element_text(size=rel(1.5))
+					)
+
+				g = g+ theme(legend.position=c(.5, .075), 
+					legend.background = element_rect(fill = "transparent"),
+					legend.key.size = unit(1, "cm"),
+					legend.text = element_text(size = 20),
+					legend.key = element_rect(fill = "transparent", 
+						colour = "transparent"))
+				print(g)
+			dev.off()
+		}
+
 		mod = lm(Y ~ perc_ROI + Age + Sex + 
 			Base_ICH_10, data=demog)
+		mods[[ikeep]] = mod
 		smod = summary(mod)
 		nmod = lm(Y ~ Age + Sex + 
 			Base_ICH_10, data=demog)
@@ -128,10 +169,12 @@ for (meas in measures){
 		aic[ikeep, "With_Perc"] = AIC(mod)
 		aic[ikeep, "With_Clot"] = AIC(cmod)
 		aic[ikeep, "Null"] = AIC(nmod)
+		aic[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
   
 	  	epic[ikeep, "With_Perc"] = AIC(mod, k=4)
 	  	epic[ikeep, "With_Clot"] = AIC(cmod, k=4)
 	  	epic[ikeep, "Null"] = AIC(nmod, k=4)  
+		epic[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
 		#################################
 		# Run model without sex
 		#################################
@@ -183,7 +226,7 @@ loc.levs = names(loc.tab)
 
 
 save(reses, measures, nkeeps, aics, epics, vox.nkeeps,
-	loc.levs, loc.tab, loc.ptab,
+	loc.levs, loc.tab, loc.ptab, mods, cmod,
 	file=file.path(outdir, 
 		paste0("Regress_ROI_", outcome, "_Results.Rda"))
 	)
