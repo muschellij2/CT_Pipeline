@@ -140,7 +140,7 @@ for (nkeep in nkeeps){
 
 		# res.p[ rs > ncut ]  = 1-y
 		# cols = c("blue", "green", "yellow", "orange", "red", "white")
-		mask.overlay(temp, res.p, col.y="red", xyz= xyz)
+		mask.overlay(temp, res.p, col.y="red", xyz= xyz, text=paste0("ROI for ", outcome, " score\n", "(V=", nkeep, ")"))
 		dev.off()
 
 		res.p[is.na(res.p)] = 0

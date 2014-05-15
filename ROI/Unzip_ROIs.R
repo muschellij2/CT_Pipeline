@@ -6,7 +6,8 @@ library(oro.dicom)
 library(oro.nifti)
 library(plyr)
 library(scales)
-
+library(fslr)
+library(cttools)
 ########### UNZIP ROIS.zip then run this progrma
 #### delete all ROI files
 ### find . -regextype posix-extended -regex "^./[0-9].*[0-9]$" -exec rm -r {} \;
@@ -43,8 +44,8 @@ setup <- function(id){
 
 #progdir <- file.path(dirname(basedir), "programs")
   progdir <<- file.path(rootdir, "programs")
-  source(file.path(progdir, "convert_DICOM.R"))
-  source(file.path(progdir, "fslhd.R"))
+  # source(file.path(progdir, "convert_DICOM.R"))
+  # source(file.path(progdir, "fslhd.R"))
 
   basedir <<- file.path(homedir, id)
 

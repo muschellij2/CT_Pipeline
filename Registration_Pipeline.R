@@ -49,7 +49,7 @@ if (ROIformat) {
 
 setup(study, study=study)
 
-if (ROIformat) setup("ROIS", study=study)
+if (ROIformat) setup("Long_ROIS", study=study)
 
 
 ids = list.dirs(homedir, recursive=FALSE, full.names=FALSE)
@@ -138,10 +138,10 @@ if (regantry){
 
 setup(id, study=study)
 
-# for (iid in seq(ids)){
+for (iid in seq_along(ids)){
   
   id <- ids[iid]
-
+  print(id)
   setup(id, study = study)
   # source(file.path(progdir, "file_functions.R"))
   dcmsortopt <- ifelse(id =="301-520", '-s ', "")
@@ -149,7 +149,7 @@ setup(id, study=study)
 
 
 
-  # if (convert) {
+  if (convert) {
     ### convert the dicoms
   infofile <- file.path(basedir, "Dropout_Information.Rda")
   if (file.exists(infofile)) file.remove(infofile)
@@ -157,7 +157,7 @@ setup(id, study=study)
 ### time for convertsion
   contime <- NULL
   gf = getfiles(basedir)
-
+# t = iconv("UTF-8","UTF-8//IGNORE",$t);
   
     if (length(gf$files) > 0 | untar){
 
