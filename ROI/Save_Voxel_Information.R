@@ -30,6 +30,8 @@ whichdir = "reoriented"
 outfile = file.path(outdir, "Voxel_Matrix.Rda")
 load(file=outfile )
 
+fnames = colnames(mat)
+
 #### keeping if over 10 people have ICH in that locaiton
 ncut = 10
 all.nvox = sum(rs > 0)
@@ -56,4 +58,5 @@ where = "Save_Voxel_Info.R"
 output = file.path(outdir, "Voxel_Info.Rda")
 save(nvox, ncut, nuniq.rows, 
 	dups, group, where, all.nvox,
+	fnames, 
 	file=output)

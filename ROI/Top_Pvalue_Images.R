@@ -26,7 +26,7 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 whichdir = "reoriented"
-outcome = "NIHSS"
+outcome = "GCS"
 adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
 	adder = ""
@@ -89,26 +89,6 @@ yord = y[order(y)]
 
 
 
-open.dev = function(file, type= "cairo", ...){
-	get.ext = gsub("(.*)\\.(.*)$", "\\2", file)
-	stopifnot( get.ext %in% c("pdf", "bmp", "svg", "png", 
-		"jpg", "jpeg", "tiff"))
-
-	## device is jpeg
-	if (get.ext == "jpg") get.ext = "jpeg"
-	### difff arguments for diff devices
-	if (get.ext %in% c("pdf")) {
-		do.call(get.ext, list(file=file, ...))
-	} else if (get.ext %in% 
-		c("bmp", "jpeg", "png", "tiff", "svg")) {
-		do.call(get.ext, list(filename=file, type= type,...))
-	}
-}
-
-view.png = function(fname){
-	system(sprintf("display %s", fname))
-}
-
 device = "png"
 
 nkeeps = c(30, 100, 500, 1000, 2000, 3000)
@@ -151,6 +131,34 @@ for (nkeep in nkeeps){
 }
 
 
+
+
+atfile = file.path(atlasdir, "All_FSL_Atlas_Labels.Rda")
+
+load(file=atfile)
+atfile = file.path(atlasdir, 
+  paste0(whichdir, "_All_Atlas_ROI_Overlap_Measures.Rda"))
+load(file=atfile)
+
+
+lists = list(mni.list, jhut1.list, jhut2.list)
+
+
+# allres = allres
+make.pvalimg = function(pvalimg){
+	pvalimg.tab = llply(lists, function(x) {
+		x = tab.area2(pvalimg, ind.list=x, keepall=TRUE)
+		x$nvox = x$nvox/sum(x$nvox) * 100
+		x = x[order(x$nvox, decreasing=TRUE), , drop=FALSE]
+		x$area = rownames(x)
+		x
+	}, .progress= "text")
+
+	names(pvalimg.tab) = c("MNI", "EVE_1", "EVE_2")
+	return(pvalimg.tab)
+}
+
+
 for (nkeep in c(1000, 2000, 3000)){
 
 # nkeep = 3000
@@ -160,11 +168,17 @@ for (nkeep in c(1000, 2000, 3000)){
 	submat = mat[rn,]
 	wi = colSums(submat)
 
+	pvalimg = array(0, dim = dim(jhut1.img))
+	pvalimg[rn] = 1
+
+	pvalimg.tab = make.pvalimg(pvalimg)
+
+
 
 	outfile = file.path(outdir, 
 		paste0(adder, "Top_", nkeep, "_Pvalues_df.Rda"))
 	save(submat, rs, rn, wi, nkeep, 
-		dist.mat, dice, pval,
+		dist.mat, dice, pval, pvalimg.tab,
 		file=outfile)
 }
 
@@ -176,11 +190,16 @@ for (pval in c(0.05, .01, .001)){
 	submat = mat[rn,]
 	wi = colSums(submat)
 
+	pvalimg = array(0, dim = dim(jhut1.img))
+	pvalimg[rn] = 1
+
+	pvalimg.tab = make.pvalimg(pvalimg)
+
 
 	outfile = file.path(outdir, 
 		paste0(adder, "Top_", pval, "_Pvalues_df.Rda"))
 	save(submat, rs, rn, wi, pval, nkeep,
-		dist.mat, dice, 
+		dist.mat, dice, pvalimg.tab,
 		file=outfile)
 }
 

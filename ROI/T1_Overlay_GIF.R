@@ -103,8 +103,8 @@ col.cut = alpha(div_gradient_pal(low="blue",
 	seq(0, 1, length=length(breaks)-1)
 	), .7)
 
-img = check.nifti(tempimg)
-img.mask = check.nifti(pimg)
+img = check_nifti(tempimg)
+img.mask = check_nifti(pimg)
 img@cal_min = window[1]
 img@cal_max = window[2]
 img[img < window[1]] = window[1]
