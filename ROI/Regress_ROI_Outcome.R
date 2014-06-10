@@ -28,7 +28,7 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 whichdir = "reoriented"
-outcome = "GCS"
+outcome = "NIHSS"
 adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
 	adder = ""
@@ -110,7 +110,7 @@ for (meas in measures){
 			ggtitle(paste0("Number of Voxels: ", nkeep)) +
 			geom_point() + geom_smooth() + 
 			geom_smooth(se=FALSE, method="lm", col="red") +
-			xlab("Percent ROI Engagement") + 
+			xlab("Percent HPR Engagement") + 
 			ylab(outcome)
 		print(g)
 
@@ -122,12 +122,12 @@ for (meas in measures){
 				paste0("Regress_ROI_", outcome, "_Best_Model.png"))
 			png(pngname, res = 600, height=7, width=7, units = "in")
 				g = ggplot(aes(y=Y, x=perc_ROI), data=demog) + 
-					ggtitle(paste0(outcome, " Score-ROI Coverage Relationship")) +
+					ggtitle(paste0(outcome, " Score-HPR Coverage Relationship")) +
 					geom_point() + geom_smooth(se=FALSE,
 						aes(colour="LOESS"), size=1.5) + 
 					geom_smooth(se=FALSE, method="lm", 
 						aes(colour="Linear Model"), size=1.5) +
-					xlab(paste0("Percent ROI Engagement ", 
+					xlab(paste0("Percent HPR Engagement ", 
 						"with Best Model Fit (V=", nkeep, ")")) + 
 					ylab(paste0(outcome, " Score"))
 				g = g + scale_colour_manual("", 
@@ -148,14 +148,14 @@ for (meas in measures){
 			dev.off()
 		}
 
-		mod = lm(Y ~ perc_ROI + Age + Sex + 
-			Base_ICH_10, data=demog)
+		mod = lm(Y ~ Age + Sex + 
+			Base_ICH_10 + perc_ROI, data=demog)
 		mods[[ikeep]] = mod
 		smod = summary(mod)
 		nmod = lm(Y ~ Age + Sex + 
 			Base_ICH_10, data=demog)
 		snmod = summary(nmod)
-		cmod = lm(Y ~ Age + Sex + 
+		keep.cmod = cmod = lm(Y ~ Age + Sex + 
 			Base_ICH_10 + LOC, data=demog)
 		scmod = summary(cmod)
 
@@ -226,7 +226,7 @@ loc.levs = names(loc.tab)
 
 
 save(reses, measures, nkeeps, aics, epics, vox.nkeeps,
-	loc.levs, loc.tab, loc.ptab, mods, cmod,
+	loc.levs, loc.tab, loc.ptab, mods, keep.cmod,
 	file=file.path(outdir, 
 		paste0("Regress_ROI_", outcome, "_Results.Rda"))
 	)

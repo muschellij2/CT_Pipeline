@@ -1,4 +1,4 @@
-zscore <- function(mat, margin=3){
+zscore <- function(mat, margin=3, overzero=FALSE){
   nif_img <- FALSE
   ### check for nifti image
   if ("nifti" %in% class(mat) ) {
@@ -12,7 +12,11 @@ zscore <- function(mat, margin=3){
     if (margin == 1) slice <- mat[ind,,]
     if (margin == 2) slice <- mat[,ind,]
     if (margin == 3) slice <- mat[,,ind]
-    over0 <- slice > 0
+    if (overzero) {
+      over0 <- slice > 0
+    } else {
+      over0 = rep(TRUE, length=length(slice))
+    }
     if (sum(over0) > 1){
       img <- slice[over0]
       mn <- mean(img, na.rm=TRUE)
@@ -77,4 +81,33 @@ slice_hist <- function(mat, margin=3, plothist=TRUE, ...){
       }
     } else NULL	
   }
+}
+
+
+zscore3 <- function(mat, margin=3){
+  
+  if (margin == 3){
+    perm = 1:3
+  }
+  if (margin == 2){
+    perm = c(1, 3, 2)
+  }  
+  if (margin == 1){
+    perm = c(2, 3, 1)
+  }
+  revperm = match(1:3, perm)
+  img = aperm(mat, perm)
+  
+  vec = matrix(img, ncol=dim(mat)[margin])
+  m = colMeans(vec)
+  s = colSds(vec)
+  
+  vecc = (t(vec) - m)/s
+  vecc = t(vecc)
+  imgc = array(vecc, 
+               dim = dim(img))
+  imgc = aperm(imgc, revperm)
+  
+  imgc
+  
 }

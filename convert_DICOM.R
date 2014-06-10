@@ -428,7 +428,7 @@ name.file = function(hdr, id = NULL, ROIformat = FALSE){
 
 ##### stopped here - best way to categorize the data
 ##### using unique ID information
-group.hdr = function(hdrl, id, 
+group_hdr = function(hdrl, id, 
   ROIformat = FALSE,
   useNA = "no"){
   ID = llply(hdrl, function(x){
@@ -581,7 +581,7 @@ Rdcmsort = function(basedir, sortdir, id = NULL,
     # filenames = unlist(filenames)
     # names(filenames)= NULL
 
-    groups = group.hdr(hdrl, id = id, ROIformat = ROIformat)
+    groups = group_hdr(hdrl, id = id, ROIformat = ROIformat)
     filenames = groups$fnames
     print(filenames[1])
     basenames = basename(dcms)

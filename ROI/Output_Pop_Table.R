@@ -68,17 +68,35 @@ names(jhut1.list)[names(jhut1.list) == "Background"] = "Ventricles"
 names(jhut2.list)[names(jhut2.list) == "Background"] = "Ventricles"
 
 
+area_pct = function(img, ind.list, keepall) {
+  ## get overlap of indices
+  raw.mat = sapply(ind.list, function(x) sum(img[x]))
+  any.mat = sapply(ind.list, function(x) mean(img[x] > 0))
+  mn.mat = sapply(ind.list, function(x) mean(img[x]))
+  names(raw.mat) = names(ind.list)
+  ## cs is sum of indices of overlap
+  cs.raw = data.frame(nvox=raw.mat, roi_pct_any = any.mat,
+  	roi_mean_pct = mn.mat) 
+  if (!keepall) cs.raw = cs.raw[cs.raw != 0, , drop=FALSE]
+  rownames(cs.raw) = names(ind.list)
+  return(cs.raw)
+}
+
+
+
 # view.png(spm1_t1_hot_overlay.png)
 lists = list(mni.list, jhut1.list, jhut2.list)
 pop.tab = llply(lists, function(x) {
-	tt = tab.area2(popimg, ind.list=x, keepall=TRUE)
+	tt = area_pct(popimg, ind.list=x, keepall=TRUE)
 }, .progress= "text")
-sums = sapply(pop.tab, colSums)
+sums = sapply(pop.tab, function(x) sum(x$nvox))
 stopifnot(all(diff(sums) == 0))
 
 ##### scaling them to %
 pop.tab = llply(pop.tab, function(x) {
 	x$nvox = x$nvox/sum(x$nvox) * 100
+	x$roi_pct_any = x$roi_pct_any * 100
+	x$roi_mean_pct = x$roi_mean_pct * 100
 	x = x[order(x$nvox, decreasing=TRUE), , drop=FALSE]
 	x$area = rownames(x)
 	x
@@ -91,16 +109,24 @@ dfs = tops = xtabs =
 for (itab in seq(pop.tab)){
 	df = allres = pop.tab[[itab]]
 	df$nvox = round(df$nvox, 2)
+	df$roi_mean_pct = round(df$roi_mean_pct, 2)
+	df$roi_pct_any = round(df$roi_pct_any, 2)
 	df = df[df$nvox != 0, , drop=FALSE]
 	top.area = rownames(df)[1]
+	xdf = df
 	df = df[, c("area", "nvox")]		
 
 	colnames(df) = c("Area", nm[itab])
 	xtabs[[itab]] = xtable(df)
 	tops[[itab]] = top.area 
-	dfs[[itab]] = df
+	xdf = xdf[, c("area", "nvox", "roi_pct_any", "roi_mean_pct")]		
+	colnames(xdf) = c("Area", nm[itab], 
+		paste0(nm[itab], "_ROI_Pct_Any"),
+		paste0(nm[itab], "_ROI_Pct"))
+	dfs[[itab]] = xdf
 }
 names(dfs) = names(tops) = names(xtabs) = nm
 id = "Population"
 
-save(dfs, xtabs, tops, file=file.path(outdir, "Population_Table.Rda"))
+save(dfs, xtabs, tops, 
+	file=file.path(outdir, "Population_Table.Rda"))
