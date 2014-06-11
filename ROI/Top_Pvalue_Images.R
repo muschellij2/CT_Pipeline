@@ -65,6 +65,20 @@ temp = readNIfTI(template)
 dtemp = dim(temp)
 
 
+area_pct = function(img, ind.list, keepall) {
+  ## get overlap of indices
+  raw.mat = sapply(ind.list, function(x) sum(img[x]))
+  any.mat = sapply(ind.list, function(x) mean(img[x] > 0))
+  mn.mat = sapply(ind.list, function(x) mean(img[x]))
+  names(raw.mat) = names(ind.list)
+  ## cs is sum of indices of overlap
+  cs.raw = data.frame(nvox=raw.mat, roi_pct_any = any.mat,
+  	roi_mean_pct = mn.mat) 
+  if (!keepall) cs.raw = cs.raw[cs.raw != 0, , drop=FALSE]
+  rownames(cs.raw) = names(ind.list)
+  return(cs.raw)
+}
+
 
 ############################################################
 # get the voxels that have any people with hemorrhage there
@@ -143,12 +157,40 @@ load(file=atfile)
 
 lists = list(mni.list, jhut1.list, jhut2.list)
 
+sublists = list(jhut1.list, jhut2.list)
+
+sublists = lapply(sublists, function(x) {
+	area = names(x)
+	x[grep("GLOBUS_PALLIDUS|THALAMUS|PUTAMEN", area)]
+})
+
+sublists = lapply(sublists, function(x) {
+	xx = unlist(x)
+	area = names(xx)
+	area = gsub("_left\\d*", "", area)
+	area = gsub("_right\\d*", "", area)
+	uarea = unique(area)
+	x = lapply(uarea, function(aname){
+		ind = which(area %in% aname)
+		xx[ind]
+	})
+	names(x) = uarea
+	x
+})
+
+pop.pcts = sapply(sublists, function(indlist){
+	sapply(indlist, function(x) mean(mat[x, ]))
+})
+colnames(pop.pcts) = c("EVE_1", "EVE_2")
+
 
 # allres = allres
 make.pvalimg = function(pvalimg){
 	pvalimg.tab = llply(lists, function(x) {
-		x = tab.area2(pvalimg, ind.list=x, keepall=TRUE)
+		x = area_pct(pvalimg, ind.list=x, keepall=TRUE)		
 		x$nvox = x$nvox/sum(x$nvox) * 100
+		x$roi_pct_any = x$roi_pct_any * 100
+		x$roi_mean_pct = x$roi_mean_pct * 100		
 		x = x[order(x$nvox, decreasing=TRUE), , drop=FALSE]
 		x$area = rownames(x)
 		x
@@ -165,6 +207,15 @@ for (nkeep in c(1000, 2000, 3000)){
 	rn = rrn[seq(nkeep)]
 	pval = yord[nkeep]
 
+	ppcts = sapply(sublists, function(indlist){
+		sapply(indlist, function(x) {
+			i = intersect(x, rn)
+			length(i)/length(x)
+		})
+	})
+	colnames(ppcts) = c("EVE_1", "EVE_2")
+
+
 	submat = mat[rn,]
 	wi = colSums(submat)
 
@@ -178,7 +229,7 @@ for (nkeep in c(1000, 2000, 3000)){
 	outfile = file.path(outdir, 
 		paste0(adder, "Top_", nkeep, "_Pvalues_df.Rda"))
 	save(submat, rs, rn, wi, nkeep, 
-		dist.mat, dice, pval, pvalimg.tab,
+		dist.mat, dice, pval, pvalimg.tab, ppcts, pop.pcts,
 		file=outfile)
 }
 
@@ -187,6 +238,16 @@ for (pval in c(0.05, .01, .001)){
 	# nkeep = 3000
 	nkeep = sum(yord <= pval)
 	rn = rrn[seq(nkeep)]
+
+	ppcts = sapply(sublists, function(indlist){
+		sapply(indlist, function(x) {
+			i = intersect(x, rn)
+			length(i)/length(x)
+		})
+	})
+	colnames(ppcts) = c("EVE_1", "EVE_2")
+
+
 	submat = mat[rn,]
 	wi = colSums(submat)
 
@@ -199,7 +260,7 @@ for (pval in c(0.05, .01, .001)){
 	outfile = file.path(outdir, 
 		paste0(adder, "Top_", pval, "_Pvalues_df.Rda"))
 	save(submat, rs, rn, wi, pval, nkeep,
-		dist.mat, dice, pvalimg.tab,
+		dist.mat, dice, pvalimg.tab, ppcts, pop.pcts,
 		file=outfile)
 }
 

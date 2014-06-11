@@ -12,7 +12,7 @@ get.stuff = function(score){
   co = mods$coefficients 
   co = rename(co, c("SexMale"="Sex: Male vs. Female", 
                "Base_ICH_10"="TICHVol per 10 cc",
-               "perc_ROI" = "ROI Coverage per 10%"))
+               "perc_ROI" = "HPR Coverage per 10%"))
   mods$coefficients = co
   
   co = keep.cmod$coefficients 
@@ -38,7 +38,7 @@ gcs.res[[1]]$call = call("lm",
 gcs.res[[2]]$call = call("lm", 
                     list(formula = Y ~ Age + Sex + Base_ICH_10 + LOC))
 
-cov.name = "ROI Coverage per 10%"
+cov.name = "HPR Coverage per 10%"
 make.coef = function(mod, cov.name){
   nihss.coef = abs(coef(mod)[cov.name])
   nihss.coef = sprintf("%02.1f", nihss.coef)
@@ -56,8 +56,8 @@ nihss= make.coef(nihss.res[[2]], cov.name = "RRRRR;RRRRR;Putamen")
 put.nihss.coef = nihss$coef
 put.nihss.ci = nihss$ci
 
-cap = paste0("Regression Models for ROI-Based Analysis. The models for ",
-             "ROI coverage represent the best model based on the ",
+cap = paste0("Regression Models for HPR-Based Analysis. The models for ",
+             "HPR coverage represent the best model based on the ",
              "model-fit measures. ",
              "We see that after adjusting for age, sex, and ",
             "total baseline ICH volume, increasing 10\\%",
@@ -97,7 +97,7 @@ rr = stargazer(nihss.res, gcs.res, type = "latex",
                omit.table.layout = "n",
                dep.var.labels = c("\\textbf{NIHSS Score}", 
                                   "\\textbf{GCS Score}"),
-               column.labels = rep(c("\\textbf{ROI Coverage}", 
+               column.labels = rep(c("\\textbf{HPR Coverage}", 
                                      "\\textbf{Reader-Location}"), 2),
                model.names = FALSE, model.numbers = FALSE, 
                digits = 1)
@@ -108,5 +108,8 @@ empty.hline = grep("\\hline \\\\[-1.8ex]", rr, fixed=TRUE)
 l = length(empty.hline)
 empty.hline = empty.hline[c(1, (l-1):l)]
 rr = rr[-empty.hline]
+rr[5] = gsub("lcccc", "lcc|cc", rr[5])
+rr[7] = gsub("\\multicolumn{2}{c}{\\textbf{NIHSS Score}}", 
+  "\\multicolumn{2}{c|}{\\textbf{NIHSS Score}}", rr[7], fixed=TRUE)
 writeLines(rr, con="Beta_Table.tex")
 # }
