@@ -1,4 +1,5 @@
-library(oro.nifti)
+library(fslr)
+library(cttools)
 rm(list=ls())
 setup <- function(id){
   username <- Sys.info()["user"][[1]]
@@ -30,14 +31,13 @@ setup <- function(id){
   
   #progdir <- file.path(dirname(basedir), "programs")
   progdir <<- file.path(rootdir, "programs")
-  source(file.path(progdir, "convert_DICOM.R"))
+  # source(file.path(progdir, "convert_DICOM.R"))
   
   basedir <<- file.path(homedir, id)
   
 }
 id <- "205-517"
 setup(id)
-source(file.path(progdir, "fslthresh.R"))
 
 setwd(basedir)
 
@@ -65,48 +65,57 @@ if (is.na(iscen)) stop("no scenario denoted")
 if (rethresh){
   # for (iscen in 1:nrow(scenarios)){
     mask <- scenarios$mask[iscen]
-    icut <- scenarios$cutoffs[iscen]
-    outdir <- file.path(basedir, icut)
-    if (!file.exists(outdir)) system(sprintf('mkdir -p "%s"', outdir))
+    lower <- scenarios$cutoffs[iscen]
+    outdir <- file.path(basedir, lower)
+    if (!file.exists(outdir)) {
+      system(sprintf('mkdir -p "%s"', outdir))
+    }
     for (ifname in fnames){
-      fslthresh(image=ifname, autoname=TRUE, outdir=outdir, lower=icut, 
+      stub = nii.stub(basename(ifname))
+      addstub = paste0("L", lower)
+      if (mask) addstub <- paste0(addstub, "_mask")
+      outfile =  file.path(outdir, paste0(stub, "_", addstub))
+
+      fslthresh(file=ifname, outfile=outfile, thresh=lower, 
                 mask=mask)
       cat(paste0(ifname, "\n"))
     }
-    print(icut)
+    print(lower)
   # }
 }
 
 
 
-# for (iscen in 1:nrow(scenarios)){
-  mask <- scenarios$mask[iscen]
-  icut <- scenarios$cutoffs[iscen]
-# for (icut in cutoffs){
-  outdir <- file.path(basedir, icut)
-  addstub <- paste0("L", icut)
-  if (mask) addstub <- paste0(addstub, "_mask")
-  
-  fnames <- list.files(path=outdir, pattern=paste0(addstub, ".nii.gz"), 
-                       recursive=FALSE, full.names = TRUE)
-  fnames <- fnames[!grepl("rigid", fnames)]
-  
-  ifname <- fnames[1]
-  ref.img <- fnames[1]
+mask <- scenarios$mask[iscen]
+lower <- scenarios$cutoffs[iscen]
+outdir <- file.path(basedir, lower)
+addstub = paste0("L", lower)
+if (mask) addstub <- paste0(addstub, "_mask")
+
+fnames <- list.files(path=outdir, pattern=paste0(addstub, ".nii.gz"), 
+                     recursive=FALSE, full.names = TRUE)
+fnames <- fnames[!grepl("rigid", fnames)]
+
+ifname <- fnames[1]
+ref.img <- fnames[1]
   
   for (iname in 2:length(fnames)){
     ifname <- fnames[iname]
 
     stub <- paste0("rigid_", basename(ifname))
     ## strip off .nii.gz or .nii
-    stub <- gsub("\\.gz$", "", stub, fixed=FALSE)
-    stub <- gsub("\\.nii$", "", stub, fixed=FALSE)
     
     outdir <- dirname(ifname)
     outfile <- file.path(outdir, paste0(stub))
-    
-    flirt.wrap(image=ifname, rigid=TRUE, run=TRUE, ref=ref.img, 
-               mask=mask)
+    outmat = paste0(nii.stub(outfile), ".mat")
+
+    ret = flirt(infile=ifname, reffile=ref.img, outfile=outfile,
+      omat = outmat,
+      dof = 6, intern=FALSE, retimg = FALSE, 
+      opts = "-cost leastsq -v" )
+    ## used mutualinfo before
+    # flirt.wrap(image=ifname, rigid=TRUE, run=TRUE, ref=ref.img, 
+    #            mask=mask)
     cat("\n\n")
 #     bn <- basename(ifname)
 #     fslthresh(image=ifname, autoname=TRUE, outdir=outdir, lower=icut)
