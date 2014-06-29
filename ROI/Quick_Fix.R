@@ -3,16 +3,12 @@
 # Author: John Muschelli
 #################################
 rm(list=ls())
-library(oro.nifti)
-library(plyr)
+library(cttools)
 library(scales)
 library(RColorBrewer)
 library(data.table)
-library(cttools)
-library(fslr)
 library(ggplot2)
 library(grid)
-library(plyr)
 homedir = "/Applications"
 rootdir = "~/CT_Registration"
 basedir = file.path(rootdir, "data")
@@ -29,7 +25,7 @@ atlasdir = file.path(tempdir, "atlases")
 
 
 whichdir = "reoriented"
-outcome = "NIHSS"
+outcome = "GCS"
 adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
   adder = ""
@@ -72,11 +68,13 @@ demog$Clot_Location_RC = factor(demog$Clot_Location_RC,
   levels= c("Lobar", "Globus Pallidus", "Putamen", "Thalamus"))
 demog$LOC = demog$Clot_Location_RC
 
-zform = ~ Age + Sex + Diagnostic_ICH
-Z = model.matrix(object = zform, data = demog)
-cc = complete.cases(Z) & complete.cases(demog$Y)
+cc = complete.cases(demog$Y)
 demog = demog[cc,]
-Z = model.matrix(object = zform, data = demog)
+
+
+zform = ~ Age + Sex + Diagnostic_ICH
+# Z = model.matrix(object = zform, data = demog)
+# Z = model.matrix(object = zform, data = demog)
 
 outfile = file.path(outdir, "Voxel_Matrix.Rda")
 load(file=outfile )
@@ -96,55 +94,87 @@ dim(mat)
 sum(rs > ncut)
 runmat = mat[rs > ncut, ]
 
-orig.X = t(runmat)
-class(orig.X) = "numeric"
-
 X = t(runmat[, cc, drop=FALSE])
 class(X) = "numeric"
-
-cn = colnames(Z)
-ZZ = Z[, !cn %in% c("(Intercept)")]
-z = lm(Y ~ X[,5] + ZZ)
-z.noint = lm(Y ~ X[,5] + Z - 1)
-
 
 verbose= TRUE
 tol = 1e-12
 ncheck = 10
+Z = NULL
 
 mytime = system.time({
-  mods = fast_lm(Y, X, Z, spot.check = TRUE, ncheck = 10)
+  # mods = fast_lm(Y, X, Z, spot.check = TRUE, ncheck = 10)
+  mods = fast_lm(Y, X, Z = NULL, spot.check = TRUE, ncheck = 10)
 })
 
 
 pval = .01
-top.ord = 3000
+top.ords = c(1000, 2000, 3000)
+pvals = c(0.05, .01, .001)
 
-under.pval = mods$p.val <= pval
-l.pval = apply(under.pval, 2, which)
+under.pval = lapply(pvals, function(pval) {
+  x = mods$p.val <= pval
+  l.x = apply(x, 2, which)
+  l.len  = sapply(l.x, length)
+  print(sum(l.len == 0))
+  l.x
+})
 
-l.ord = alply(mods$p.val, .margin=2, function(x){
-  ord = order(x)
-  which(ord <= top.ord)
+l.ord = llply(top.ords, function(top.ord) {
+  alply(mods$p.val, .margin=2, function(x){
+    ord = order(x)
+    l = which(ord <= top.ord)
+    # print(length(l))
+    l
 }, .progress= "text")
+})
 
+l.cov = laply(l.ord, function(ord) {
+  laply(ord, function(x){
+    rr = runmat[x, cc]
+    if ( nrow(rr) == 0 ) {
+      mns = rep(1, length=sum(cc))
+      names(mns) = colnames(runmat)[cc]
+      return(mns)
+    }
+    colMeans(rr)
+}, .progress= "text")
+})
 
-# cov.pval = sapply(l.pval, function(x){
-#   colMeans(mat[x, ])
-# })
 
 cov.ord = sapply(l.ord, function(x){
   colMeans(runmat[x, ])
 })
-# pvals 
 
 new.cov = cov.ord[cc, ]
 orig.Y = demog$Y
-permute.mod =  fast_lm(orig.Y, X=new.cov, Z, spot.check = TRUE, 
+permute.mod =  fast_lm(orig.Y, X=new.cov, Z=zform, data=demog,
+  spot.check = TRUE, 
   ncheck = 10)
 
 ################
 # Check against truth
+###############
+
+
+nkeeps = c(1000, 2000, 3000)
+
+for (pval in c(0.05, .01, .001)){
+
+  nkeeps = c(nkeeps, sum(yord <= pval))
+}
+
+
+for (nkeep in nkeeps){
+  rn = rrn[seq(nkeep)]
+
+  outstub = file.path(outdir, 
+    paste0(adder, "Top_", nkeep, "_pvalues"))
+
+  }
+}
+
+
 
 x = load(file.path(rootdir, "CT_Pipeline/Top_3000_Pvalues_df.Rda"))
 
@@ -177,11 +207,15 @@ myrn = rrn[seq(top.ord)]
 ssmat = mat[ rn, cc]
 pp = colMeans(ssmat)
 
+stopifnot(abs(pp-perc) < 1e-12)
+stopifnot(all(submat == ssmat))
 
 
-
-real.mod = fast_lm(orig.Y, X= as.matrix(perc), Z, spot.check=TRUE)
+real.mod = fast_lm(orig.Y, X= as.matrix(perc), Z = zform, 
+  data=demog, spot.check=TRUE)
 real.r2 = real.mod$r.squared
-d.check = lm(orig.Y ~ perc + Z)
-check.r2 = summary(d.check)$r.squared
-hist(permute.mod$r.squared)
+check.r2 = summary(reg.mod)$r.squared
+r.r2 = range(permute.mod$r.squared)
+xlim = c(min(check.r2, r.r2), max(check.r2, r.r2))
+hist(permute.mod$r.squared, xlim=xlim)
+abline(v= check.r2)
