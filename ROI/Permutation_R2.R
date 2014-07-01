@@ -3,15 +3,13 @@
 # Author: John Muschelli
 #################################
 rm(list=ls())
-library(oro.nifti)
-library(plyr)
+library(cttools)
 library(scales)
 library(RColorBrewer)
 library(data.table)
-library(cttools)
-library(fslr)
 library(ggplot2)
 library(grid)
+library(plyr)
 homedir = "/Applications"
 rootdir = "~/CT_Registration"
 basedir = file.path(rootdir, "data")
@@ -46,13 +44,9 @@ id_to_pname = function(x){
 }
 
 nkeeps = c(1000, 2000, 3000, .001, 0.01, 0.05)
-cn = c("With_Perc", "With_Clot", "Null", 
-       "Nosex_With_Perc", "Nosex_With_Clot", 
-       "Nosex_Null", "nkeep", "pval", "N_Gr0")
-
 
 demog = read.csv(file=file.path(basedir, "Demog_NIHSS_Mask.csv"), 
-                 stringsAsFactors=FALSE)
+ stringsAsFactors=FALSE)
 demog$Base_ICH_10 = demog$Diagnostic_ICH /10
 
 measures  = c("adj.r.squared", "r.squared", "sigma")
@@ -67,24 +61,31 @@ if (outcome == "GCS") {
 } else {
   stop(paste0("Outcome ", outcome, " not implemented"))
 }
+ 
 
-
-demog$Clot_Location_RC = gsub("Palidus", "Pallidus", demog$Clot_Location_RC )
-demog$Clot_Location_RC = factor(demog$Clot_Location_RC, levels= c("Lobar", "Globus Pallidus", "Putamen", "Thalamus"))
+demog$Clot_Location_RC = gsub("Palidus", "Pallidus", 
+  demog$Clot_Location_RC )
+demog$Clot_Location_RC = factor(demog$Clot_Location_RC, 
+  levels= c("Lobar", "Globus Pallidus", "Putamen", "Thalamus"))
 demog$LOC = demog$Clot_Location_RC
 
-Z = model.matrix(~ Age + Sex + Diagnostic_ICH, data= demog)
-cc = complete.cases(Z) & complete.cases(demog$Y)
+cc = complete.cases(demog$Y)
 demog = demog[cc,]
-Z = model.matrix(~ Age + Sex + Diagnostic_ICH, data= demog)
 
-B = 10
+
+zform = ~ Age + Sex + Diagnostic_ICH
+# Z = model.matrix(object = zform, data = demog)
+# Z = model.matrix(object = zform, data = demog)
+
+outfile = file.path(outdir, "Voxel_Matrix.Rda")
+load(file=outfile )
+
+
+B = 1000
 Y = sapply(seq(B), function(x){
   sample(demog$Y)
 })
 
-outfile = file.path(outdir, "Voxel_Matrix.Rda")
-load(file=outfile )
 
 #### keeping if over 10 people have ICH in that locaiton
 ncut = 10
@@ -92,123 +93,174 @@ all.nvox = sum(rs > 0)
 
 dim(mat)
 sum(rs > ncut)
-mat = mat[rs > ncut, ]
+runmat = mat[rs > ncut, ]
 
-
-X = t(mat[, cc, drop=FALSE])
+X = t(runmat[, cc, drop=FALSE])
 class(X) = "numeric"
 
-# Y = Y[cc,, drop=FALSE]
-# Z = Z[cc,, drop=FALSE]
-n = nrow(Y)
+verbose= TRUE
+tol = 1e-12
+ncheck = 10
+Z = NULL
+
+mytime = system.time({
+  # mods = fast_lm(Y, X, Z, spot.check = TRUE, ncheck = 10)
+  mods = fast_lm(Y, X, Z = NULL, spot.check = TRUE, ncheck = 10)
+})
+
+
+top.ords = c(1000, 2000, 3000)
+pvals = c(0.05, .01, .001)
+
+
+under.pval = llply(pvals, function(pval) {
+    x = mods$p.val <= pval
+    l.x = apply(x, 2, which)
+    l.len  = sapply(l.x, length)
+    print(sum(l.len == 0))
+    # print(length(l))
+    l.x
+}, .progress= "text")
+
+names(under.pval) = pvals
+
+l.pcov = llply(under.pval, function(ord) {
+  laply(ord, function(x){
+    rr = runmat[x, cc, drop=FALSE]
+    if ( nrow(rr) == 0 ) {
+      mns = rep(1, length=sum(cc))
+      names(mns) = colnames(runmat)[cc]
+      return(mns)
+    }
+    colMeans(rr)
+  }, .progress= "text")
+})
+
+names(l.pcov) = pvals
+
+
+
+l.ord = llply(top.ords, function(top.ord) {
+  alply(mods$p.val, .margin=2, function(x){
+    ord = order(x)
+    l = which(ord <= top.ord)
+    # print(length(l))
+    l
+}, .progress= "text")
+})
+names(l.ord) = top.ords
+
+l.cov = llply(l.ord, function(ord) {
+  laply(ord, function(x){
+    rr = runmat[x, cc]
+    if ( nrow(rr) == 0 ) {
+      mns = rep(1, length=sum(cc))
+      names(mns) = colnames(runmat)[cc]
+      return(mns)
+    }
+    colMeans(rr)
+}, .progress= "text")
+})
+
+names(l.cov) = top.ords
+
+
+all.l = c(l.pcov, l.cov)
+# cov.ord = sapply(l.ord, function(x){
+#   colMeans(runmat[x, ])
+# })
+
+all.run = c(pvals, top.ords)
+
+
+orig.Y = demog$Y
+
 
 #################
-# Get residualls on Z
+# Checking the p-values here - univarite p-values
 #################
-ZtZ = crossprod(Z)
-ZtZ.inv = solve(ZtZ)
-Z.H = diag(n) - Z %*% tcrossprod(ZtZ.inv, Z)
 
-# Q = aaply(X, 2, function(x){
-#   r = crossprod(x, Z.H)
-#   xx = 1/(r %*% x)
-#   xx = xx %*% r
-#   as.vector(xx)
-# }, .progress="text")
+pv = load(file.path(outdir, paste0(adder, "Pvalue_Matrix.Rda")))
+true.beta = res[,"Xbeta","mod.1"]
+true.pval = res[,"X","mod.1"]
 
-# betas = Q %*% Y
+check.mod = fast_lm(orig.Y, X= X, Z = NULL, spot.check=TRUE)
 
-X = Z.H %*% X
-Y = Z.H %*% Y
-
-rxvars = colVars(X)
-rxss = colSums(X^2)
-
-cov_XY = crossprod(X, Y)
-beta_x = cov_XY / rxss
-
-ses = matrix(NA, 
-    nrow=nrow(beta_x), 
-    ncol=B)
-stopifnot(nrow(X) == n)
-stopifnot(nrow(beta_x)==  ncol(X))
-iB = 2
-for (iB in seq(B)){
-  b = beta_x[, iB]
-  system.time({
-    m = matrix(b, ncol=ncol(X), nrow=n, byrow=TRUE)
-    yhat = m * X
-  })
-  # ###### multiplication goes column-wise 
-  # system.time({
-  #   xx = X * b
-  # })
+def.check = abs(check.mod$p.val - true.pval)
+stopifnot(all(def.check < 1e-12))
+def.check = abs(check.mod$coef - true.beta)
+stopifnot(all(def.check < 1e-12))
 
 
-  check = X[,1] * b[1]
-  stopifnot(all(abs(yhat[,1] - check) == 0))
-  # check[,1] - xx[,1]
+pdfname = file.path(outdir, 
+  paste0(adder, "Permutation_Distribution.pdf"))
+pdf(pdfname)
+irun = 1
+for (irun in seq_along(all.run)){
+  runmod = as.character(all.run[irun])
 
-  r = yhat - Y[,iB]
-  ### double check worked correctly
-  check = (yhat[,1] - Y[,iB])
-  stopifnot(all(abs(r[,1] - check) == 0))
+  # new.cov = cov.ord[cc, ]
+  new.cov = t(all.l[[runmod]])
+  permute.mod =  fast_lm(orig.Y, X=new.cov, Z=zform, data=demog,
+    spot.check = TRUE, 
+    ncheck = 10)
 
 
-  rss= colSums( ( r ) ^2)
-  p = 5
-  bse = sqrt(rxss * rss/ (n-p))
-  ses[, iB] = bse
-  print(iB)
+
+  ################
+  # Check against truth
+  ###############
+  x = load(file.path(rootdir, "CT_Pipeline",
+    paste0(adder, "Top_", runmod, "_Pvalues_df.Rda")))
+
+  ##### subsetting the correct patients and then getting means
+  submat = submat[,cc] 
+  perc = colMeans(submat)
+
+  #### should double check against IDs
+  demog$perc_ROI = perc * 100
+
+  #############
+  # Making the formula for the adjusted analysis
+  #############
+  form = as.character(zform)
+  form = c(paste0("Y", form[1]), paste0(form[2], "+ perc_ROI"))
+  form = as.formula(form)
+  reg.mod = lm(formula=form, data=demog)
+  reg.smod = summary(reg.mod)
+
+  zform2 = as.character(zform)
+  zform2 = c(paste0("Y", zform2[1]), zform2[2])
+  zform2 = as.formula(zform2)
+  nox.mod = lm(formula=zform2, data=demog)
+  nox.smod = summary(nox.mod)  
+
+  # runmeas = c("r.squared", "adj.r.squared")
+  runmeas = c("adj.r.squared")
+  measure = "adj.r.squared"
+  for (measure in runmeas){
+    truth = reg.smod[[measure]]
+    nox.truth = nox.smod[[measure]]
+    perm = permute.mod[[measure]]
+
+    xlim = c(min(truth, perm), max(truth, perm))
+    hist(perm, xlim=xlim, breaks=30, xlab=
+      paste0("Permutation ", measure), 
+      main=paste0("Permutation Distribution for ", measure, " on ",
+      outcome, " using ", runmod, " HPR"))
+    abline(v= truth)
+    abline(v=nox.truth, col="red")
+  }
 }
-
-xx = X[,1]
-m1 = lm(Y[, 1] ~ Z + xx - 1)
-bcoef = coef(m1)
-abs(bcoef["xx"] - beta_x[1, 1]) < 1e-12
-smod = summary(m1)
-se = coef(smod)["xx", "Std. Error"]
-ses[1,1]
-# iB = 1
-# ses = matrix(NA, 
-#     nrow=nrow(beta_x), 
-#     ncol=ncol(beta_x))
-# for (iB in seq(B)){
-#   b = beta_x[,iB]
-#   yhat = t(b * X)
-#   ses[,iB] = sqrt(rowSums( (Y[, iB] - yhat)^2 / (n- p)))
-#   print(iB)
-# }
+dev.off()
 
 
 
-iX = 1
-iY = 1
-xx = X[,iX]
-ZZ = Z[, !(colnames(Z) %in% "(Intercept)")]
-check = lm(Y[,iY] ~ ZZ + xx)
-d = abs(coef(check)[["xx"]] - beta_x[iX, iY])
-stopifnot(d < 1e-12)
-checkse = coef(summary(check))["xx", "Std. Error"]
-bse[,1]
-
-# cov_RXY = crossprod(R_X, R_Y)
-# beta_x = cov_RXY / rxss
-# y_hats = R_X %*% beta_x
-# cs = aaply(beta_x, .margins=2, function(b){
-#   xx = (b * R_X)^2
-#   colSums(xx)
-# }, .progress = "text")
-# resid.var = colSums(y_hats^2)
-
-
-
-# for (i in 1:1000){
-#   iX = sample(seq(ncol(X)), size=1)
-#   iY = sample(seq(ncol(Y)), size=1)
-#   xx = X[,iX]
-#   check = lm(Y[,iY] ~ ZZ + xx)
-#   d = abs(coef(check)[["xx"]] - beta_x[iX, iY])
-#   stopifnot(d < 1e-12)
-# }
-#     nkeep = nkeeps[ikeep]
+# real.mod = fast_lm(orig.Y, X= as.matrix(perc), Z = zform, 
+#   data=demog, spot.check=TRUE)
+# real.r2 = real.mod$r.squared
+# check.r2 = summary(reg.mod)$r.squared
+# r.r2 = range(permute.mod$r.squared)
+# xlim = c(min(check.r2, r.r2), max(check.r2, r.r2))
+# hist(permute.mod$r.squared, xlim=xlim)
+# abline(v= check.r2)
