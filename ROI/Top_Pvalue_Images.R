@@ -105,6 +105,24 @@ yord = y[order(y)]
 
 device = "png"
 
+lr_symm = function(img){
+	dimg = dim(img)
+	mid.slice = ceiling(dimg/2)[1]
+	max.slice = dimg[1]	
+
+	w = which(img > 0, arr.ind=TRUE)
+  ## 20 - then 160, 90 - 20 + 90
+  ## if 160 then 90 - 160 + 90
+	ww[, 1] = 2 * mid.slice - ww[,1]
+	ww = ww[ ww[, 1] > 0 & ww[, 1] < max.slice, ]
+
+	img[ww] = 1
+
+	img = (img > 0)*1
+	img = newnii(img)
+}
+
+
 nkeeps = c(30, 100, 500, 1000, 2000, 3000)
 
 for (pval in c(0.05, .01, .001)){
@@ -121,8 +139,10 @@ for (nkeep in nkeeps){
 	fp = paste0(outstub, ".", device)
 
 	outimg = paste0(outstub, ".nii.gz")	
+	outimg_symm = paste0(outstub, "_symm.nii.gz")	
 
-	if (!file.exists(fp) | !file.exists(outimg) | rerun){
+	if (!file.exists(fp) | !file.exists(outimg) | rerun |
+		!file.exists(outimg_symm)){
 		open.dev(fp)
 		res.p = temp
 		res.p[!is.na(res.p)] = NA
@@ -141,6 +161,9 @@ for (nkeep in nkeeps){
 		res.p = (res.p > 0)*1
 		res.p = newnii(res.p)
 		writeNIfTI(res.p, file=outstub)
+
+		res.psymm = lr_symm(res.p)
+		writeNIfTI(res.p, file=paste0(outstub, "_symm"))
 	}
 }
 
