@@ -207,14 +207,19 @@ xx$index = as.numeric(xx$index)
 jhut1.df = xx
 
 img = readNIfTI(
-	file.path(tatlas_dir, 
-		paste0(atlas, ".nii.gz")))
+	file.path(tatlas_dir, paste0(atlas, ".nii.gz")))
 img[ !bmask ] = -99
 uimg = sort(unique(c(img)))
 all.ind = jhut1.df$index
 stopifnot(all(uimg %in% all.ind))
 
 jhut1.img = img
+
+
+jhut1.nolr.df = jhut1.df
+jhut1.nolr.df$Label = gsub("_(left|right)", "", 
+	jhut1.nolr.df$Label)
+
 
 
 
@@ -241,6 +246,10 @@ all.ind = jhut2.df$index
 stopifnot(all(uimg %in% all.ind))
 
 jhut2.img = img
+
+
+jhut2.nolr.df = jhut2.df
+jhut2.nolr.df$Label = gsub("_(left|right)", "", jhut2.nolr.df$Label)
 
 
 ############## 
@@ -284,8 +293,9 @@ jhut2.img = img
 # hoxall.df = rbind(hoxall.df, cbind(hoxcort.df, study="Cortical"))
 
 get.ind = function(img, df){
+	df = df[order(df$index),]
 	ind.list = llply(df$index, function(x){
-		return(which(img == x))
+		return(which(img %in% x))
 	}, .progress = "text")
 	names(ind.list) = df$Label
 	return(ind.list)
@@ -299,6 +309,19 @@ hoxsubcort.list = get.ind(hoxsubcort.img, hoxsubcort.df)
 jhut1.list = get.ind(jhut1.img, jhut1.df)
 jhut2.list = get.ind(jhut2.img, jhut2.df)
 
+get.areaind = function(img, df){
+	df = df[order(df$Label), ]
+	ind.list = dlply(df, .(Label), function(xx){
+		x = xx$index
+		return(which(img %in% x))
+	}, .progress = "text")
+	stopifnot( all(names(ind.list) == unique(df$Label) ))
+	return(ind.list)
+}
+
+jhut1.nolr.list = get.areaind(jhut1.img, jhut1.nolr.df)
+jhut2.nolr.list = get.areaind(jhut2.img, jhut2.nolr.df)
+
 
 save(tal.df, tal.img, tal.list,
 	mni.df, mni.img, mni.list,
@@ -306,6 +329,8 @@ save(tal.df, tal.img, tal.list,
 	hoxsubcort.df, hoxsubcort.img, hoxsubcort.list,
 	jhut2.df, jhut1.df, jhut2.img, jhut1.img,
 	jhut1.list, jhut2.list,
+	jhut1.nolr.list, jhut2.nolr.list, 
+	jhut1.nolr.df, jhut2.nolr.df, 
 	file= file.path(outdir, "All_FSL_Atlas_Labels.Rda"))
 
 

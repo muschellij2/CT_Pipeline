@@ -78,7 +78,7 @@ zform = ~ Age + Sex + Diagnostic_ICH
 # Z = model.matrix(object = zform, data = demog)
 
 outfile = file.path(outdir, "Voxel_Matrix.Rda")
-load(file=outfile )
+load( file=outfile )
 
 
 B = 1000
@@ -97,6 +97,11 @@ runmat = mat[rs > ncut, ]
 
 X = t(runmat[, cc, drop=FALSE])
 class(X) = "numeric"
+
+
+########################
+# Run models
+########################
 
 verbose= TRUE
 tol = 1e-12
@@ -184,7 +189,9 @@ pv = load(file.path(outdir, paste0(adder, "Pvalue_Matrix.Rda")))
 true.beta = res[,"Xbeta","mod.1"]
 true.pval = res[,"X","mod.1"]
 
-check.mod = fast_lm(orig.Y, X= X, Z = NULL, spot.check=TRUE)
+check.mod = fast_lm(orig.Y, X= X, Z = NULL, 
+  spot.check=TRUE, 
+  ncheck=100)
 
 def.check = abs(check.mod$p.val - true.pval)
 stopifnot(all(def.check < 1e-12))
@@ -192,10 +199,11 @@ def.check = abs(check.mod$coef - true.beta)
 stopifnot(all(def.check < 1e-12))
 
 
+irun = 1
+
 pdfname = file.path(outdir, 
   paste0(adder, "Permutation_Distribution.pdf"))
 pdf(pdfname)
-irun = 1
 for (irun in seq_along(all.run)){
   runmod = as.character(all.run[irun])
 
@@ -210,9 +218,15 @@ for (irun in seq_along(all.run)){
   ################
   # Check against truth
   ###############
-  x = load(file.path(rootdir, "CT_Pipeline",
-    paste0(adder, "Top_", runmod, "_Pvalues_df.Rda")))
+  if (Sys.info()[["user"]] %in% "jmuschel") {
+    x = load(file.path(outdir,
+        paste0(adder, "Top_", runmod, "_Pvalues_df.Rda")))
 
+  } else {
+    x = load(file.path(rootdir, "CT_Pipeline",
+      paste0(adder, "Top_", runmod, "_Pvalues_df.Rda")))
+
+  }
   ##### subsetting the correct patients and then getting means
   submat = submat[,cc] 
   perc = colMeans(submat)
@@ -243,6 +257,32 @@ for (irun in seq_along(all.run)){
     nox.truth = nox.smod[[measure]]
     perm = permute.mod[[measure]]
 
+    # fit.gamma = function(x){
+    #   mx = mean(x)
+    #   n = length(x)
+    #   ss = sum( (x - mx)^2 ) 
+    #   ahat = mx^2 / ss
+    #   thetahat = ss / (n * mx)
+    #   return(list(shape=ahat, scale= thetahat))
+    # }
+    # gperm = fit.gamma(perm)
+    fit.beta = function(x){
+      m = mean(x)
+      m2 = mean(x^2)
+      u = m * (m - m2) / (m2 - m^2)
+      v = (1 - m) * (m - m2) / (m2 - m^2)
+      return(list(shape1=u, shape2= v))
+    }    
+    gbeta = fit.beta(perm)
+
+    p = permute.mod$p
+    ### p includes intercept
+    n = permute.mod$n
+    df = permute.mod$df
+
+    rb = rbeta(10000, shape1= (p-1)/2, shape2= (n-p)/2)
+    arb = 1 - (1-rb) * (n - 1) / (n - p)
+
     xlim = c(min(truth, perm), max(truth, perm))
     hist(perm, xlim=xlim, breaks=30, xlab=
       paste0("Permutation ", measure), 
@@ -251,6 +291,13 @@ for (irun in seq_along(all.run)){
     abline(v= truth)
     abline(v=nox.truth, col="red")
   }
+
+
+  
+  outfile = file.path(outdir, 
+                      paste0(adder, "Permutation_Distribution.Rda"))  
+  save(permute.mod, file=outfile)
+  
 }
 dev.off()
 

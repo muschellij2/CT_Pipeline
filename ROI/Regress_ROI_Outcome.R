@@ -53,7 +53,7 @@ cn = c("With_Perc", "With_Clot", "Null",
 
 demog = read.csv(file=file.path(basedir, "Demog_NIHSS_Mask.csv"), 
 	stringsAsFactors=FALSE)
-demog$Base_ICH_10 = demog$Diagnostic_ICH /10
+demog$Base_ICH_10 = demog$Diagnostic_ICH / 10
 
 measures  = c("adj.r.squared", "r.squared", "sigma")
 reses = vector("list", length=length(measures))

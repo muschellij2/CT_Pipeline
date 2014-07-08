@@ -63,9 +63,9 @@ makeres = function(allres){
 	return(allres)
 }
 
-names(mni.list)[names(mni.list) == "Uncategorized"] = "Ventricles/WM"
-names(jhut1.list)[names(jhut1.list) == "Background"] = "Ventricles"
-names(jhut2.list)[names(jhut2.list) == "Background"] = "Ventricles"
+names(mni.list)[names(mni.list) == "Uncategorized"] = "CSF/WM"
+names(jhut1.list)[names(jhut1.list) == "Background"] = "CSF"
+names(jhut2.list)[names(jhut2.list) == "Background"] = "CSF"
 
 
 area_pct = function(img, ind.list, keepall) {

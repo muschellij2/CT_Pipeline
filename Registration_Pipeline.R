@@ -1,5 +1,6 @@
 rm(list=ls())
 library(cttools)
+library(fslr)
 options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
 
 setup <- function(id, study = "Registration"){
@@ -33,7 +34,7 @@ setup <- function(id, study = "Registration"){
 #progdir <- file.path(dirname(basedir), "programs")
   progdir <- file.path(rootdir, "programs")
   # source(file.path(progdir, "convert_DICOM.R"))
-  source(file.path(progdir, "fslhd.R"))
+  # source(file.path(progdir, "fslhd.R"))
 
   basedir <<- file.path(homedir, id)
 

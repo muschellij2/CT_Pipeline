@@ -25,7 +25,7 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 whichdir = "reoriented"
-outcome = "GCS"
+outcome = "NIHSS"
 adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
 	adder = ""
