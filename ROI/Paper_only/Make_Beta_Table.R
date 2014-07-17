@@ -84,8 +84,9 @@ cap2 = paste0("Adjusting for other covariates, increasing 10\\%",
             "statistically different.")
 cap = paste(cap, cap2 )
 
+
 rr = stargazer(nihss.res, gcs.res, type = "latex", 
-               title = cap,
+               title = cap, 
                t.auto=FALSE, p.auto=FALSE,
                ci= TRUE, omit.stat="all", 
                single.row = TRUE, star.char="", notes="",
@@ -98,7 +99,7 @@ rr = stargazer(nihss.res, gcs.res, type = "latex",
                dep.var.labels = c("\\textbf{NIHSS Score}", 
                                   "\\textbf{GCS Score}"),
                column.labels = rep(c("\\textbf{HPR Coverage}", 
-                                     "\\textbf{Reader-Location}"), 2),
+                                     "\\textbf{Reader-Based}"), 2),
                model.names = FALSE, model.numbers = FALSE, 
                digits = 1)
 rr = gsub("RRRRR", "\\", rr, fixed=TRUE)
@@ -108,7 +109,7 @@ empty.hline = grep("\\hline \\\\[-1.8ex]", rr, fixed=TRUE)
 l = length(empty.hline)
 empty.hline = empty.hline[c(1, (l-1):l)]
 rr = rr[-empty.hline]
-rr[5] = gsub("lcccc", "lcc|cc", rr[5])
+rr[5] = gsub("lcccc", "l@{}c@{}c|@{}c@{}c", rr[5])
 rr[7] = gsub("\\multicolumn{2}{c}{\\textbf{NIHSS Score}}", 
   "\\multicolumn{2}{c|}{\\textbf{NIHSS Score}}", rr[7], fixed=TRUE)
 writeLines(rr, con="Beta_Table.tex")
