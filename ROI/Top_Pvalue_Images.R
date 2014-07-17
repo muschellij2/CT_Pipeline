@@ -10,6 +10,7 @@ library(RColorBrewer)
 library(data.table)
 library(cttools)
 library(fslr)
+library(smallPDF)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -105,45 +106,57 @@ yord = y[order(y)]
 
 device = "png"
 
+
 lr_symm = function(img){
 	dimg = dim(img)
-	mid.slice = ceiling(dimg/2)[1]
 	max.slice = dimg[1]	
+	mid.slice = (max.slice+1)/2
 
 	w = which(img > 0, arr.ind=TRUE)
-  ## 20 - then 160, 90 - 20 + 90
-  ## if 160 then 90 - 160 + 90
-	ww[, 1] = 2 * mid.slice - ww[,1]
-	ww = ww[ ww[, 1] > 0 & ww[, 1] < max.slice, ]
-
-	img[ww] = 1
+  	## 20 - then 160, 90 - 20 + 90
+  	## if 160 then 90 - 160 + 90
+	w[, 1] = 2 * mid.slice - w[,1]
+	w = w[ w[, 1] > 0 & w[, 1] < max.slice, ]
+	img[w] = 1
 
 	img = (img > 0)*1
 	img = newnii(img)
 }
 
 
-nkeeps = c(30, 100, 500, 1000, 2000, 3000)
+nkeeps = c(30, 100, 500, 1000, 2000, 3000, c(0.05, .01, .001))
 
-for (pval in c(0.05, .01, .001)){
+# for (pval in c(0.05, .01, .001)){
 
-	nkeeps = c(nkeeps, sum(yord <= pval))
-}
+# 	nkeeps = c(nkeeps, sum(yord <= pval))
+# }
 
+nkeep = 1000
 
 for (nkeep in nkeeps){
+
+	orig = nkeep
+# nkeep = 3000
+	if (orig < 1){
+		nkeep = sum(yord <= orig)
+	}
+
+	rn = rrn[seq(nkeep)]
+
+
 	rn = rrn[seq(nkeep)]
 
 	outstub = file.path(outdir, 
-		paste0(adder, "Top_", nkeep, "_pvalues"))
+		paste0(adder, "Top_", orig, "_pvalues"))
 	fp = paste0(outstub, ".", device)
 
 	outimg = paste0(outstub, ".nii.gz")	
+	fp_symm = paste0(outstub, "_symm.", device)
 	outimg_symm = paste0(outstub, "_symm.nii.gz")	
 
 	if (!file.exists(fp) | !file.exists(outimg) | rerun |
-		!file.exists(outimg_symm)){
-		open.dev(fp)
+		!file.exists(outimg_symm) | !file.exists(fp_symm) ){
+		open_dev(fp)
 		res.p = temp
 		res.p[!is.na(res.p)] = NA
 		res.p[rn] = 1
@@ -154,7 +167,9 @@ for (nkeep in nkeeps){
 
 		# res.p[ rs > ncut ]  = 1-y
 		# cols = c("blue", "green", "yellow", "orange", "red", "white")
-		mask.overlay(temp, res.p, col.y="red", xyz= xyz, text=paste0("ROI for ", outcome, " score\n", "(V=", nkeep, ")"))
+		mask.overlay(temp, res.p, col.y="red", 
+			xyz= xyz, text=paste0("ROI for ", outcome, 
+				" score\n", "(V=", nkeep, ")"))
 		dev.off()
 
 		res.p[is.na(res.p)] = 0
@@ -163,7 +178,14 @@ for (nkeep in nkeeps){
 		writeNIfTI(res.p, file=outstub)
 
 		res.psymm = lr_symm(res.p)
-		writeNIfTI(res.p, file=paste0(outstub, "_symm"))
+		open_dev(fp_symm)
+
+		mask.overlay(temp, res.psymm, col.y="red", 
+			xyz= xyz, 
+			text=paste0("Symmetrized ROI for ", outcome, 
+				" score\n", "(V=", nkeep, ")"))
+		dev.off()		
+		writeNIfTI(res.psymm, file=paste0(outstub, "_symm"))
 	}
 }
 
@@ -179,6 +201,7 @@ load(file=atfile)
 
 
 lists = list(mni.list, jhut1.list, jhut2.list)
+names(lists) = c("MNI", "EVE_1", "EVE_2")
 
 sublists = list(jhut1.list, jhut2.list)
 
@@ -201,15 +224,43 @@ sublists = lapply(sublists, function(x) {
 	x
 })
 
+names(sublists) = c("EVE_1", "EVE_2")
+
 pop.pcts = sapply(sublists, function(indlist){
 	sapply(indlist, function(x) mean(mat[x, ]))
 })
 colnames(pop.pcts) = c("EVE_1", "EVE_2")
 
 
+col.lists = list(jhut1.list, jhut2.list)
+names(col.lists) = c("EVE_1", "EVE_2")
+
+col.lists = lapply(col.lists, function(x) {
+	area = names(x)
+	area = gsub("_left", "", area)
+	area = gsub("_right", "", area)
+	uarea = unique(area)
+	res = lapply(uarea, function(aname){
+		ind = which(area %in% aname)
+		xx = sort(unlist(x[ind]))
+		names(xx) = NULL
+		print(ind)
+		xx
+		# xx[ind]
+	})
+	names(res) = uarea
+	res
+})
+
+pop.colpcts = sapply(col.lists, function(indlist){
+	sapply(indlist, function(x) mean(mat[x, ]))
+})
+names(pop.colpcts) = c("EVE_1", "EVE_2")
+
+
 # allres = allres
-make.pvalimg = function(pvalimg){
-	pvalimg.tab = llply(lists, function(x) {
+make.pvalimg = function(pvalimg, runlist = lists){
+	pvalimg.tab = llply(runlist, function(x) {
 		x = area_pct(pvalimg, ind.list=x, keepall=TRUE)		
 		x$nvox = x$nvox/sum(x$nvox) * 100
 		x$roi_pct_any = x$roi_pct_any * 100
@@ -219,16 +270,38 @@ make.pvalimg = function(pvalimg){
 		x
 	}, .progress= "text")
 
-	names(pvalimg.tab) = c("MNI", "EVE_1", "EVE_2")
+	names(pvalimg.tab) = names(runlist)
 	return(pvalimg.tab)
 }
 
 
-for (nkeep in c(1000, 2000, 3000)){
+nkeep = 1000
 
+for (nkeep in c(0.05, .01, .001, 1000, 2000, 3000)){
+
+	orig = nkeep
 # nkeep = 3000
+	if (orig < 1){
+		nkeep = sum(yord <= orig)
+	}
 	rn = rrn[seq(nkeep)]
-	pval = yord[nkeep]
+
+	#### get indices for symmetrized version
+	res.p = temp
+	res.p[!is.na(res.p)] = NA
+	res.p[rn] = 1
+
+	res.p[is.na(res.p)] = 0
+	res.p = (res.p > 0)*1
+
+	res.psymm = lr_symm(res.p)
+	rn_symm = which(res.psymm > 0)
+
+	if (orig < 1){
+		pval = orig
+	} else {
+		pval = yord[nkeep]
+	}
 
 	ppcts = sapply(sublists, function(indlist){
 		sapply(indlist, function(x) {
@@ -238,6 +311,23 @@ for (nkeep in c(1000, 2000, 3000)){
 	})
 	colnames(ppcts) = c("EVE_1", "EVE_2")
 
+	col.ppcts = sapply(col.lists, function(indlist){
+		sapply(indlist, function(x) {
+			i = intersect(x, rn)
+			length(i)/length(x)
+		})		
+	})
+	names(col.ppcts) = c("EVE_1", "EVE_2")
+
+
+	ppcts_symm = sapply(sublists, function(indlist){
+		sapply(indlist, function(x) {
+			i = intersect(x, rn_symm)
+			length(i)/length(x)
+		})
+	})
+	colnames(ppcts_symm) = c("EVE_1", "EVE_2")
+
 
 	submat = mat[rn,]
 	wi = colSums(submat)
@@ -245,47 +335,59 @@ for (nkeep in c(1000, 2000, 3000)){
 	pvalimg = array(0, dim = dim(jhut1.img))
 	pvalimg[rn] = 1
 
-	pvalimg.tab = make.pvalimg(pvalimg)
+	pvalimg.tab = make.pvalimg(pvalimg, lists)
 
+	col.pvalimg.tab = make.pvalimg(pvalimg, col.lists)
 
+	pvalimg = array(0, dim = dim(jhut1.img))
+	pvalimg[rn_symm] = 1
+
+	pvalimg.tab_symm = make.pvalimg(pvalimg, lists)
+
+	submat_symm = mat[rn_symm,]
+	wi_symm = colSums(submat_symm)
 
 	outfile = file.path(outdir, 
-		paste0(adder, "Top_", nkeep, "_Pvalues_df.Rda"))
+		paste0(adder, "Top_", orig, "_Pvalues_df.Rda"))
 	save(submat, rs, rn, wi, nkeep, 
-		dist.mat, dice, pval, pvalimg.tab, ppcts, pop.pcts,
+		dist.mat, dice, pval, 
+		pvalimg.tab, pvalimg.tab_symm, col.pvalimg.tab, 
+		ppcts, pop.pcts, col.ppcts,
+		ppcts_symm,
+		wi_symm, submat_symm,
 		file=outfile)
 }
 
-for (pval in c(0.05, .01, .001)){
+# for (pval in c(0.05, .01, .001)){
 
-	# nkeep = 3000
-	nkeep = sum(yord <= pval)
-	rn = rrn[seq(nkeep)]
+# 	# nkeep = 3000
+# 	nkeep = sum(yord <= pval)
+# 	rn = rrn[seq(nkeep)]
 
-	ppcts = sapply(sublists, function(indlist){
-		sapply(indlist, function(x) {
-			i = intersect(x, rn)
-			length(i)/length(x)
-		})
-	})
-	colnames(ppcts) = c("EVE_1", "EVE_2")
-
-
-	submat = mat[rn,]
-	wi = colSums(submat)
-
-	pvalimg = array(0, dim = dim(jhut1.img))
-	pvalimg[rn] = 1
-
-	pvalimg.tab = make.pvalimg(pvalimg)
+# 	ppcts = sapply(sublists, function(indlist){
+# 		sapply(indlist, function(x) {
+# 			i = intersect(x, rn)
+# 			length(i)/length(x)
+# 		})
+# 	})
+# 	colnames(ppcts) = c("EVE_1", "EVE_2")
 
 
-	outfile = file.path(outdir, 
-		paste0(adder, "Top_", pval, "_Pvalues_df.Rda"))
-	save(submat, rs, rn, wi, pval, nkeep,
-		dist.mat, dice, pvalimg.tab, ppcts, pop.pcts,
-		file=outfile)
-}
+# 	submat = mat[rn,]
+# 	wi = colSums(submat)
+
+# 	pvalimg = array(0, dim = dim(jhut1.img))
+# 	pvalimg[rn] = 1
+
+# 	pvalimg.tab = make.pvalimg(pvalimg)
+
+
+# 	outfile = file.path(outdir, 
+# 		paste0(adder, "Top_", pval, "_Pvalues_df.Rda"))
+# 	save(submat, rs, rn, wi, pval, nkeep,
+# 		dist.mat, dice, pvalimg.tab, ppcts, pop.pcts,
+# 		file=outfile)
+# }
 
 
 

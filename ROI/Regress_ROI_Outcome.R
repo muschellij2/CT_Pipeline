@@ -12,6 +12,8 @@ library(cttools)
 library(fslr)
 library(ggplot2)
 library(grid)
+library(lmtest)
+
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -58,7 +60,7 @@ demog$Base_ICH_10 = demog$Diagnostic_ICH / 10
 measures  = c("adj.r.squared", "r.squared", "sigma")
 reses = vector("list", length=length(measures))
 names(reses) = measures
-epics = aics = reses 
+tests = epics = aics = reses 
 
 if (outcome == "GCS") {
 	demog$Y = demog$Enrollment_GCS_Add
@@ -75,150 +77,191 @@ demog$LOC = demog$Clot_Location_RC
 
 vox.nkeeps = rep(NA, length(nkeeps))
 mods = list()
-for (meas in measures){
+# irun = ""
+meas = measures[1]
+all.res = vector(length=2, mode="list")
+runs = c("_Symmetrized", "")
+irun = 1
+gruns = gsub("_", "", runs)
+names(all.res) = gruns
 
-	res = matrix(NA, ncol = length(cn), nrow=length(nkeeps))
-	colnames(res) = cn
-	# rownames(res) = nkeeps
+all.test = all.epic = all.aic = all.res 
 
-	epic = aic = res
+for (irun in seq_along(runs)) {
+	run = runs[irun]
+	iirun = gsub("_", "", run)
+	for (meas in measures){
 
-	ikeep = 1
+		res = matrix(NA, ncol = length(cn), nrow=length(nkeeps))
+		colnames(res) = cn
+		# rownames(res) = nkeeps
 
-	pdfname = file.path(outdir, 
-		paste0("Regress_ROI_", outcome, "_Plots.pdf"))
-	pdf(pdfname)
-	for (ikeep in seq_along(nkeeps)){
-		
-		nkeep = nkeeps[ikeep]
-		# nkeep = .001
-	# function(nkeep){
-		outfile = file.path(outdir, 
-			paste0(adder, "Top_", nkeep, "_Pvalues_df.Rda"))
-		load(file=outfile)
-		vox.nkeeps[ikeep] = nkeep
+		epic = aic = res
 
-		perc = colMeans(submat)
-		check.ids = id_to_pname(get.id(names(perc)))
-		stopifnot(all(demog$patientName == check.ids))
+		ikeep = 1
 
-		demog$perc_ROI = perc * 100
-		### divide by 10 for 10% increases
-		demog$perc_ROI  = demog$perc_ROI / 10 
+		pdfname = file.path(outdir, 
+			paste0("Regress_ROI_", outcome, "_Plots", run, ".pdf"))
+		pdf(pdfname)
+			for (ikeep in seq_along(nkeeps)){
+			
+			nkeep = nkeeps[ikeep]
+			# nkeep = .001
+		# function(nkeep){
+			outfile = file.path(outdir, 
+				paste0(adder, "Top_", nkeep, "_Pvalues_df.Rda"))
+			load(file=outfile)
+			vox.nkeeps[ikeep] = nkeep
 
-		g = ggplot(aes(y=Y, x=perc_ROI), data=demog) + 
-			ggtitle(paste0("Number of Voxels: ", nkeep)) +
-			geom_point() + geom_smooth() + 
-			geom_smooth(se=FALSE, method="lm", col="red") +
-			xlab("Percent HPR Engagement") + 
-			ylab(outcome)
-		print(g)
+			if (run == "_Symmetrized"){
+				submat = submat_symm
+			} else if (run == ""){
+				submat = submat
+			} else {
+				stop("Don't know which run ")
+			}
+					
+			perc = colMeans(submat)
+			check.ids = id_to_pname(get.id(names(perc)))
+			stopifnot(all(demog$patientName == check.ids))
 
-		if ( ((outcome == "GCS" & nkeep == 1000) |
-			(outcome == "NIHSS" & nkeep == 19047))
-			& meas == measures[1]
-			){
-			pngname = file.path(outdir, 
-				paste0("Regress_ROI_", outcome, "_Best_Model.png"))
-			png(pngname, res = 600, height=7, width=7, units = "in")
-				g = ggplot(aes(y=Y, x=perc_ROI), data=demog) + 
-					ggtitle(paste0(outcome, " Score-HPR Coverage Relationship")) +
-					geom_point() + geom_smooth(se=FALSE,
-						aes(colour="LOESS"), size=1.5) + 
-					geom_smooth(se=FALSE, method="lm", 
-						aes(colour="Linear Model"), size=1.5) +
-					xlab(paste0("Percent HPR Engagement ", 
-						"with Best Model Fit (V=", nkeep, ")")) + 
-					ylab(paste0(outcome, " Score"))
-				g = g + scale_colour_manual("", 
-					values = c("LOESS" = "blue", "Linear Model" = "red"))
-				g = g + guides(colour = guide_legend(override.aes = list(size=2)))
-				g = g + theme(axis.title = element_text(size = rel(1.3)),
-					axis.text = element_text(size=rel(1.1)),
-					plot.title = element_text(size=rel(1.5))
-					)
+			demog$perc_ROI = perc * 100
+			### divide by 10 for 10% increases
+			demog$perc_ROI  = demog$perc_ROI / 10 
 
-				g = g+ theme(legend.position=c(.5, .075), 
-					legend.background = element_rect(fill = "transparent"),
-					legend.key.size = unit(1, "cm"),
-					legend.text = element_text(size = 20),
-					legend.key = element_rect(fill = "transparent", 
-						colour = "transparent"))
-				print(g)
-			dev.off()
+			g = ggplot(aes(y=Y, x=perc_ROI), data=demog) + 
+				ggtitle(paste0("Number of Voxels: ", nkeep, " ",
+					iirun)) +
+				geom_point() + geom_smooth() + 
+				geom_smooth(se=FALSE, method="lm", col="red") +
+				xlab("Percent HPR Engagement") + 
+				ylab(outcome)
+			print(g)
+
+			if ( ((outcome == "GCS" & nkeep == 1000) |
+				(outcome == "NIHSS" & nkeep == 19053))
+				& meas == measures[1]
+				){
+				pngname = file.path(outdir, 
+					paste0("Regress_ROI_", outcome, "_Best_Model", 
+						run, ".png"))
+				png(pngname, res = 600, height=7, width=7, units = "in")
+					g = ggplot(aes(y=Y, x=perc_ROI), data=demog) + 
+						ggtitle(paste0(outcome, " Score-HPR Coverage Relationship ", 
+							iirun)) +
+						geom_point() + geom_smooth(se=FALSE,
+							aes(colour="LOESS"), size=1.5) + 
+						geom_smooth(se=FALSE, method="lm", 
+							aes(colour="Linear Model"), size=1.5) +
+						xlab(paste0(iirun, " Percent HPR Engagement ", 
+							"with Best Model Fit (V=", nkeep, ")")) + 
+						ylab(paste0(outcome, " Score"))
+					g = g + scale_colour_manual("", 
+						values = c("LOESS" = "blue", "Linear Model" = "red"))
+					g = g + guides(colour = guide_legend(override.aes = list(size=2)))
+					g = g + theme(axis.title = element_text(size = rel(1.3)),
+						axis.text = element_text(size=rel(1.1)),
+						plot.title = element_text(size=rel(1.5))
+						)
+
+					g = g+ theme(legend.position=c(.5, .075), 
+						legend.background = element_rect(fill = "transparent"),
+						legend.key.size = unit(1, "cm"),
+						legend.text = element_text(size = 20),
+						legend.key = element_rect(fill = "transparent", 
+							colour = "transparent"))
+					print(g)
+				dev.off()
+			}
+
+			mod = lm(Y ~ Age + Sex + 
+				Base_ICH_10 + perc_ROI, data=demog)
+			mods[[ikeep]] = mod
+			smod = summary(mod)
+			nmod = lm(Y ~ Age + Sex + 
+				Base_ICH_10, data=demog)
+			snmod = summary(nmod)
+			keep.cmod = cmod = lm(Y ~ Age + Sex + 
+				Base_ICH_10 + LOC, data=demog)
+			scmod = summary(cmod)
+
+			ct = coxtest(mod, keep.cmod)
+			jt = jtest(mod, keep.cmod)
+			test = list(coxtest=ct, jtest = jt)
+			anova(mod, nmod)
+			res[ikeep, "With_Perc"] = smod[[meas]]
+			res[ikeep, "With_Clot"] = scmod[[meas]]
+			res[ikeep, "Null"] = snmod[[meas]] 
+			res[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
+
+			aic[ikeep, "With_Perc"] = AIC(mod)
+			aic[ikeep, "With_Clot"] = AIC(cmod)
+			aic[ikeep, "Null"] = AIC(nmod)
+			aic[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
+	  
+		  	epic[ikeep, "With_Perc"] = AIC(mod, k=4)
+		  	epic[ikeep, "With_Clot"] = AIC(cmod, k=4)
+		  	epic[ikeep, "Null"] = AIC(nmod, k=4)  
+			epic[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
+			#################################
+			# Run model without sex
+			#################################
+
+			mod = lm(Y ~ perc_ROI + Age  + 
+				Base_ICH_10, data=demog)
+			smod = summary(mod)
+			nmod = lm(Y ~ Age + 
+				Base_ICH_10, data=demog)
+			snmod = summary(nmod)
+			cmod = lm(Y ~ Age + 
+				Base_ICH_10 + LOC, data=demog)
+			scmod = summary(cmod)
+
+
+			anova(mod, nmod)
+			res[ikeep, "Nosex_With_Perc"] = smod[[meas]]
+			res[ikeep, "Nosex_With_Clot"] = scmod[[meas]]
+			res[ikeep, "Nosex_Null"] = snmod[[meas]] 
+
+			aic[ikeep, "Nosex_With_Perc"] = AIC(mod)
+			aic[ikeep, "Nosex_With_Clot"] = AIC(cmod)
+			aic[ikeep, "Nosex_Null"] = AIC(nmod)
+			
+		  	epic[ikeep, "Nosex_With_Perc"] = AIC(mod, k=4)
+		  	epic[ikeep, "Nosex_With_Clot"] = AIC(cmod, k=4)
+		  	epic[ikeep, "Nosex_Null"] = AIC(nmod, k=4)  
+	  
+			aic[ikeep, "nkeep"] = nkeep
+		  	epic[ikeep, "nkeep"] = nkeep
+		  	res[ikeep, "nkeep"] = nkeep
+
+			aic[ikeep, "pval"]= pval
+		  	epic[ikeep, "pval"]= pval
+	    	res[ikeep, "pval"] = pval
 		}
-
-		mod = lm(Y ~ Age + Sex + 
-			Base_ICH_10 + perc_ROI, data=demog)
-		mods[[ikeep]] = mod
-		smod = summary(mod)
-		nmod = lm(Y ~ Age + Sex + 
-			Base_ICH_10, data=demog)
-		snmod = summary(nmod)
-		keep.cmod = cmod = lm(Y ~ Age + Sex + 
-			Base_ICH_10 + LOC, data=demog)
-		scmod = summary(cmod)
-
-
-		anova(mod, nmod)
-		res[ikeep, "With_Perc"] = smod[[meas]]
-		res[ikeep, "With_Clot"] = scmod[[meas]]
-		res[ikeep, "Null"] = snmod[[meas]] 
-		res[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
-
-		aic[ikeep, "With_Perc"] = AIC(mod)
-		aic[ikeep, "With_Clot"] = AIC(cmod)
-		aic[ikeep, "Null"] = AIC(nmod)
-		aic[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
-  
-	  	epic[ikeep, "With_Perc"] = AIC(mod, k=4)
-	  	epic[ikeep, "With_Clot"] = AIC(cmod, k=4)
-	  	epic[ikeep, "Null"] = AIC(nmod, k=4)  
-		epic[ikeep, "N_Gr0"] = sum(demog$perc_ROI > 0)
-		#################################
-		# Run model without sex
-		#################################
-
-		mod = lm(Y ~ perc_ROI + Age  + 
-			Base_ICH_10, data=demog)
-		smod = summary(mod)
-		nmod = lm(Y ~ Age + 
-			Base_ICH_10, data=demog)
-		snmod = summary(nmod)
-		cmod = lm(Y ~ Age + 
-			Base_ICH_10 + LOC, data=demog)
-		scmod = summary(cmod)
-
-
-		anova(mod, nmod)
-		res[ikeep, "Nosex_With_Perc"] = smod[[meas]]
-		res[ikeep, "Nosex_With_Clot"] = scmod[[meas]]
-		res[ikeep, "Nosex_Null"] = snmod[[meas]] 
-
-		aic[ikeep, "Nosex_With_Perc"] = AIC(mod)
-		aic[ikeep, "Nosex_With_Clot"] = AIC(cmod)
-		aic[ikeep, "Nosex_Null"] = AIC(nmod)
-		
-	  	epic[ikeep, "Nosex_With_Perc"] = AIC(mod, k=4)
-	  	epic[ikeep, "Nosex_With_Clot"] = AIC(cmod, k=4)
-	  	epic[ikeep, "Nosex_Null"] = AIC(nmod, k=4)  
-  
-		aic[ikeep, "nkeep"] = nkeep
-	  	epic[ikeep, "nkeep"] = nkeep
-	  	res[ikeep, "nkeep"] = nkeep
-
-		aic[ikeep, "pval"]= pval
-	  	epic[ikeep, "pval"]= pval
-    	res[ikeep, "pval"] = pval		
+		dev.off()
+		reses[[meas]] = res
+		tests[[meas]] = test
+		aics[[meas]] = aic
+		epics[[meas]] = epic
 	}
-	dev.off()
-	reses[[meas]] = res
-	aics[[meas]] = aic
-	epics[[meas]] = epic
+	all.epic[[irun]] = epics
+	all.aic[[irun]] = aics
+	all.res[[irun]] = reses
+	all.test[[irun]] = tests
 }
+
+ind = which(runs == "")
+
+aics = all.aic[[ind]]
+epics = all.epic[[ind]]
+reses = all.res[[ind]]
+tests = all.test[[ind]]
+
 
 aics = aics[[1]]
 epics = epics[[1]]
+tests = tests[[1]]
 
 loc.tab = sort(table(demog$LOC))
 loc.ptab = round(prop.table(loc.tab)*100, 1)
@@ -227,6 +270,7 @@ loc.levs = names(loc.tab)
 
 save(reses, measures, nkeeps, aics, epics, vox.nkeeps,
 	loc.levs, loc.tab, loc.ptab, mods, keep.cmod,
+	all.res, all.aic, all.epic, tests,
 	file=file.path(outdir, 
-		paste0("Regress_ROI_", outcome, "_Results.Rda"))
+		paste0("Regress_ROI_", outcome, "_Results_with_Tests.Rda"))
 	)

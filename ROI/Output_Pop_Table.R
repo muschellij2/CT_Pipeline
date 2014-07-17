@@ -86,10 +86,38 @@ area_pct = function(img, ind.list, keepall) {
 
 # view.png(spm1_t1_hot_overlay.png)
 lists = list(mni.list, jhut1.list, jhut2.list)
+names(lists) = c("MNI", "EVE_1", "EVE_2")
+col.lists = list(jhut1.list, jhut2.list)
+names(col.lists) = c("EVE_1", "EVE_2")
+
+col.lists = lapply(col.lists, function(x) {
+	area = names(x)
+	area = gsub("_left", "", area)
+	area = gsub("_right", "", area)
+	uarea = unique(area)
+	res = lapply(uarea, function(aname){
+		ind = which(area %in% aname)
+		xx = sort(unlist(x[ind]))
+		names(xx) = NULL
+		print(ind)
+		xx
+		# xx[ind]
+	})
+	names(res) = uarea
+	res
+})
+
+
 pop.tab = llply(lists, function(x) {
 	tt = area_pct(popimg, ind.list=x, keepall=TRUE)
 }, .progress= "text")
 sums = sapply(pop.tab, function(x) sum(x$nvox))
+stopifnot(all(diff(sums) == 0))
+
+col.pop.tab = llply(col.lists, function(x) {
+	tt = area_pct(popimg, ind.list=x, keepall=TRUE)
+}, .progress= "text")
+sums = sapply(col.pop.tab, function(x) sum(x$nvox))
 stopifnot(all(diff(sums) == 0))
 
 ##### scaling them to %
@@ -103,6 +131,18 @@ pop.tab = llply(pop.tab, function(x) {
 }, .progress= "text")
 
 nm = names(pop.tab) = c("MNI", "EVE_1", "EVE_2")
+
+##### scaling them to %
+col.pop.tab = llply(col.pop.tab, function(x) {
+	x$nvox = x$nvox/sum(x$nvox) * 100
+	x$roi_pct_any = x$roi_pct_any * 100
+	x$roi_mean_pct = x$roi_mean_pct * 100
+	x = x[order(x$nvox, decreasing=TRUE), , drop=FALSE]
+	x$area = rownames(x)
+	x
+}, .progress= "text")
+
+col.nm = names(col.pop.tab) = c("EVE_1", "EVE_2")
 
 dfs = tops = xtabs = 
 	vector(mode = "list", length=length(pop.tab))
@@ -128,5 +168,31 @@ for (itab in seq(pop.tab)){
 names(dfs) = names(tops) = names(xtabs) = nm
 id = "Population"
 
-save(dfs, xtabs, tops, 
+
+col.dfs = col.tops = col.xtabs = 
+	vector(mode = "list", length=length(col.pop.tab))
+for (itab in seq(col.pop.tab)){
+	df = allres = col.pop.tab[[itab]]
+	df$nvox = round(df$nvox, 2)
+	df$roi_mean_pct = round(df$roi_mean_pct, 2)
+	df$roi_pct_any = round(df$roi_pct_any, 2)
+	df = df[df$nvox != 0, , drop=FALSE]
+	top.area = rownames(df)[1]
+	xdf = df
+	df = df[, c("area", "nvox")]		
+
+	colnames(df) = c("Area", nm[itab])
+	col.xtabs[[itab]] = xtable(df)
+	col.tops[[itab]] = top.area 
+	xdf = xdf[, c("area", "nvox", "roi_pct_any", "roi_mean_pct")]		
+	colnames(xdf) = c("Area", nm[itab], 
+		paste0(nm[itab], "_ROI_Pct_Any"),
+		paste0(nm[itab], "_ROI_Pct"))
+	col.dfs[[itab]] = xdf
+}
+names(col.dfs) = names(col.tops) = names(col.xtabs) = col.nm
+id = "Population"
+
+
+save(dfs, xtabs, tops, col.dfs, col.xtabs, col.tops, 
 	file=file.path(outdir, "Population_Table.Rda"))
