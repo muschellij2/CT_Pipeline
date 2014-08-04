@@ -1,6 +1,7 @@
 rm(list=ls())
 library(cttools)
 library(fslr)
+library(plyr)
 options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
 
 setup <- function(id, study = "Registration"){
@@ -139,7 +140,7 @@ if (regantry){
 
 setup(id, study=study)
 
-for (iid in seq_along(ids)){
+# for (iid in seq_along(ids)){
   
   id <- ids[iid]
   print(id)
@@ -201,7 +202,7 @@ for (iid in seq_along(ids)){
     }
   } ## end of if convert
 
-}
+# }
 
 
 #### skull stripping
@@ -212,20 +213,62 @@ if (!ROIformat){
 
       if (runall) {
 
-        system.time(Skull_Strip(basedir, CTonly=TRUE, 
-          opts="-f 0.1 -b", 
-          verbose=verbose))
+          # system.time(Skull_Strip(basedir, CTonly=TRUE, 
+          #   opts="-f 0.1 -b", 
+          #   verbose=verbose))
 
 
-        system.time(Skull_Strip(basedir, CTonly=TRUE, 
-          opts="-f 0.01 -b", 
-          verbose=verbose))
+          # system.time(Skull_Strip(basedir, CTonly=TRUE, 
+          #   opts="-f 0.01 -b", 
+          #   verbose=verbose))
 
-        system.time(Skull_Strip(basedir, CTonly=TRUE, 
-          opts="-f 0.35 -b", 
-          verbose=verbose))
+          # system.time(Skull_Strip(basedir, CTonly=TRUE, 
+          #   opts="-f 0.35 -b", 
+          #   verbose=verbose))
 
+        imgs = list.files(basedir, pattern = "\\.nii", recursive=FALSE,
+            full.names=TRUE)
+        iimg = 1
+        
+        scen = expand.grid(int=c("0.01", "0.1", "0.35"),
+                           presmooth=c(TRUE, FALSE))
+        rownames(scen)= NULL
 
+        mid.folder = function(x, folname = ""){
+          d = dirname(x)
+          b = basename(x)
+          file.path(d, folname, b)
+        }
+
+        for (iimg in seq_along(imgs)){
+          img = imgs[iimg]
+
+          ofile = nii.stub(img)
+          ofile = mid.folder(ofile, "Skull_Stripped")
+          ofile = paste0(ofile, "_SS")
+          
+          iscen = 4
+          
+          for (iscen in seq(nrow(scen))){
+            
+            int = scen$int[iscen]
+            presmooth = scen$presmooth[iscen]
+            
+            app = "_nopresmooth"
+            if (presmooth) app = ""
+
+            
+            outfile = paste0(ofile, "_", int, app)
+            x = CT_Skull_Strip(img = img, 
+                               outfile = outfile, 
+                               retimg=FALSE, verbose=TRUE, 
+                               opts=paste0("-f ", int, " -v"),
+                               inskull_mesh = FALSE,
+                               presmooth=presmooth)   
+            
+
+          }
+        }
       } else {
 
         outdir <- file.path(basedir, "Skull_Stripped")

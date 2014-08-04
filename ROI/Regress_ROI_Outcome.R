@@ -87,6 +87,14 @@ names(all.res) = gruns
 
 all.test = all.epic = all.aic = all.res 
 
+if (outcome == "GCS"){
+	nkeeps = 1000
+}
+if (outcome == "NIHSS"){
+	nkeeps = 19047
+}
+
+
 for (irun in seq_along(runs)) {
 	run = runs[irun]
 	iirun = gsub("_", "", run)
@@ -139,13 +147,40 @@ for (irun in seq_along(runs)) {
 			print(g)
 
 			if ( ((outcome == "GCS" & nkeep == 1000) |
-				(outcome == "NIHSS" & nkeep == 19053))
+				(outcome == "NIHSS" & nkeep == 19047))
 				& meas == measures[1]
 				){
+				
 				pngname = file.path(outdir, 
 					paste0("Regress_ROI_", outcome, "_Best_Model", 
 						run, ".png"))
-				png(pngname, res = 600, height=7, width=7, units = "in")
+				png(pngname, res = 600, 
+					height=7, width=7, units = "in")
+					
+					if (outcome == "GCS") {
+						addtext = "D"
+						text.x = 7.5
+						text.y = 5
+						if (run == "_Symmetrized"){
+							text.x = 5
+						}
+					}
+					if (outcome == "NIHSS") {
+						addtext = "C"
+						text.x = 7
+						text.y = 10
+						if (run == "_Symmetrized"){
+							text.x = 5
+						}						
+					}
+					text.data = data.frame(x=text.x, y=text.y, 
+						label=addtext)
+
+					xxlab = paste0(iirun, " Percent HPR Engagement ", 
+							"with Best Model Fit ")
+					if (run == "") {
+						xxlab = paste0(xxlab, "(V=", nkeep, ")")
+					}
 					g = ggplot(aes(y=Y, x=perc_ROI), data=demog) + 
 						ggtitle(paste0(outcome, " Score-HPR Coverage Relationship ", 
 							iirun)) +
@@ -153,8 +188,7 @@ for (irun in seq_along(runs)) {
 							aes(colour="LOESS"), size=1.5) + 
 						geom_smooth(se=FALSE, method="lm", 
 							aes(colour="Linear Model"), size=1.5) +
-						xlab(paste0(iirun, " Percent HPR Engagement ", 
-							"with Best Model Fit (V=", nkeep, ")")) + 
+						xlab(xxlab) + 
 						ylab(paste0(outcome, " Score"))
 					g = g + scale_colour_manual("", 
 						values = c("LOESS" = "blue", "Linear Model" = "red"))
@@ -170,9 +204,16 @@ for (irun in seq_along(runs)) {
 						legend.text = element_text(size = 20),
 						legend.key = element_rect(fill = "transparent", 
 							colour = "transparent"))
+					g = g + geom_text(data=text.data, 
+						aes(x=x, y=y, label=label), size=20)
+
 					print(g)
 				dev.off()
 			}
+# 		dev.off()
+# 		}
+# 	}
+# }
 
 			mod = lm(Y ~ Age + Sex + 
 				Base_ICH_10 + perc_ROI, data=demog)

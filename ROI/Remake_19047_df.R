@@ -32,6 +32,7 @@ adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
 	adder = ""
 }
+stopifnot(outcome == "NIHSS")
 
 
 rerun = FALSE
@@ -124,15 +125,13 @@ lr_symm = function(img){
 }
 
 
-nkeeps = c(30, 100, 500, 1000, 2000, 3000, c(0.05, .01, .001))
-
 # for (pval in c(0.05, .01, .001)){
 
 # 	nkeeps = c(nkeeps, sum(yord <= pval))
 # }
 
-nkeep = 1000
-
+nkeeps = 19047
+nkeep = nkeeps[1]
 for (nkeep in nkeeps){
 
 	orig = nkeep
@@ -275,9 +274,7 @@ make.pvalimg = function(pvalimg, runlist = lists){
 }
 
 
-nkeep = 1000
-
-for (nkeep in c(0.05, .01, .001, 1000, 2000, 3000)){
+for (nkeep in nkeeps){
 
 	orig = nkeep
 # nkeep = 3000
@@ -357,41 +354,3 @@ for (nkeep in c(0.05, .01, .001, 1000, 2000, 3000)){
 		wi_symm, submat_symm,
 		file=outfile)
 }
-
-# for (pval in c(0.05, .01, .001)){
-
-# 	# nkeep = 3000
-# 	nkeep = sum(yord <= pval)
-# 	rn = rrn[seq(nkeep)]
-
-# 	ppcts = sapply(sublists, function(indlist){
-# 		sapply(indlist, function(x) {
-# 			i = intersect(x, rn)
-# 			length(i)/length(x)
-# 		})
-# 	})
-# 	colnames(ppcts) = c("EVE_1", "EVE_2")
-
-
-# 	submat = mat[rn,]
-# 	wi = colSums(submat)
-
-# 	pvalimg = array(0, dim = dim(jhut1.img))
-# 	pvalimg[rn] = 1
-
-# 	pvalimg.tab = make.pvalimg(pvalimg)
-
-
-# 	outfile = file.path(outdir, 
-# 		paste0(adder, "Top_", pval, "_Pvalues_df.Rda"))
-# 	save(submat, rs, rn, wi, pval, nkeep,
-# 		dist.mat, dice, pvalimg.tab, ppcts, pop.pcts,
-# 		file=outfile)
-# }
-
-
-
-
-# Top 2000 %
-# Top 3000 %
-# 0.05 0.01

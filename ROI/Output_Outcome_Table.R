@@ -36,8 +36,8 @@ area_pct = function(img, ind.list, keepall) {
   ## cs is sum of indices of overlap
   cs.raw = data.frame(nvox=raw.mat, roi_pct_any = any.mat,
   	roi_mean_pct = mn.mat) 
-  if (!keepall) cs.raw = cs.raw[cs.raw != 0, , drop=FALSE]
   rownames(cs.raw) = names(ind.list)
+  if (!keepall) cs.raw = cs.raw[rowSums(cs.raw) != 0, , drop=FALSE]
   return(cs.raw)
 }
 
