@@ -179,7 +179,6 @@ run_ctnorm <- function(rawfile, roifile=NULL,
   ### gantry tilt correction - make new folder
   ### ranem old folder - zip it and then run matlab script
   rawfile <- path.expand(rawfile)
-  roifile <- path.expand(roifile)
 
   spmdir = path.expand(spmdir)
 
@@ -205,6 +204,8 @@ run_ctnorm <- function(rawfile, roifile=NULL,
     cmd <- paste(cmd, 
       "job.matlabbatch{1}.spm.tools.MRI.CTnorm.brainmaskct = 0;") 
   }
+  roifile <- path.expand(roifile)
+  
   cmd <- paste(cmd, sprintf(
     "job.matlabbatch{1}.spm.tools.MRI.CTnorm.ctles = {'%s,1'};", 
     roifile))    

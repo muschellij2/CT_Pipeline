@@ -24,6 +24,7 @@ outdir = file.path(basedir, "results")
 
 whichdir = "reoriented"
 
+
 outfile = file.path(atlasdir, 
   paste0(whichdir, "_All_Atlas_ROI_Overlap_Measures.Rda"))
 
@@ -53,6 +54,50 @@ demog = demog[ demog$patientName %in% uid, ]
 dd = demog[ order(demog$patientName), ]
 dd = dd[, c("patientName", "Clot_Location_RC")]
 colnames(dd) = c("id", "clot_location")
+
+
+
+loadfile = file.path(atlasdir, "All_FSL_Atlas_Labels.Rda")
+load(loadfile)
+
+jhut1.col.df = jhut1.nolr.df
+jhut1.col.df$Orig = jhut1.col.df$Label
+jhut1.col.df$Label = tolower(jhut1.col.df$Label)
+jhut1.col.df$Label = gsub("^(posterior|superior|inferior|anterior)_", 
+	"", jhut1.col.df$Label)
+	jhut1.col.df$Label = gsub("^(middle|lateral)_", 
+	"", jhut1.col.df$Label)
+jhut1.col.df$Location = NA
+jhut1.col.df$Location[ grepl( "thalam",  jhut1.col.df$Label)] = 
+	"Thalamus"
+jhut1.col.df$Location[ grepl( "puta",  jhut1.col.df$Label)] = 
+	"Putamen"
+jhut1.col.df$Location[ grepl( "obus",  jhut1.col.df$Label)] = 
+	"Globus Pallidus"
+
+jhut1.col.df$Location[ grepl( "occipital|temporal",  jhut1.col.df$Label)] = 
+	"Lobar"	
+jhut1.col.df$Location[ grepl( "occipital",  jhut1.col.df$Label)] = 
+	"Lobar"		
+jhut1.col.df$Location[ grepl( "frontal_gyrus",  jhut1.col.df$Label)] = 
+	"Lobar"		
+jhut1.col.df$Location[ grepl( "fronto-orbital",  jhut1.col.df$Label)] = 
+	"Lobar"		
+jhut1.col.df$Location[ grepl( "frontal_wm",  jhut1.col.df$Label)] = 
+	"Lobar"			
+jhut1.col.df$Location[ grepl( "parietal_wm",  jhut1.col.df$Label)] = 
+	"Lobar"			
+
+jhut1.col.df$Location[ grepl( "cerebel",  jhut1.col.df$Label)] = 
+	"Cerebellum"	
+
+jhut1.col.df$Location[ grepl( "midbrain|pons|medulla",  jhut1.col.df$Label)] = 
+	"Brain Stem"		
+
+jhut1.col.df[ is.na(jhut1.col.df$Location),]
+
+
+
 
 no.uncat = TRUE
 for (no.uncat in c(TRUE, FALSE)){

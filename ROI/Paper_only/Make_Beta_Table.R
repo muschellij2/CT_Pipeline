@@ -83,10 +83,12 @@ cap2 = paste0("Adjusting for other covariates, increasing 10\\%",
              " have lower estimated GCS scores, but none were ",
             "statistically different.")
 cap = paste(cap, cap2 )
-
+fullcap = cap
+fullcap = NULL
+fullcap = "Severity Score Regression Models for HPR-Based and Reader-Classified Location"
 
 rr = stargazer(nihss.res, gcs.res, type = "latex", 
-               title = cap, 
+               title = fullcap, 
                t.auto=FALSE, p.auto=FALSE,
                ci= TRUE, omit.stat="all", 
                single.row = TRUE, star.char="", notes="",
@@ -96,10 +98,10 @@ rr = stargazer(nihss.res, gcs.res, type = "latex",
                dep.var.caption = "", 
                label = "f:beta",
                omit.table.layout = "n",
-               dep.var.labels = c("\\textbf{NIHSS Score}", 
-                                  "\\textbf{GCS Score}"),
-               column.labels = rep(c("\\textbf{HPR Coverage}", 
-                                     "\\textbf{Reader-Based}"), 2),
+               dep.var.labels = c("NIHSS Score", 
+                                  "GCS Score"),
+               column.labels = rep(c("HPR Coverage", 
+                                     "Reader-Based"), 2),
                model.names = FALSE, model.numbers = FALSE, 
                digits = 1)
 rr = gsub("RRRRR", "\\", rr, fixed=TRUE)
@@ -110,7 +112,7 @@ l = length(empty.hline)
 empty.hline = empty.hline[c(1, (l-1):l)]
 rr = rr[-empty.hline]
 rr[5] = gsub("lcccc", "l@{}c@{}c|@{}c@{}c", rr[5])
-rr[7] = gsub("\\multicolumn{2}{c}{\\textbf{NIHSS Score}}", 
-  "\\multicolumn{2}{c|}{\\textbf{NIHSS Score}}", rr[7], fixed=TRUE)
+rr[7] = gsub("\\multicolumn{2}{c}{NIHSS Score}", 
+  "\\multicolumn{2}{c|}{NIHSS Score}", rr[7], fixed=TRUE)
 writeLines(rr, con="Beta_Table.tex")
 # }

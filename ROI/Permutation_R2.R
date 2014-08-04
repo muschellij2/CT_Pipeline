@@ -26,7 +26,7 @@ atlasdir = file.path(tempdir, "atlases")
 
 
 whichdir = "reoriented"
-outcome = "NIHSS"
+outcome = "GCS"
 adder = paste0(outcome, "_")
 if (outcome == "NIHSS"){
   adder = ""
@@ -81,7 +81,7 @@ outfile = file.path(outdir, "Voxel_Matrix.Rda")
 load( file=outfile )
 
 
-B = 1000
+B = 10000
 Y = sapply(seq(B), function(x){
   sample(demog$Y)
 })
@@ -113,6 +113,7 @@ mytime = system.time({
   mods = fast_lm(Y, X, Z = NULL, spot.check = TRUE, ncheck = 10)
 })
 
+mods$AIC = extractAIC(mods)
 
 top.ords = c(1000, 2000, 3000)
 pvals = c(0.05, .01, .001)
@@ -143,17 +144,27 @@ l.pcov = llply(under.pval, function(ord) {
 
 names(l.pcov) = pvals
 
-
-
-l.ord = llply(top.ords, function(top.ord) {
-  alply(mods$p.val, .margin=2, function(x){
+l.ords = alply(mods$p.val, .margin=2, function(x){
     ord = order(x)
-    l = which(ord <= top.ord)
+    l = llply(top.ords, function(top.ord) {
+      l = which(ord <= top.ord)
+    })
+    names(l) = top.ords
     # print(length(l))
     l
 }, .progress= "text")
+
+l.ord = llply(top.ords, function(top.ord){
+  mat = llply(l.ords, function(x){
+    x[[as.character(top.ord)]]
+  })
+  rownames(mat) = colnames(mat) = NULL
+  mat
 })
+
 names(l.ord) = top.ords
+
+
 
 l.cov = llply(l.ord, function(ord) {
   laply(ord, function(x){
@@ -168,6 +179,8 @@ l.cov = llply(l.ord, function(ord) {
 })
 
 names(l.cov) = top.ords
+
+rm(list="l.ords")
 
 
 all.l = c(l.pcov, l.cov)
@@ -201,10 +214,33 @@ stopifnot(all(def.check < 1e-12))
 
 irun = 1
 
+pvals = vector(mode="list", length=length(all.run))
+names(pvals) = all.run
+
+locform =  as.formula(c("~",
+  paste0(
+    as.character(zform)[2], "+ Clot_Location_RC")
+  )
+)
+
+locmat = model.matrix(locform, data=demog)
+locmat = locmat[ , !colnames(locmat) %in% c("(Intercept)")]
+perm.loc.mod = lm(formula=Y~ locmat)
+rownames(perm.loc.mod$coefficients) = gsub("locmat", "", 
+  rownames(perm.loc.mod$coefficients))
+perm.loc.smod = summary(perm.loc.mod)
+
+form = as.character(zform)
+form = c(paste0("Y", form[1]), paste0(form[2], "+ Clot_Location_RC"))
+form = as.formula(form)
+loc.mod = lm(formula=form, data=demog)
+loc.smod = summary(loc.mod)
+
 pdfname = file.path(outdir, 
   paste0(adder, "Permutation_Distribution.pdf"))
 pdf(pdfname)
 for (irun in seq_along(all.run)){
+  
   runmod = as.character(all.run[irun])
 
   # new.cov = cov.ord[cc, ]
@@ -212,7 +248,7 @@ for (irun in seq_along(all.run)){
   permute.mod =  fast_lm(orig.Y, X=new.cov, Z=zform, data=demog,
     spot.check = TRUE, 
     ncheck = 10)
-
+  permute.mod$AIC = extractAIC(permute.mod)
 
 
   ################
@@ -242,20 +278,29 @@ for (irun in seq_along(all.run)){
   form = as.formula(form)
   reg.mod = lm(formula=form, data=demog)
   reg.smod = summary(reg.mod)
+  reg.smod$AIC = extractAIC(reg.mod)[2]
 
   zform2 = as.character(zform)
   zform2 = c(paste0("Y", zform2[1]), zform2[2])
   zform2 = as.formula(zform2)
   nox.mod = lm(formula=zform2, data=demog)
   nox.smod = summary(nox.mod)  
+  nox.smod$AIC = extractAIC(nox.mod)[2]
 
   # runmeas = c("r.squared", "adj.r.squared")
-  runmeas = c("adj.r.squared")
+  runmeas = c("adj.r.squared", "r.squared", "sigma", "AIC")
   measure = "adj.r.squared"
+  pval = vector(mode="list", length=length(runmeas))
+  names(pval) = runmeas
   for (measure in runmeas){
     truth = reg.smod[[measure]]
+    # loc.truth = loc.smod[[measure]]
     nox.truth = nox.smod[[measure]]
     perm = permute.mod[[measure]]
+    # loc.perm = sapply(perm.loc.smod, function(x) {
+    #   x[[measure]]
+    # })
+
 
     # fit.gamma = function(x){
     #   mx = mean(x)
@@ -283,25 +328,29 @@ for (irun in seq_along(all.run)){
     rb = rbeta(10000, shape1= (p-1)/2, shape2= (n-p)/2)
     arb = 1 - (1-rb) * (n - 1) / (n - p)
 
-    xlim = c(min(truth, perm), max(truth, perm))
+    xlim = floor(c(min(truth, perm), max(truth, perm)))
     hist(perm, xlim=xlim, breaks=30, xlab=
       paste0("Permutation ", measure), 
       main=paste0("Permutation Distribution for ", measure, " on ",
       outcome, " using ", runmod, " HPR"))
     abline(v= truth)
-    abline(v=nox.truth, col="red")
+    abline(v=nox.truth, col="red")    
+    if (measure %in% c("sigma", "AIC")) {
+      pval[[measure]] = 2*mean(abs(perm) <= abs(truth))
+    } else {
+      pval[[measure]] = 2*mean(abs(perm) >= truth)      
+    }
+
   }
 
-
-  
-  outfile = file.path(outdir, 
-                      paste0(adder, "Permutation_Distribution.Rda"))  
-  save(permute.mod, file=outfile)
+  pvals[[irun]] = pval
   
 }
 dev.off()
 
-
+  outfile = file.path(outdir, 
+                      paste0(adder, "Permutation_Distribution.Rda"))  
+  save(permute.mod, pvals, B, file=outfile)
 
 # real.mod = fast_lm(orig.Y, X= as.matrix(perc), Z = zform, 
 #   data=demog, spot.check=TRUE)

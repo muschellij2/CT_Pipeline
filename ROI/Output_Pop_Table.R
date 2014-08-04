@@ -77,8 +77,8 @@ area_pct = function(img, ind.list, keepall) {
   ## cs is sum of indices of overlap
   cs.raw = data.frame(nvox=raw.mat, roi_pct_any = any.mat,
   	roi_mean_pct = mn.mat) 
-  if (!keepall) cs.raw = cs.raw[cs.raw != 0, , drop=FALSE]
   rownames(cs.raw) = names(ind.list)
+  if (!keepall) cs.raw = cs.raw[rowSums(cs.raw) != 0, , drop=FALSE]
   return(cs.raw)
 }
 
@@ -181,13 +181,13 @@ for (itab in seq(col.pop.tab)){
 	xdf = df
 	df = df[, c("area", "nvox")]		
 
-	colnames(df) = c("Area", nm[itab])
+	colnames(df) = c("Area", col.nm[itab])
 	col.xtabs[[itab]] = xtable(df)
 	col.tops[[itab]] = top.area 
 	xdf = xdf[, c("area", "nvox", "roi_pct_any", "roi_mean_pct")]		
-	colnames(xdf) = c("Area", nm[itab], 
-		paste0(nm[itab], "_ROI_Pct_Any"),
-		paste0(nm[itab], "_ROI_Pct"))
+	colnames(xdf) = c("Area", col.nm[itab], 
+		paste0(col.nm[itab], "_ROI_Pct_Any"),
+		paste0(col.nm[itab], "_ROI_Pct"))
 	col.dfs[[itab]] = xdf
 }
 names(col.dfs) = names(col.tops) = names(col.xtabs) = col.nm

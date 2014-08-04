@@ -10,6 +10,7 @@ library(xtable)
 library(scales)
 library(animation)
 library(cttools)
+library(fslr)
 writepng = function(fname, tempimg= NULL, adder ='', rerun=TRUE, 
 	text = "", col.y = alpha(hotmetal(10), 0.7), ...){
 	pngname = gsub("\\.nii\\.gz", 
@@ -133,7 +134,9 @@ png(fname, res=600, height=7, width=7, units="in")
 ortho2(img, img.mask, col.y=col.cut, 
 	ybreaks = breaks, 
 	addlegend = TRUE,
-	leg.x = 15, leg.y= 60, 
+	text="B", text.cex = 5,   
+	text.x= 50, text.y=32,  
+	leg.x = 5, leg.y= 60, 
 	legend=plevs, 
 	leg.col=col.cut, leg.cex=1.5,
 	leg.title = "Percent of Sample\n with Hemorrhage")
@@ -144,10 +147,23 @@ png(fname, res=600, height=7, width=7, units="in")
 ortho2(img, img.mask, col.y=col.cut, 
 	ybreaks = breaks, 
 	addlegend = TRUE,
-	leg.x = 13, leg.y= 60, 
+  text="B", text.cex = 5,   
+	text.x= 50, text.y=32,  
+	leg.x = 5, leg.y= 60, 
 	legend=levs, 
 	leg.col=col.cut, leg.cex=1.5,
 	leg.title = "Proportion of Sample\n with Hemorrhage")
+dev.off()
+
+fname = file.path(outdir, "Figure4_Proportion_Final.png")
+png(fname, res=600, height=7, width=7, units="in")
+ortho2(img, img.mask, col.y=col.cut, 
+       ybreaks = breaks, 
+       addlegend = TRUE,
+       leg.x = 14, leg.y= 60, 
+       legend=levs, 
+       leg.col=col.cut, leg.cex=1.5,
+       leg.title = "Proportion of Sample\n with Hemorrhage")
 dev.off()
 
 # mask.overlay(tempimg, cimg, col.y=col.cut, text=text, window=window,
@@ -172,9 +188,23 @@ df = df[ df$x > 0, , drop=FALSE]
 g = ggplot(df, aes(x=x)) + geom_histogram(bin=.05) + 
 	xlab("Proportion of patients with hemorrhage at voxel") +
 	ylab("Number of Voxels") +  scale_y_continuous(labels = comma)	
+g = g + theme(text= element_text(size=18)) + 
+	ggtitle("Non-spatial Histogram of ICH Prevalence")	
+g = g + annotate("text", 
+					x = .4,
+					y = 2e5,
+					label = "A", size=20)
+
+
 pdf(gsub("\\.nii\\.gz", "_histogram.pdf", spm.binimg))
 	print(g)
 dev.off()
+
+png(gsub("\\.nii\\.gz", "_histogram.png", spm.binimg), 
+    res=600, height=7, width=7, units="in")
+	print(g) 
+dev.off()
+
 
 out.rda = gsub("\\.nii\\.gz", "_histogram_data.rda", spm.binimg)
 save(df, file=out.rda)
