@@ -1,6 +1,9 @@
+#######################################
+# Need to run ROI_Copying_Reorienting.R before
+###################################
 rm(list=ls())
-library(oro.dicom)
-library(oro.nifti)
+library(fslr)
+library(cttools)
 library(plyr)
 library(scales)
 library(reshape2)
@@ -36,8 +39,8 @@ library(reshape2)
 
 #progdir <- file.path(dirname(basedir), "programs")
   progdir <- file.path(rootdir, "programs")
-  source(file.path(progdir, "convert_DICOM.R"))
-  source(file.path(progdir, "fslhd.R"))
+  # source(file.path(progdir, "convert_DICOM.R"))
+  # source(file.path(progdir, "fslhd.R"))
 
 
 #### setting up if things are on the cluster or not

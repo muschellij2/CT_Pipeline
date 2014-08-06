@@ -67,7 +67,7 @@ if (runonlybad) ids = ids[bad.ids]
 verbose =TRUE
 untar = FALSE
 convert <- TRUE
-skullstrip <- TRUE
+skullstrip <- FALSE
 plotss = TRUE
 regantry <- FALSE
 untgantry <- FALSE
@@ -231,8 +231,11 @@ if (!ROIformat){
         iimg = 1
         
         scen = expand.grid(int=c("0.01", "0.1", "0.35"),
-                           presmooth=c(TRUE, FALSE))
+                           presmooth=c(TRUE, FALSE),
+                           refill = c(TRUE, FALSE))
         rownames(scen)= NULL
+        w = which(!scen$presmooth & scen$refill)
+        scen = scen[-w, ]
 
         mid.folder = function(x, folname = ""){
           d = dirname(x)
@@ -241,29 +244,37 @@ if (!ROIformat){
         }
 
         for (iimg in seq_along(imgs)){
+          
           img = imgs[iimg]
 
           ofile = nii.stub(img)
           ofile = mid.folder(ofile, "Skull_Stripped")
           ofile = paste0(ofile, "_SS")
           
-          iscen = 4
+          iscen = 1
           
           for (iscen in seq(nrow(scen))){
             
             int = scen$int[iscen]
             presmooth = scen$presmooth[iscen]
+            refill = scen$refill[iscen]
             
             app = "_nopresmooth"
             if (presmooth) app = ""
 
+
+            re_app = ""
+            if (refill) re_app = "_refill"
+
             
-            outfile = paste0(ofile, "_", int, app)
+            outfile = paste0(ofile, "_", int, app, re_app)
             x = CT_Skull_Strip(img = img, 
                                outfile = outfile, 
                                retimg=FALSE, verbose=TRUE, 
                                opts=paste0("-f ", int, " -v"),
                                inskull_mesh = FALSE,
+                               refill = refill,
+                               refill.thresh = .75,
                                presmooth=presmooth)   
             
 
@@ -297,7 +308,7 @@ if (!ROIformat){
       dir.create(odir, showWarnings=FALSE)
       ss.imgs = list.files(ssdir, pattern=".*\\.nii\\.gz", 
         full.names=TRUE)
-      imgs = gsub("_SS_Mask_(0\\.1|0\\.35|0\\.01)", "", ss.imgs, fixed=FALSE)
+      imgs = gsub("_SS_(0\\.1|0\\.35|0\\.01)_Mask", "", ss.imgs, fixed=FALSE)
       imgs = gsub("Skull_Stripped/", "", imgs)
 
       df = data.frame(img=imgs, img.mask =ss.imgs, 

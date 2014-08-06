@@ -7,7 +7,6 @@ library(plyr)
 library(ggplot2)
 library(reshape2)
 library(RColorBrewer)
-library(knitrBootstrap)
 library(xtable)
 library(scales)
 library(fslr)
@@ -20,6 +19,9 @@ if (Sys.info()[["user"]] %in% "jmuschel") {
 }
 progdir = file.path(rootdir, "programs")
 basedir = file.path(rootdir, "Registration")
+
+homedir = file.path(rootdir, "Rorden_data")
+regdir = file.path(homedir, "registered_ct_scans")
 
 
 #### baseline NIHSSS ata 
@@ -42,6 +44,14 @@ dtemp = dim(temp)
 maskfile = file.path(tempdir, "scct_mask.nii.gz")
 tempmask = readNIfTI(maskfile)
 
+mn.fname = file.path(regdir, "Mean_Image")
+mn.img = readNIfTI(mn.fname)
+
+sd.fname = file.path(regdir, "SD_Image")
+sd.img = readNIfTI(sd.fname)
+
+ch_sd.fname = file.path(regdir, "CH_SD_Image")
+ch_sd.img = readNIfTI(ch_sd.fname)
 
 
 
@@ -83,10 +93,35 @@ iimg = 1
 df$img = gsub("bws", "w", df$fname)
 df$img = gsub("ROI\\.", ".", df$img)
 
-n = 21
+ifile = 4
+img = readNIfTI(file.path(df$dir[ifile], df$img[ifile]))
+img = window_img(img, window=c(0, 100), replace="missing")
+img[is.na(img)] = 0
+roi = readNIfTI(file.path(df$dir[ifile], df$fname[ifile]))
+xyz = round(cog(roi))
 
-img = readNIfTI(file.path(df$dir[1], df$img[1]))
-roi = readNIfTI(file.path(df$dir[1], df$fname[1]))
+mask = img > 0
+
+tarr = (img - mn.img) / sd.img
+tarr[is.infinite(tarr)] = 0
+cut = 10
+tarr[is.na(tarr)] = 0
+tarr[ abs(tarr) > cut] = sign(tarr[ abs(tarr) > cut]) * cut
+timg = mn.img
+timg@.Data = tarr
+timg[ mask == 0 ] = 0
+timg = newnii(timg)
+
+parr = array(2* pt(abs(timg), df = 29), dim = dtemp)
+pimg = timg
+pimg@.Data = parr
+pimg[ mask == 0 ] = 0
+pimg = newnii(pimg)
+
+tcut = 1.96
+mask.overlay(cal_img(timg > tcut), roi, col.y="red", 
+	window=c(0, 1), xyz=xyz)
+
 
 masked = img
 masked[tempmask == 0] = 0
