@@ -1,6 +1,6 @@
 rm(list=ls())
-library(oro.dicom)
-library(oro.nifti)
+library(fslr)
+library(cttools)
 library(plyr)
 library(scales)
 library(reshape2)

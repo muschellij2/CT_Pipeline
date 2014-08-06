@@ -2,7 +2,7 @@ rm(list=ls())
 library(cttools)
 library(fslr)
 library(R.utils)
-homedir = "re"
+homedir = "/dexter/disk2/smart/stroke_ct/ident/Rorden_data"
 scandir = file.path(homedir, "ct_scans")
 regdir = file.path(homedir, "registered_ct_scans")
 # setwd(homedir)
@@ -13,6 +13,7 @@ files = list.files(scandir, pattern = "*.nii.gz", full.names=TRUE)
 ifile = 1
 
 for (ifile in seq_along(files)){
+	print(ifile)
 	myfile = files[ifile]
 	runfile = file.path(outdir, basename(myfile))
 	file.copy(myfile, runfile, overwrite=TRUE)
