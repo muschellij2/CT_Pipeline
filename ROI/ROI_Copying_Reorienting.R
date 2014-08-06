@@ -39,8 +39,6 @@ setup <- function(id, study="ROI_data"){
 
 #progdir <- file.path(dirname(basedir), "programs")
   progdir <<- file.path(rootdir, "programs")
-  source(file.path(progdir, "convert_DICOM.R"))
-  source(file.path(progdir, "fslhd.R"))
 
   basedir <<- file.path(homedir, id)
 
