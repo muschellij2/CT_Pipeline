@@ -4,7 +4,7 @@ library(cttools)
 library(plyr)
 library(scales)
 library(reshape2)
-
+library(R.utils)
 #### delete all ROI files
 ### find . -regextype posix-extended -regex "^./[0-9].*[0-9]$"
 ###  -exec rm -r {} \;
@@ -37,10 +37,11 @@ setup <- function(id, study="ROI_data"){
   homedir <<- file.path(rootdir, study)
   homedir <<- path.expand(homedir)
 
+  basedir <<- file.path(rootdir, "Registration")
+
 #progdir <- file.path(dirname(basedir), "programs")
   progdir <<- file.path(rootdir, "programs")
 
-  basedir <<- file.path(homedir, id)
 
 }
 
@@ -112,7 +113,7 @@ df = data.frame(roi.nii = niis, raw = raw.nii, copydir, pid,
   iddir = iddir,
   stringsAsFactors=FALSE)
 
-df$ss = gsub("\\.nii\\.gz", "_SS_Mask_0.01.nii.gz", df$raw)
+df$ss = gsub("\\.nii\\.gz", "_SS_0.01_Mask.nii.gz", df$raw)
 df$ss = file.path(df$iddir, "Skull_Stripped", df$ss)
 df$raw = file.path(df$iddir, df$raw)
 
@@ -122,6 +123,17 @@ aexists = apply(exists, 1, all)
 # stopifnot(all(aexists))
 df[which(!aexists),]
 df = df[aexists, ]
+
+ids.111 = read.csv(file.path(basedir, "111_patients.csv"), 
+  stringsAsFactors= FALSE)
+uid = ids.111$patientName
+all.ids = ids.111$id
+
+############################
+# Take out 111 already ran for paper - this is for testing
+df = df[ !df$id %in% all.ids, ]
+rownames(df) =  NULL
+############################
 
 #### save names of .nii files
 xdf = df
@@ -171,9 +183,10 @@ l_ply(.data=melted$image, .fun =function(x) {
 ##########################################
 ## Making masked files
 ##########################################
+Sys.setenv(FSLOUTPUTTYPE = "NIFTI")
 m_ply(.data=df[, c("raw", "ss", "outfile")], 
   .fun = function(raw, ss, outfile) {
-  fslmask(file=raw, mask=ss, outfile=outfile, unzip = TRUE)
+  fslmask(file=raw, mask=ss, outfile=outfile)
 }, .progress = "text")
 
 

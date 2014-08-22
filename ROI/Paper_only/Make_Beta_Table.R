@@ -90,6 +90,7 @@ fullcap = "Severity Score Regression Models for HPR-Based and Reader-Classified 
 rr = stargazer(nihss.res, gcs.res, type = "latex", 
                title = fullcap, 
                t.auto=FALSE, p.auto=FALSE,
+               align = FALSE,
                ci= TRUE, omit.stat="all", 
                single.row = TRUE, star.char="", notes="",
                notes.append=FALSE, 
@@ -111,7 +112,7 @@ empty.hline = grep("\\hline \\\\[-1.8ex]", rr, fixed=TRUE)
 l = length(empty.hline)
 empty.hline = empty.hline[c(1, (l-1):l)]
 rr = rr[-empty.hline]
-rr[5] = gsub("lcccc", "l@{}c@{}c|@{}c@{}c", rr[5])
+rr[5] = gsub("lcccc", "l@{}r@{}r|@{}r@{}r", rr[5])
 rr[7] = gsub("\\multicolumn{2}{c}{NIHSS Score}", 
   "\\multicolumn{2}{c|}{NIHSS Score}", rr[7], fixed=TRUE)
 writeLines(rr, con="Beta_Table.tex")

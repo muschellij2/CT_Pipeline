@@ -41,7 +41,7 @@ for (iid in seq_along(ids)){
 	### read in EVERY HEADER from this 
 	hdrl = llply(dcms, 
 		function(x) {
-			rereadDICOMFile(x, pixelData=FALSE)$hdr
+			readDICOMFile(x, pixelData=FALSE)$hdr
 		}, .progress = "text")
 	
 	names(hdrl) = dcms

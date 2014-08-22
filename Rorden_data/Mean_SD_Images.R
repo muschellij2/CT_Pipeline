@@ -2,7 +2,12 @@ rm(list=ls())
 library(cttools)
 library(fslr)
 library(plyr)
-rootdir = "/dexter/disk2/smart/stroke_ct/ident"
+homedir = "~/"
+rootdir = "~/CT_Registration/"
+if (Sys.info()[["user"]] %in% "jmuschel") {
+  homedir = "~"
+  rootdir = "/dexter/disk2/smart/stroke_ct/ident"
+}
 homedir = file.path(rootdir, "Rorden_data")
 progdir = file.path(rootdir, "programs")
 basedir = file.path(rootdir, "Registration")
@@ -39,6 +44,8 @@ mat = sapply(imgs, c)
 out = which(mat > 100, arr.ind=TRUE)
 mat[out] = 0
 
+mat[mat == 0] = NA
+
 rmean = rowMeans(mat, na.rm=TRUE)
 rsd = rowSds(mat, na.rm=TRUE)
 
@@ -52,6 +59,10 @@ sd.img = cal_img(sd.img)
 mn.img = newnii(temp)
 mn.img@.Data= array(rmean, dim = dtemp)
 mn.img = cal_img(mn.img)
+
+N.img = newnii(temp)
+N.img@.Data= array(Ns, dim = dtemp)
+N.img = cal_img(N.img)
 
 
 # n = length(imgs)
@@ -70,4 +81,7 @@ writeNIfTI(sd.img, fname)
 
 fname = file.path(regdir, "CH_SD_Image")
 writeNIfTI(ch_sd.img, fname)
+
+fname = file.path(regdir, "N_Image")
+writeNIfTI(N.img, fname)
 

@@ -84,7 +84,7 @@ dcm2niicmd = "dcm2nii_2009"
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 1
+if (is.na(iid)) iid <- 9
 
 id <- ids[iid]
 setup(id, study = study)
@@ -141,7 +141,7 @@ if (regantry){
 setup(id, study=study)
 
 # for (iid in seq_along(ids)){
-  
+
   id <- ids[iid]
   print(id)
   setup(id, study = study)
