@@ -495,7 +495,12 @@ group_hdr = function(hdrl, id,
 
   uID = unique(dcmtab$"0010-0020-PatientID", NA)
   uID = uID[ !is.na(uID) & !(uID %in% "") ]
-  stopifnot(length(uID) <= 1)
+  if (length(uID) <= 1){
+    print(paste0("uID is length", length(uID)))
+    print(paste0("ID: ",  uID))
+    stop("More than one id at a time")
+          
+  }
   if (length(uID) == 0) uID = id
 
   dcmtab$PID = uID

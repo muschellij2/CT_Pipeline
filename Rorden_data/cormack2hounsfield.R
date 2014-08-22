@@ -2,9 +2,20 @@ rm(list=ls())
 library(cttools)
 library(fslr)
 library(R.utils)
-homedir = "/dexter/disk2/smart/stroke_ct/ident/Rorden_data"
-scandir = file.path(homedir, "ct_scans")
+homedir = "~/"
+rootdir = "~/CT_Registration/"
+if (Sys.info()[["user"]] %in% "jmuschel") {
+  homedir = "~"
+  rootdir = "/dexter/disk2/smart/stroke_ct/ident"
+}
+progdir = file.path(rootdir, "programs")
+basedir = file.path(rootdir, "Registration")
+
+homedir = file.path(rootdir, "Rorden_data")
 regdir = file.path(homedir, "registered_ct_scans")
+
+
+scandir = file.path(homedir, "ct_scans")
 # setwd(homedir)
 outdir = tempdir()
 
