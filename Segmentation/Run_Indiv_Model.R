@@ -11,6 +11,7 @@ library(plyr)
 library(cttools)
 library(devtools)
 library(ROCR)
+library(fslr)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -23,6 +24,20 @@ tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 
 rerun = FALSE
+correct = "Affine"
+correct = match.arg(correct, 
+	c("none", "N3", "N4", "N3_SS", "N4_SS",
+		"SyN", "SyN_sinc", "Rigid", "Affine"))
+adder = switch(correct, 
+	"none"= "",
+	"N3"="_N3",
+	"N4" = "_N4",
+	"N3_SS" = "_N3_SS",
+	"N4_SS" = "_N4_SS", 
+	"SyN" = "_SyN",
+	"SyN_sinc" = "_SyN_sinc",
+	"Rigid" = "_Rigid",
+	"Affine" = "_Affine")
 outdir = file.path(basedir, "results")
 
 
@@ -30,20 +45,13 @@ outdir = file.path(basedir, "results")
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
 
-fnames = gsub("^bws", "", fnames)
-fnames = paste0(fnames, ".gz")
-ids = gsub("(\\d\\d\\d-(\\d|)\\d\\d\\d)_.*", "\\1", fnames)
-fdf = data.frame(id = ids, stringsAsFactors= FALSE)
-fdf$iddir = file.path(basedir, fdf$id)
-fdf$outdir = file.path(fdf$iddir, "Predictors")
-makedir = sapply( fdf$outdir, dir.create, showWarnings =FALSE)
-fdf$roi = file.path(rootdir, "ROI_data", fdf$id, fnames)
-fdf$img = file.path(fdf$iddir, gsub("ROI\\.nii", ".nii", fnames))
-fdf$mask = file.path(fdf$iddir, 
-	"Skull_Stripped", 
-	gsub("ROI\\.nii", "_SS_Mask_0.01.nii", fnames))
+outfile = file.path(outdir, "111_Filenames.Rda")
+load(file = outfile)
+
+
+
 iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(iimg)) iimg = 2
+if (is.na(iimg)) iimg = 45
 x = fdf[iimg,]
 
 	# outfiles = nii.stub(basename(fdf$img))
@@ -88,29 +96,65 @@ sub_samp = function(x, pct = .1, maxcut = 5e3){
 # fdf = fdf[1:10,]
 fpr.stop = .1
 # run_model = function(x, fpr.stop = .1){
-
 	fname= nii.stub(basename(x$img))
-	fname = paste0(fname, "_predictors.Rda")
+	fname = paste0(fname, "_predictors", adder, ".Rda")
 	outfile = file.path(x$outdir, fname)
+	fname = switch(correct,
+		"none" = x$img,
+		"N3" = x$n3img,
+		"N4" = x$n4img,
+		"N3_SS" = x$n3ssimg,
+		"N4_SS" = x$n4ssimg,
+		"SyN" = x$synssimg,
+		"SyN_sinc" = x$sinc_synssimg,
+		"Rigid" = x$rig_ssimg,
+		"Affine" = x$aff_ssimg
+		)
+	overwrite = rerun
+	mask.fname = switch(correct,
+		"none" = x$mask,
+		"N3" = x$mask,
+		"N4" = x$mask,
+		"N3_SS" = x$mask,
+		"N4_SS" = x$mask,
+		"SyN" = x$synssmask,
+		"SyN_sinc" = x$sinc_synssmask,
+		"Rigid" = x$rig_ssmask,
+		"Affine" = x$aff_ssmask	
+		)
+	roi.fname = switch(correct,
+		"none" = x$roi,
+		"N3" = x$roi,
+		"N4" = x$roi,
+		"N3_SS" = x$roi,
+		"N4_SS" = x$roi,
+		"SyN" = x$synssroi,
+		"SyN_sinc" = x$sinc_synssroi,
+		"Rigid" = x$rig_ssroi,
+		"Affine" = x$aff_ssroi		
+		)	
+
 	if (!file.exists(outfile) | rerun){
-	system.time({
-		img.pred = make_predictors(
-		img=x$img, 
-		mask = x$mask, 
-		roi = x$roi,
-		nvoxels = 1, 
-		moments = 1:4, lthresh = 40, uthresh = 80,
-		save_imgs = TRUE, 
-		outdir = x$outdir,
-		overwrite = FALSE, 
-		verbose= TRUE)
-	})
+	  	system.time({
+	  		img.pred = make_predictors(
+	  		img= fname, 
+	  		mask = mask.fname, 
+	  		roi = roi.fname,
+	  		nvoxels = 1, 
+	  		moments = 1:4, lthresh = 40, uthresh = 80,
+	  		save_imgs = TRUE, 
+	  		outdir = x$outdir,
+	  		overwrite = overwrite, 
+	  		verbose= TRUE)
+	  	})
 		save(img.pred, file=outfile, compress = TRUE)
 	} else {
-		load(file=outfile)
+		xx = load(file=outfile)
 	}
-
+## Overlaid densities of ROIs
+	# Rerun localization 
 	df = img.pred$df
+	df$mask = df$mask > 0
 	keep.ind = img.pred$keep.ind
 	nim = img.pred$nim
 	df = df[ keep.ind, ]
@@ -157,11 +201,11 @@ fpr.stop = .1
 		mod = glm(formula=form, data=train, family=binomial())
 		return(mod)
 	}
-	formstr = "Y ~ ."
+	formstr = "Y ~ . - mask"
 
 	mod = runmod(formstr)
 	takeout = colnames(train)
-	takeout = takeout[ !(takeout %in% "Y")]
+	takeout = takeout[ !(takeout %in% c("Y", "mask"))]
 	take.mods = lapply( takeout , function(x) {
 		runmod( formstr= paste0(formstr, " - ", x))
 	})
@@ -187,7 +231,7 @@ fpr.stop = .1
 	fdr.stop = .1
 	# pred <- prediction( test.pred.all, test$Y)
 	# pred <- prediction( test.pred.05, test$Y)
-	perf <- performance(pred,"tpr","fpr")
+	perf <- performance(pred, "tpr", "fpr")
 	xind = perf@x.values[[1]] <= fdr.stop
 	perf@x.values[[1]] = perf@x.values[[1]][xind]
 	perf@y.values[[1]] = perf@y.values[[1]][xind]
@@ -224,6 +268,7 @@ fpr.stop = .1
 
 	smod = summary(mod)
 	smod$deviance.resid = NULL
+	smod$residuals = NULL
 	mod = remove_lmparts(mod)
 
 	# rownames(df) = NULL
@@ -234,9 +279,11 @@ fpr.stop = .1
 	# return(mods)
 # }
 
+take.mods = lapply( take.mods , remove_lmparts)
+
 # mods = run_model(x)
 fname= nii.stub(basename(x$img))
-fname = paste0(fname, "_models.Rda")
+fname = paste0(fname, "_models", adder, ".Rda")
 fname = file.path(x$outdir, fname)
 
 save(mods, take.mods, paucs, pauc, file = fname)
