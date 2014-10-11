@@ -75,7 +75,7 @@ pauc = pauc@y.values[[1]] / fpr.stop
 pauc
 
 # Coefficients:
-#   Estimate Std. Error z value Pr(>|z|)    
+#   Estimate Std. Err z value Pr(>|z|)    
 # (Intercept) -1.259e+01  8.884e-01 -14.173  < 2e-16 ***
 #   moment1      1.914e-01  4.119e-02   4.647 3.37e-06 ***
 #   moment2      1.603e+00  4.204e-01   3.813 0.000138 ***
@@ -87,7 +87,7 @@ pauc
 # threshTRUE   6.171e-01  5.734e-01   1.076 0.281773 
 # Second model
 # Coefficients:
-#   Estimate Std. Error z value Pr(>|z|)    
+#   Estimate Std. Err z value Pr(>|z|)    
 # (Intercept) -15.39703    0.62893 -24.481  < 2e-16 ***
 #   moment1       0.19541    0.01942  10.061  < 2e-16 ***
 #   moment2       1.10830    0.09911  11.182  < 2e-16 ***
