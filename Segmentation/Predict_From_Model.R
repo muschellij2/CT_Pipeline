@@ -253,6 +253,11 @@ for (correct in options){
 
 		load(file=cut.filename)
 
+		scut.filename = file.path(outdir, 
+		paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
+
+		load(file=scut.filename)		
+
 		stopifnot(all(names(all.cuts) == colnames(preds)))
 		stopifnot(all(names(all.pauc.cuts) == colnames(preds)))
 
