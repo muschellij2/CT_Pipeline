@@ -1,17 +1,18 @@
-#####################################################################
+###################################################################
 ## This code is for Image Segmentation of CT
 ## The code is R but calls out FSL
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-#####################################################################
-#####################################################################
+###################################################################
+###################################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
 library(devtools)
 library(ROCR)
 library(fslr)
+library(mgcv)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -22,24 +23,12 @@ progdir = file.path(rootdir, "programs")
 basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
-
-rerun = FALSE
-correct = "Affine"
-correct = match.arg(correct, 
-	c("none", "N3", "N4", "N3_SS", "N4_SS",
-		"SyN", "SyN_sinc", "Rigid", "Affine"))
-adder = switch(correct, 
-	"none"= "",
-	"N3"="_N3",
-	"N4" = "_N4",
-	"N3_SS" = "_N3_SS",
-	"N4_SS" = "_N4_SS", 
-	"SyN" = "_SyN",
-	"SyN_sinc" = "_SyN_sinc",
-	"Rigid" = "_Rigid",
-	"Affine" = "_Affine")
 outdir = file.path(basedir, "results")
 
+rerun = FALSE
+correct = "none"
+options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+        "SyN", "SyN_sinc", "Rigid", "Affine")
 
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
@@ -49,19 +38,19 @@ outfile = file.path(outdir, "111_Filenames.Rda")
 load(file = outfile)
 
 
+# iscen <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+# if (is.na(iscen)) iscen = 1
+
+
+# scenarios = expand.grid(iimg = seq(nrow(fdf)), 
+# 	correct = options, stringsAsFactors = FALSE )
+# iimg = scenarios$iimg[iscen]
+# correct = scenarios$correct[iscen]
 
 iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(iimg)) iimg = 45
-x = fdf[iimg,]
+if (is.na(iimg)) iimg = 5
 
-	# outfiles = nii.stub(basename(fdf$img))
-	# outfiles = paste0(outfiles, "_predictors.Rda")
-	# outfiles = file.path(fdf$outdir, outfiles)
-	# file.exists(outfiles)
-	# outfiles = nii.stub(basename(fdf$img))
-	# outfiles = paste0(outfiles, "_models.Rda")
-	# outfiles = file.path(fdf$outdir, outfiles)	
-	# file.exists(outfiles)
+runx = x = fdf[iimg,]
 
 remove_lmparts = function(mod){
 	keep = c("coefficients", "xlevels", 
@@ -92,9 +81,53 @@ sub_samp = function(x, pct = .1, maxcut = 5e3){
 }
 
 
+remove_gamparts = function(mod){
+    keep = c("assign", "cmX", "coefficients", "contrasts", 
+        "family", 
+        "formula", "model", "na.action", "nsdf", "pred.formula", 
+        "pterms", "smooth",  "Xcentre", "xlevels", "terms")
+    # "Vp",
+    mn = names(mod)
+    mn = mn[ !( mn %in% keep)]
+    for (iname in mn){
+        mod[[iname]] = NULL
+    }
+    mod$model = mod$model[1,]
+    mod
+}
 
-# fdf = fdf[1:10,]
-fpr.stop = .1
+
+
+for (correct in options){
+    
+    correct = match.arg(correct, options)
+
+	adder = switch(correct, 
+		"none"= "",
+		"N3"="_N3",
+		"N4" = "_N4",
+		"N3_SS" = "_N3_SS",
+		"N4_SS" = "_N4_SS", 
+		"SyN" = "_SyN",
+		"SyN_sinc" = "_SyN_sinc",
+		"Rigid" = "_Rigid",
+		"Affine" = "_Affine")
+
+
+
+
+		# outfiles = nii.stub(basename(fdf$img))
+		# outfiles = paste0(outfiles, "_predictors.Rda")
+		# outfiles = file.path(fdf$outdir, outfiles)
+		# file.exists(outfiles)
+		# outfiles = nii.stub(basename(fdf$img))
+		# outfiles = paste0(outfiles, "_models.Rda")
+		# outfiles = file.path(fdf$outdir, outfiles)	
+		# file.exists(outfiles)
+
+
+	# fdf = fdf[1:10,]
+	fpr.stop = 	fdr.stop = .01
 # run_model = function(x, fpr.stop = .1){
 	fname= nii.stub(basename(x$img))
 	fname = paste0(fname, "_predictors", adder, ".Rda")
@@ -151,7 +184,8 @@ fpr.stop = .1
 	} else {
 		xx = load(file=outfile)
 	}
-## Overlaid densities of ROIs
+	
+	## Overlaid densities of ROIs
 	# Rerun localization 
 	df = img.pred$df
 	df$mask = df$mask > 0
@@ -159,18 +193,7 @@ fpr.stop = .1
 	nim = img.pred$nim
 	df = df[ keep.ind, ]
 	miss.roi = img.pred$miss.roi
-
-
-	# df$Y = roi[keep.ind]
-
-	# img = readNIfTI(x$img, reorient= FALSE)
-	# # mask = readNIfTI(x$mask, reorient= FALSE)
-	# # erode the mask
-	# mask = fslerode(file=x$mask, kopts = "-kernel box 1x1x1", 
-	#                   reorient=FALSE, retimg = TRUE)
-	# roi = readNIfTI(x$roi, reorient = FALSE)
-	# mask = mask > 0
-	# mask[ roi == 1] = 1
+	rm("img.pred")
 
 	#############################################
 	# Case-Control Sampling
@@ -212,26 +235,29 @@ fpr.stop = .1
 	# pvals = sort(pval(mod.all))
 	# top10 = names(pvals[1:10])
 
-	# mod.10 = glm(Y ~ ., data=train[, c("Y", top10)], 
-	# 	family=binomial())
-
-	# pvals = sort(pval(mod.all))
-	# l.05 = names(which(pvals < .05))
-
-	# mod.05 = glm(Y ~ ., data=train[, c("Y", l.05)], 
-	# 	family=binomial())	
-
-
-
 	test.pred = predict(mod, newdata=test, type="response")
 
+	smod = summary(mod)
+	smod$deviance.resid = NULL
+	smod$residuals = NULL
+	mod = remove_lmparts(mod)	
+
 	# train.pred = predict(mod, newdata=train, type="response")
+	opt.cut = function(perf, pred){
+		cut.ind = mapply(FUN=function(x, y, p){
+  			d = (x - 0)^2 + (y-1)^2
+  			ind = which(d == min(d))
+  			c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
+  				cutoff = p[[ind]])
+		}, perf@x.values, perf@y.values, pred@cutoffs)
+	}
+
 
 	pred <- prediction( test.pred, test$Y)
-	fdr.stop = .1
 	# pred <- prediction( test.pred.all, test$Y)
 	# pred <- prediction( test.pred.05, test$Y)
 	perf <- performance(pred, "tpr", "fpr")
+	pauc.cut = t(opt.cut(perf, pred))
 	xind = perf@x.values[[1]] <= fdr.stop
 	perf@x.values[[1]] = perf@x.values[[1]][xind]
 	perf@y.values[[1]] = perf@y.values[[1]][xind]
@@ -242,34 +268,67 @@ fpr.stop = .1
 	pauc = pauc@y.values[[1]] / fpr.stop
 	pauc
 
+	acc = performance(pred, "acc")
+	ind = which.max(acc@y.values[[1]])
+	cutoff = acc@x.values[[1]][[ind]]
+	acc = acc@y.values[[1]][ind]
+	acc = t(as.matrix(c(accuracy=acc, cutoff= cutoff)))
+	acc
 
 
 	test.preds = sapply(take.mods, predict,
 		newdata=test, type="response")
+	iipred = 1
+	lpred = length(take.mods)
+	paucs.cut = matrix(NA, nrow=lpred, ncol=3)
+	colnames(paucs.cut) = colnames(pauc.cut)
 
-	Ys = matrix(test$Y, ncol=ncol(test.preds), nrow=nrow(test.preds))
+	accs = matrix(NA, nrow=lpred, ncol=2)
+	colnames(accs) = colnames(acc)
+
+	paucs = rep(NA, length=lpred)
+	pb = txtProgressBar(max=lpred, style=3)
+	for (iipred in seq_along(take.mods)){
+		tpred = test.preds[,iipred]
+
+		ipred <- prediction( tpred, test$Y)
+		# pred <- prediction( test.pred.all, test$Y)
+		# pred <- prediction( test.pred.05, test$Y)
+		iperf <- performance(ipred,"tpr","fpr")
+		paucs.cut[iipred,] = t(opt.cut(iperf, ipred))
+
+		# auc = performance(pred, "auc")@y.values[[1]]
+		# plot(perf)
+		run.pauc = performance(ipred, "auc", 
+			fpr.stop= fpr.stop)
+		paucs[iipred] = unlist(run.pauc@y.values) / fpr.stop
+
+		run.acc = performance(ipred, "acc")
+		ind = sapply(run.acc@y.values, which.max)
+		cutoffs = mapply(function(xval, ind){
+			xval[[ind]]
+		}, run.acc@x.values, ind)
+		run.accs = mapply(function(xval, ind){
+			xval[[ind]]
+		}, run.acc@y.values, ind)
+		accs[iipred, ] = c(accuracy=run.accs, cutoff= cutoffs)
+
+		setTxtProgressBar(pb, iipred)	
+	}
+	close(pb)	
+
+	print(paucs)
+
+	# Ys = matrix(test$Y, ncol=ncol(test.preds), 
+	# 	nrow=nrow(test.preds))
+	# preds <- prediction( test.preds, Ys)
+	# perfs <- performance(preds,"tpr","fpr")
+	# paucs.cut[ipred,] = t(opt.cut(perfs, preds))
+	# paucs = performance(preds, "auc", fpr.stop= fpr.stop)
+
 
 	# train.pred = predict(mod, newdata=train, type="response")
 
-	preds <- prediction( test.preds, Ys)
-	# pred <- prediction( test.pred.all, test$Y)
-	# pred <- prediction( test.pred.05, test$Y)
-	# perf <- performance(pred,"tpr","fpr")
-	# xind = perf@x.values[[1]] <= fdr.stop
-	# perf@x.values[[1]] = perf@x.values[[1]][xind]
-	# perf@y.values[[1]] = perf@y.values[[1]][xind]
-
-	# auc = performance(pred, "auc")@y.values[[1]]
-	# plot(perf)
-	paucs = performance(preds, "auc", fpr.stop= fpr.stop)
-	paucs = unlist(paucs@y.values) / fpr.stop
-	paucs
-
-
-	smod = summary(mod)
-	smod$deviance.resid = NULL
-	smod$residuals = NULL
-	mod = remove_lmparts(mod)
 
 	# rownames(df) = NULL
 	mods = list(mod=mod, 
@@ -277,67 +336,82 @@ fpr.stop = .1
 		train.ind = samps, 
 		smod = smod)
 	# return(mods)
-# }
 
-take.mods = lapply( take.mods , remove_lmparts)
+	take.mods = lapply( take.mods , remove_lmparts)
 
-# mods = run_model(x)
-fname= nii.stub(basename(x$img))
-fname = paste0(fname, "_models", adder, ".Rda")
-fname = file.path(x$outdir, fname)
+	# mods = run_model(x)
+	fname= nii.stub(basename(runx$img))
+	fname = paste0(fname, "_models", adder, ".Rda")
+	fname = file.path(x$outdir, fname)
 
-save(mods, take.mods, paucs, pauc, file = fname)
 
+
+    # gam.mod = gam(Y ~ 
+    #     s(moment1) + 
+    #     s(moment2) + 
+    #     s(moment3) + 
+    #     s(moment4) + 
+    #     s(value) + 
+    #     thresh +
+    #     s(zscore1) + 
+    #     s(zscore2) + 
+    #     s(moment3) + 
+    #     s(pct_thresh) + 
+    #     pct_zero_neighbor + 
+    #     any_zero_neighbor +
+    #     s(dist_centroid) +
+    #     s(smooth10) +
+    #     s(smooth20)
+    #     , data=train, family= binomial(), verbose=TRUE)
+
+    # # gam.mod = remove_gamparts(gam.mod)
+
+    # test.gam.pred = predict(gam.mod, test, type="response")
+    # test.gam.pred = as.numeric(test.gam.pred)
+    # cat("GAM Prediction \n")
+    
+    # gam.pred <- prediction( test.gam.pred, test$Y)
+    # # pred <- prediction( test.pred.all, test$Y)
+    # # pred <- prediction( test.pred.05, test$Y)
+    # perf <- performance(gam.pred,"tpr","fpr")
+    # gam.pauc.cut = t(opt.cut(perf, gam.pred))
+
+    # gam.pauc = performance(gam.pred, "auc", fpr.stop= fpr.stop)
+    # gam.pauc = gam.pauc@y.values[[1]] / fpr.stop
+    # gam.pauc
+
+    # gam.acc = performance(gam.pred, "acc")
+    # ind = which.max(gam.acc@y.values[[1]])
+    # gam.cutoff = gam.acc@x.values[[1]][[ind]]
+    # gam.acc = gam.acc@y.values[[1]][ind]
+    # if (is.infinite(gam.cutoff)){
+    # 	gam.cutoff = 1
+    # }
+    # gam.acc = c(accuracy=gam.acc, cutoff= gam.cutoff)
+    # gam.acc = t(gam.acc)
+    # gam.acc
+
+
+	save(mods, take.mods, 
+		paucs, pauc, 
+		pauc.cut, paucs.cut,
+		# gam.pauc, gam.acc, 
+		# gam.pauc.cut, gam.mod,
+		accs, acc, file = fname)
+
+
+	# rm(list=c("perfs", "preds", "pred", 
+	# 	"test.preds", "df", "perfs", "test", "tpred", 
+	# 	"ipred", "iperf",
+	# 	 "test.pred"))
+	# for (i in 1:3) gc()
+
+}
 
 # plot(perf)
 
 
 
-
-
-
-
-# # function(x){
-# irow = 5
-# x = fdf[irow,]
-# new.img = readNIfTI(x$img, reorient= FALSE)
-# new.mask = readNIfTI(x$mask, reorient= FALSE)
-# # erode the mask
-# new.mask = fslerode(file=new.mask, kopts = "-kernel box 1x1x1", 
-#                   reorient=FALSE, retimg = TRUE)
-
-# new.roi = readNIfTI(x$roi, reorient = FALSE)
-
-# ind = which(new.roi > 0 & new.mask < 1, arr.ind = TRUE)
-
-# new.img.pred = make_predictors(img=new.img, mask = new.mask, nvoxels = 1, moments = 1:4,
-#                             lthresh = 40, uthresh = 80)
-# new.df = new.img.pred
-# new.df = data.frame(new.df)
-# new.df$Y = c(new.roi)
-
-# new.pred = predict(mod, newdata=new.df, type="response")
-# pimg = new.roi
-# pimg@.Data = array(new.pred, dim=dim(pimg))
-# pimg = cal_img(pimg)
-# pimg[new.mask < 1 ] = 0
-
-# run.pred = new.pred[new.mask > 0 | new.df$Y > 0]
-# Y = new.df$Y[new.mask > 0 | new.df$Y > 0]
-# # centroid = which(mask > 0, arr.ind=TRUE)
-# # dcent = t(t(centroid) - colMeans(centroid))
-# # dcent = sqrt(rowSums(dcent^2))
-
-# pred <- prediction( run.pred, Y)
-# perf <- performance(pred,"tpr","fpr")
-
-
-# auc = performance(pred, "auc")@y.values[[1]]
-# # plot(perf)
-# fpr.stop = .1
-# pauc = performance(pred, "auc", fpr.stop= fpr.stop)
-# pauc = pauc@y.values[[1]] / fpr.stop
-# pauc
 
 
 

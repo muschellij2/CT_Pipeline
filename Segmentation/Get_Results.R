@@ -1,10 +1,10 @@
-####################################################################
+##################################################################
 ## This code is for prediciton of Image Segmentation of CT
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-####################################################################
-####################################################################
+##################################################################
+##################################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
@@ -22,16 +22,18 @@ if (Sys.info()[["user"]] %in% "jmuschel") {
   rootdir = "/dexter/disk2/smart/stroke_ct/ident"
 }
 progdir = file.path(rootdir, "programs")
+segdir = file.path(progdir, "Segmentation")
 basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
-correct = "SyN"
+correct = "none"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 		"SyN", "SyN_sinc", "Rigid", "Affine")
+
 for (correct in options){
-	
+	print(correct)
 	correct = match.arg(correct, options)
 	adder = switch(correct, 
 		"none"= "",
@@ -54,7 +56,8 @@ for (correct in options){
 	        xlev = object$xlevels)
 	    if (is.null(cl <- attr(Terms, "dataClasses"))) 
 	            stop("no dataclasses")
-	    X <- model.matrix(Terms, m, contrasts.arg = object$contrasts)
+	    X <- model.matrix(Terms, m, 
+	    	contrasts.arg = object$contrasts)
 	    # p <- object$rank
 	    beta <- object$coefficients
 	    predictor = drop(X[, names(beta), drop=FALSE ] %*% beta)
@@ -87,11 +90,28 @@ for (correct in options){
 	vol.sdatas = vol.datas = vol.data
 	reses = sreses = res
 
+	cut.vol.datas = cut.vol.sdatas = vol.data
+	pauc.cut.vol.datas = pauc.cut.vol.sdatas = cut.vol.datas
+
 	benches = vector(length= length(runpreds))
 	all.saccs = all.accs = reses
+	mod.saccs = mod.accs = reses
+	mod.ssens = mod.sens = reses
+	mod.sspec = mod.spec = reses
+
+	get.acc = function(tab){
+		sum(diag(tab)) / sum(tab)
+	}
+	get.sens = function(tab){
+		tab["TRUE", "TRUE"] / sum(tab[, "TRUE"])
+	}
+	get.spec = function(tab){
+		tab["FALSE", "FALSE"] / sum(tab[, "FALSE"])
+	}
 
 	for (get.pred in 1:nrow(fdf)){
-
+		if (get.pred > 110) next;
+		
 		idoutdir = fdf$outdir[get.pred]	
 		predname = nii.stub(basename(fdf$img[get.pred]))
 		predname = file.path(idoutdir, 
@@ -104,12 +124,29 @@ for (correct in options){
 		all.accs[get.pred, ] = accs["accuracy",]
 		all.saccs[get.pred, ] = saccs["accuracy",]
 
-		
 		vol.datas[get.pred, ] = vol.data[get.pred,]
 		vol.sdatas[get.pred, ] = vol.sdata[get.pred,]
 
+		cut.vol.datas[get.pred, ] = cut.vol.data[get.pred,]
+		cut.vol.sdatas[get.pred, ] = cut.vol.sdata[get.pred,]
+
+		mod.accs[get.pred, ] = sapply(cut.tabs, get.acc)
+		mod.saccs[get.pred, ] = sapply(cut.stabs, get.acc)
+
+		mod.sens[get.pred, ] = sapply(cut.tabs, get.sens)
+		mod.ssens[get.pred, ] = sapply(cut.stabs, get.sens)
+
+		mod.spec[get.pred, ] = sapply(cut.tabs, get.spec)
+		mod.sspec[get.pred, ] = sapply(cut.stabs, get.spec)		
+
+		pauc.cut.vol.datas[get.pred, ] = 
+			pauc.cut.vol.data[get.pred,]
+		pauc.cut.vol.sdatas[get.pred, ] = 
+			pauc.cut.vol.sdata[get.pred,]
+
 		benches[get.pred] = benchmark
-		print(get.pred)
+		# print(get.pred)
+		rm(list=x[ x != "fpr.stop"])
 	}
 
 	vol.data = vol.datas
@@ -130,8 +167,15 @@ for (correct in options){
 		paste0("Model_performance_results", adder, ".Rda")
 		)
 
-	save(sres, res, vol.data, all.accs, all.saccs, benches,
-		valid.ind, test.ind, nopred, lmod, 
+	save(sres, res, valid.ind, test.ind,
+		vol.data, vol.sdata,
+		cut.vol.datas, cut.vol.sdatas,
+		pauc.cut.vol.datas, pauc.cut.vol.sdatas,
+		mod.saccs, mod.accs,
+		mod.sens, mod.ssens,
+		mod.spec, mod.sspec,
+		all.accs, all.saccs, benches,
+		valid.ind, test.ind, nopred, 
 		file = outfile)
 	vsd = vol.sdata
 	vsd = vsd[-nopred,]
@@ -145,6 +189,17 @@ for (correct in options){
 	voldiff = vd - truevol
 	adiff = abs(voldiff)
 
+	cut.adiff = abs(
+		cut.vol.datas[-nopred, 
+			!colnames(cut.vol.datas) %in% "truth"] - 
+		truevol
+		)
+	cut.sadiff = abs(
+		cut.vol.sdatas[-nopred, 
+			!colnames(cut.vol.sdatas) %in% "truth"] -
+		truevol
+		)	
+
 	sadiff = abs(vsd - truevol) 
 	valid.svol = sadiff[valid.ind,]
 	test.svol = sadiff[test.ind,]
@@ -152,11 +207,18 @@ for (correct in options){
 	valid.vol = adiff[valid.ind,]
 	test.vol = adiff[test.ind,]
 
+	cut.valid.svol = cut.sadiff[valid.ind,]
+	cut.test.svol = cut.sadiff[test.ind,]
+
+	cut.valid.vol = cut.adiff[valid.ind,]
+	cut.test.vol = cut.adiff[test.ind,]		
+
 	res = res[-nopred, ]
 	sres = sres[-nopred, ]
 
 	all.accs = all.accs[-nopred, ]
 	all.saccs = all.saccs[-nopred, ]
+
 	
 	benches = benches[-nopred]
 
@@ -171,6 +233,16 @@ for (correct in options){
 
 	test.acc = all.accs[test.ind,]
 	test.sacc = all.saccs[test.ind,]
+
+	cut.all.accs = mod.accs[-nopred, ]
+	cut.all.saccs = mod.saccs[-nopred, ]	
+
+	cut.valid.acc = cut.all.accs[valid.ind,]
+	cut.valid.sacc = cut.all.saccs[valid.ind,]
+
+	cut.test.acc = mod.accs[test.ind,]
+	cut.test.sacc = mod.saccs[test.ind,]
+
 
 	valid.bench = benches[valid.ind]
 	test.bench = benches[test.ind]
@@ -196,7 +268,7 @@ for (correct in options){
 	# svol = valid.svol
 	# sres = valid.sres
 	ffdf = fdf[-nopred, ]
-	group = "Test"
+	group = "Training"
 	if (group == "Training"){
 		subset.ind = valid.ind
 	}
@@ -215,31 +287,48 @@ for (correct in options){
 	if ("mydf" %in% ls()){
 		rm(list="mydf")
 	}
-	for (rundiff in c("Smoothed", "Unsmoothed")){
-		if (rundiff  == "Smoothed") mydf = all.saccs
-		if (rundiff  == "Unsmoothed") mydf = all.accs
-		valids = data.frame(mydf)
-		valids$id = ffdf$id
-		# s = valid.sacc
-		# colnames(s) = paste0("smooth_", colnames(s))
-		# valids = cbind(valids, s)
-		vbench = data.frame(benchmark=benches)
-		vbench$id = ffdf$id
-		long = melt(valids, id.vars = "id")
-		long = merge(long, vbench, by="id", all=TRUE)
+	for (icut in c("cut", "")){
+		for (rundiff in c("Smoothed", "Unsmoothed")){
+			if (icut =="") {
+				if (rundiff  == "Smoothed") mydf = all.saccs
+				if (rundiff  == "Unsmoothed") mydf = all.accs
+			}
+			if (icut =="cut") {
+				if (rundiff  == "Smoothed") mydf = cut.all.saccs
+				if (rundiff  == "Unsmoothed") mydf = cut.all.accs
+			}			
 
-		long = long[ long$id %in% subset.ids, ]
+			valids = data.frame(mydf)
+			valids$id = ffdf$id
+			# s = valid.sacc
+			# colnames(s) = paste0("smooth_", colnames(s))
+			# valids = cbind(valids, s)
+			vbench = data.frame(benchmark=benches)
+			vbench$id = ffdf$id
+			long = melt(valids, id.vars = "id")
+			long = merge(long, vbench, by="id", all=TRUE)
 
-		p = qplot(benchmark, value, colour = id, 
-			data=long, facets = ~ variable) + guides(colour = FALSE) +
-			geom_abline(intercept= 0, slope =1 ) + ylab("Accuracy") +
-			xlab("Benchmark (predict all voxels 0)") + 
-			ggtitle(rundiff)
-		print(p)
-		rm(list="mydf")
+			long = long[ long$id %in% subset.ids, ]
+
+			p = qplot(benchmark, value, colour = id, 
+				data=long, facets = ~ variable) + 
+				guides(colour = FALSE) +
+				geom_abline(intercept= 0, slope =1 ) + 
+				ylab("Accuracy") +
+				xlab("Benchmark (predict all voxels 0)") + 
+				ggtitle(paste0(rundiff, " ", icut))
+			print(p)
+			print(p %+% long[ long$variable %in% 
+				c("mod_agg", "min", "gmean", "gam"), ])
+			rm(list="mydf")
+		}
 	}
 
-	plotter = function(data, title="", ncol=4, nrow=5){
+	
+	plotter = function(data, title="", 
+		ncol=4, nrow=5,
+		forcex=FALSE, xlimits=c(0, 1), 
+		forcey = FALSE, ylimits = c(0, 13)){
 		long = melt(data)
 		colnames(long) = c("id", "model", "value")
 		probs = seq(0, 1, by=.1)
@@ -247,11 +336,33 @@ for (correct in options){
 				quantile(x$value, probs = probs)
 			})
 		means = ddply(long, .(model), function(x) {
-				c(mean=mean(x$value))
+				c(mean=round(mean(x$value), 3))
 			})
 		medians = ddply(long, .(model), function(x) {
-				c(median=median(x$value))
+				c(median=round(median(x$value), 3))
 			})	
+		maxes = ddply(long, .(model), function(x) {
+				c(ind.max=round(max(x$value), 3))
+			})			
+		maxes$max = means$max = medians$max = max(long$value)
+		maxes$min = means$min = medians$min = min(long$value)
+
+
+		fx = function(x) {
+			rx = range(x)
+			bw = diff(rx)/30
+			bins = seq(from=rx[1], to=rx[2], by=bw)
+			h = hist(x, breaks=bins, plot=FALSE)
+			mc = max(h$counts)
+		}
+		height=max(daply(long, .(model), function(x){
+			fx(x$value)
+			# print(x)
+		}))
+		means$height = height
+		medians$height = height
+		maxes$height = height
+
 
 		g = ggplot(data=long, aes(x=value, colour = model)) + 
 			geom_density()
@@ -263,8 +374,21 @@ for (correct in options){
 		g = g + geom_vline(data=medians, aes(xintercept=median),
 			colour="green") + 
 			facet_wrap(~ model, nrow=nrow, ncol= ncol)
-		print(g + ggtitle(title))
+		g = g + geom_text(data=medians, aes(x = (max + min)/2, 
+			y=height, 
+			label=paste0("Med: ", median)), size=2)
+		g = g + geom_text(data=means, aes(x = (max + min)/2, 
+			y=height*.8, 
+			label=paste0("Mean: ", mean)), size=2)
+		g = g + geom_text(data=maxes, aes(x = (max + min)/2, 
+			y=height*.6, 
+			label=paste0("Max: ", ind.max)), size=2)
+		g = g + ggtitle(title)
+		if (forcex) g= g + xlim(xlimits)
+		if (forcey) g= g + ylim(ylimits)
+		print(g)
 		
+
 		# par(mfrow = c(4, 4))
 		# ddply(long, .(model), function(x) {
 		# 	hist(x$value)
@@ -275,11 +399,35 @@ for (correct in options){
 
 
 
-	volres = plotter(adiff[subset.ind, ], 
-		title= "Difference in Predicted vs. True Volume, Unsmoothed")
-	volsres = plotter(sadiff[subset.ind, ], 
-		title= "Difference in Predicted vs. True Volume, Smoothed")
+	top5 = colMeans(sres[subset.ind,])
+	top5 = names(sort(top5, decreasing=TRUE))[1:4]
 
+
+	volres = plotter(adiff[subset.ind, ], 
+	  title= "Difference in Predicted vs. True Volume, Unsmoothed")
+	volsres = plotter(sadiff[subset.ind, ], 
+	  title= "Difference in Predicted vs. True Volume, Smoothed")
+
+
+	volres = plotter(cut.adiff[subset.ind, ], 
+	  title= 
+	  	"Difference in Predicted vs. True Volume, Unsmoothed, Cut")
+
+	volres = plotter(cut.adiff[subset.ind, 
+		c("mod_agg", "median", "gmean", "gam", "min")], 
+	  title= 
+	  	"Difference in Predicted vs. True Volume, Unsmoothed, Cut")	
+	volsres = plotter(cut.sadiff[subset.ind, ], 
+	  title= 
+	  "Difference in Predicted vs. True Volume, Smoothed, Cut")	
+
+	volsres = plotter(cut.sadiff[subset.ind, 
+		c("mod_agg", "median", "gmean", "gam", "min")], 
+	  title= 
+	  "Difference in Predicted vs. True Volume, Smoothed, Cut")		
+
+	# volsres = plotter(sadiff[subset.ind, top5], 
+	# 	title= "Difference in Predicted vs. True Volume, Smoothed")
 
 	add_params = function(g, type = "", params){
 		plots = g$plots
@@ -306,9 +454,6 @@ for (correct in options){
 	}
 
 
-	top5 = colMeans(sres[subset.ind,])
-	top5 = names(sort(top5, decreasing=TRUE))[1:4]
-
 	ggally_histogramDiag = function (data, mapping, ...) {
 	    p <- ggplot(data, mapping) + 
 	    scale_x_continuous() + 
@@ -322,8 +467,7 @@ for (correct in options){
 	}
 
 
-	ggally_abline = function (data, mapping, ...) 
-	{
+	ggally_abline = function (data, mapping, ...) {
 	    p <- ggplot(data = data, mapping)
 	    p = p + geom_abline(...)
 	    p <- p + geom_point(...)
@@ -350,27 +494,42 @@ for (correct in options){
 	g3 = subtext(g, 
 		findtext = "ggally_smooth", 
 		subber = "ggally_abline")
-	g3 = add_params(g3, type="abline", params = "intercept=0, slope=1")
+	g3 = add_params(g3, type="abline", 
+		params = "intercept=0, slope=1")
 
 	g3
 
-	vres = plotter(res[subset.ind, top5], 
-		title= "Partial AUC (under .1 FDR) Distribution, Unsmoothed", 
-		ncol= 1, nrow=5)
+	vres = plotter(res[subset.ind, top5], title= 
+		paste0("Partial AUC (under ", fpr.stop, 
+		" FDR) Distribution, Unsmoothed"), 
+		ncol= 1, nrow=5, forcex = TRUE)
 
-	vsres = plotter(sres[subset.ind, top5], 
-		title= "Partial AUC (under .1 FDR) Distribution, Smoothed",
-		ncol= 1, nrow=5)
+	vsres = plotter(sres[subset.ind, top5], title= 
+		paste0("Partial AUC (under ", fpr.stop, 
+		" FDR) Distribution, Smoothed"),
+		ncol= 1, nrow=5, forcex = TRUE)
 
 	both = sres[subset.ind, top5]
 	colnames(both) = paste0("smooth_", colnames(both))
 	both = cbind(both, res[subset.ind, top5])
 
-	plotter(both, 
-		title= "Partial AUC (under .1 FDR) Distribution",
-		ncol= 1, nrow=8)
+	plotter(both, title= paste0("Partial AUC (under ", 
+		fpr.stop, 
+		" FDR) Distribution"),
+		ncol= 1, nrow=8, forcex = TRUE)
 
 	dev.off()
 
+
+	pngname = file.path(outdir, 
+		paste0("Modeling_", group, "_AUC", adder, ".png"))
+	png(pngname, type= "cairo",  res=600,  width = 7, 
+		height = 7, units = "in")
+		plotter(both, 
+		title= paste0("Partial AUC (under ", fpr.stop, 
+		" FDR) Distribution"),
+		ncol= 1, nrow=8, forcex = TRUE,
+		forcey = TRUE, ylimits = c(0, 13))
+	dev.off()
 
 }

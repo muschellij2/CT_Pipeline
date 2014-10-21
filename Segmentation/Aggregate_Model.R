@@ -1,10 +1,11 @@
-#####################################################################
-## This code is for prediciton of Image Segmentation of CT
+###################################################################
+## This code is for aggregate prediction of Image Segmentation of 
+## CT
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-#####################################################################
-#####################################################################
+###################################################################
+###################################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
@@ -28,8 +29,53 @@ outdir = file.path(basedir, "results")
 correct = "SyN"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
         "SyN", "SyN_sinc", "Rigid", "Affine")
-for (correct in options){
-    rm(list="all.df")
+
+short_predict = function(object, newdata, 
+    lthresh=  .Machine$double.eps^0.5){
+    tt <- terms(object)
+    Terms <- delete.response(tt)
+    m <- model.frame(Terms, newdata, 
+        na.action = na.pass, 
+        xlev = object$xlevels)
+    if (is.null(cl <- attr(Terms, "dataClasses"))) 
+            stop("no dataclasses")
+    X <- model.matrix(Terms, m, contrasts.arg = object$contrasts)
+    # p <- object$rank
+    beta <- object$coefficients
+    beta = beta[ !is.na(beta) ]
+    predictor = drop(X[, names(beta), drop=FALSE ] %*% beta)
+   
+    predictor <- family(object)$linkinv(predictor)
+    predictor[ predictor < lthresh] = 0
+    predictor
+}
+
+opt.cut = function(perf, pred){
+    cut.ind = mapply(FUN=function(x, y, p){
+        d = (x - 0)^2 + (y-1)^2
+        ind = which(d == min(d))
+        c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
+            cutoff = p[[ind]])
+    }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+
+
+
+#### load voxel data
+outfile = file.path(outdir, "Voxel_Info.Rda")
+load(file=outfile )
+
+outfile = file.path(outdir, "111_Filenames.Rda")
+load(file = outfile)
+
+icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+if (is.na(icorr)) icorr = 1
+correct = options[icorr]
+
+# for (correct in options){
+    if ("all.df" %in% ls()){
+        rm(list="all.df")
+    }
     for (i in 1:3) gc()
     correct = match.arg(correct, options)
     adder = switch(correct, 
@@ -42,36 +88,10 @@ for (correct in options){
         "SyN_sinc" = "_SyN_sinc",
         "Rigid" = "_Rigid",
         "Affine" = "_Affine")
-    
 
-
-    short_predict = function(object, newdata, 
-    	lthresh=  .Machine$double.eps^0.5){
-    	tt <- terms(object)
-    	Terms <- delete.response(tt)
-        m <- model.frame(Terms, newdata, 
-        	na.action = na.pass, 
-            xlev = object$xlevels)
-        if (is.null(cl <- attr(Terms, "dataClasses"))) 
-                stop("no dataclasses")
-        X <- model.matrix(Terms, m, contrasts.arg = object$contrasts)
-        # p <- object$rank
-        beta <- object$coefficients
-        beta = beta[ !is.na(beta) ]
-        predictor = drop(X[, names(beta), drop=FALSE ] %*% beta)
-       
-    	predictor <- family(object)$linkinv(predictor)
-    	predictor[ predictor < lthresh] = 0
-    	predictor
-    }
-
-    #### load voxel data
-    outfile = file.path(outdir, "Voxel_Info.Rda")
-    load(file=outfile )
-
-    outfile = file.path(outdir, "111_Filenames.Rda")
-    load(file = outfile)
-
+    filename = file.path(outdir, 
+        paste0("Collapsed_Models", adder, ".Rda"))
+    load(filename)
 
     makedir = sapply( fdf$outdir, function(x) {
     	if (!file.exists(x)){
@@ -93,15 +113,14 @@ for (correct in options){
     ##############################
     # Run lmod number of models - not all the models - leave out
     ##############################
-    lmod = 10
-    fdf.run = fdf[seq(lmod), ]
+    fdf.run = fdf[run.ind, ]
 
     moddname = nii.stub(basename(fdf.run$img))
     moddname = file.path(fdf.run$outdir, 
         paste0(moddname, "_predictors", adder, ".Rda"))
 
     all.df = NULL
-    for (imod in seq(lmod)){
+    for (imod in seq(nrow(fdf.run))){
         load(moddname[imod])
 
         df = img.pred$df
@@ -151,23 +170,25 @@ for (correct in options){
         runmod( formstr= paste0(formstr, " - ", x))
         }, .progress = "text")
 
-    # gam.mod = gam(Y ~ 
-    #     s(moment1) + 
-    #     s(moment2) + 
-    #     s(moment3) + 
-    #     s(moment4) + 
-    #     s(value) + 
-    #     thresh
-    #     s(zscore1) + 
-    #     s(zscore2) + 
-    #     s(moment3) + 
-    #     s(pct_thresh) + 
-    #     pct_zero_neighbor + 
-    #     any_zero_neighbor +
-    #     s(dist_centroid) +
-    #     s(smooth10) +
-    #     s(smooth20)
-    #     , data=all.df)
+    ### used gam - but bam supposedly faster
+    gam.mod = bam(Y ~ 
+        s(moment1) + 
+        s(moment2) + 
+        s(moment3) + 
+        s(moment4) + 
+        s(value) + 
+        thresh +
+        s(zscore1) + 
+        s(zscore2) + 
+        s(moment3) + 
+        s(pct_thresh) + 
+        pct_zero_neighbor + 
+        any_zero_neighbor +
+        s(dist_centroid) +
+        s(smooth10) +
+        s(smooth20)
+        , data=train, family= binomial(), 
+        method = "fREML")
 
     remove_lmparts = function(mod){
         keep = c("coefficients", "xlevels", 
@@ -180,17 +201,35 @@ for (correct in options){
         mod
     }
 
-    mod = remove_lmparts(mod)
+    remove_gamparts = function(mod){
+        keep = c("assign", "cmX", "coefficients", "contrasts", 
+            "family", 
+            "formula", "model", "na.action", "nsdf", 
+            "pred.formula", 
+            "pterms", "smooth",  "Xcentre", "xlevels", "terms")
+        # "Vp",
+        mn = names(mod)
+        mn = mn[ !( mn %in% keep)]
+        for (iname in mn){
+            mod[[iname]] = NULL
+        }
+        mod$model = mod$model[1,]
+        mod
+    }    
 
-    take.mods = llply(take.mods, remove_lmparts, .progress = "text")
+    mod = remove_lmparts(mod)
+    # gam.mod = remove_gamparts(gam.mod)
+    take.mods = llply(take.mods, remove_lmparts, 
+        .progress = "text")
 
     test.pred = short_predict(mod, test)
 
     pred <- prediction( test.pred, test$Y)
-    fpr.stop = fdr.stop = .1
+    fpr.stop = fdr.stop = .01
     # pred <- prediction( test.pred.all, test$Y)
     # pred <- prediction( test.pred.05, test$Y)
     perf <- performance(pred,"tpr","fpr")
+    pauc.cut = t(opt.cut(perf, pred))
     xind = perf@x.values[[1]] <= fdr.stop
     perf@x.values[[1]] = perf@x.values[[1]][xind]
     perf@y.values[[1]] = perf@y.values[[1]][xind]
@@ -202,11 +241,43 @@ for (correct in options){
     pauc
 
 
+    ##############################
+    # GAM PREDs
+    ##############################
+    test.gam.pred = predict(gam.mod, test, type="response")
+    cat("GAM Prediciton \n")
+    
+    test.gam.pred = as.numeric(test.gam.pred)
+    gam.pred <- prediction( test.gam.pred, test$Y)
+    # pred <- prediction( test.pred.all, test$Y)
+    # pred <- prediction( test.pred.05, test$Y)
+    perf <- performance(gam.pred,"tpr","fpr")
+    gam.pauc.cut = t(opt.cut(perf, gam.pred))
+
+    gam.pauc = performance(gam.pred, "auc", fpr.stop= fpr.stop)
+    gam.pauc = gam.pauc@y.values[[1]] / fpr.stop
+    gam.pauc
+
+    gam.acc = performance(gam.pred, "acc")
+    ind = which.max(gam.acc@y.values[[1]])
+    gam.cutoff = gam.acc@x.values[[1]][[ind]]
+    gam.acc = gam.acc@y.values[[1]][ind]
+    gam.acc = c(accuracy=gam.acc, cutoff= gam.cutoff)
+    gam.acc = t(gam.acc)
+    gam.acc
+
+
 
     # test.preds = laply(take.mods, short_predict,
     #     newdata=test, .progress = "text")
     i = 1
-    paucs = rep(NA, length = length(take.mods))
+    lpred = length(take.mods)
+    paucs = rep(NA, length = lpred)
+    accs = matrix(NA, nrow=lpred, ncol=2)
+    colnames(accs) = c("accuracy", "cutoff")
+
+    paucs.cut = matrix(NA, nrow=lpred, ncol=3)
+    colnames(paucs.cut) = colnames(pauc.cut)    
     for (i in seq_along(take.mods)){
         imod = take.mods[[i]]
         test.preds = short_predict(imod, newdata=test)
@@ -214,20 +285,30 @@ for (correct in options){
         myperf = performance(preds, "auc", fpr.stop = fpr.stop)
         myperf = unlist(myperf@y.values) / fpr.stop
         paucs[i] = myperf
+
+        #### get cutoff with highest accuracy
+        acc = performance(preds, "acc")
+        ind = which.max(acc@y.values[[1]])
+        cutoff = acc@x.values[[1]][[ind]]
+        acc = acc@y.values[[1]][ind]
+        acc = c(accuracy=acc, cutoff= cutoff)
+        accs[i, ] = acc
+
+        iperf <- performance(preds,"tpr","fpr")
+        paucs.cut[i,] = t(opt.cut(iperf, preds))
+
         print(i)
     }
-    # Ys = matrix(test$Y, ncol=ncol(test.preds), nrow=nrow(test.preds))
 
-    # train.pred = predict(mod, newdata=train, type="response")
+    acc = performance(pred, "acc")
+    ind = which.max(acc@y.values[[1]])
+    cutoff = acc@x.values[[1]][[ind]]
+    acc = acc@y.values[[1]][ind]
+    acc = c(accuracy=acc, cutoff= cutoff)
+    acc = t(acc)
+    acc 
 
-    # preds <- prediction( test.preds, Ys)
-
-
-        # auc = performance(pred, "auc")@y.values[[1]]
-        # plot(perf)
-    # paucs = performance(preds, "auc", fpr.stop= fpr.stop)
-    # paucs = unlist(paucs@y.values) / fpr.stop
-    # paucs
+    
 
     # all.df$img = img
 
@@ -243,5 +324,8 @@ for (correct in options){
         paste0("Aggregate_models", adder, ".Rda"))
 
     save(mods, take.mods, paucs, pauc, fdf.run, 
+        pauc.cut, paucs.cut,
+        accs, acc, gam.mod, gam.acc,  gam.pauc, 
+        gam.pauc.cut,
         file = fname)
-}
+# }
