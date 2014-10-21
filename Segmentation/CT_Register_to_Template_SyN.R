@@ -114,7 +114,7 @@ files = c(ofile, binary)
 ex = all(file.exists(files))
 if (!ex){
 
-    ss.res = t1_syn(filename = x$ss, n3correct = FALSE, 
+    ss.res = ants_regwrite(filename = x$ss, n3correct = FALSE, 
         other.files = c(x$roi, x$mask), 
         other.outfiles = c(roi.ofile, mask.ofile),
         outfile = ofile, retimg = TRUE, 
@@ -145,7 +145,7 @@ files = c(ofile, binary)
 ex = all(file.exists(files))
 if (!ex){
 
-    res = t1_syn(filename = x$img, n3correct = FALSE, 
+    res = ants_regwrite(filename = x$img, n3correct = FALSE, 
         other.files = c(x$roi, x$mask), 
         other.outfiles = c(roi.ofile, mask.ofile),
         outfile = ofile, retimg = TRUE,

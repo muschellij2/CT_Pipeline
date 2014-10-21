@@ -1,5 +1,5 @@
 ###################################################################
-## This code is for prediciton of Image Segmentation of CT
+## This code is for prediction of Image Segmentation of CT
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
@@ -24,12 +24,34 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "N3"
+correct = "none"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
         "SyN", "SyN_sinc", "Rigid", "Affine")
+
+my.tab <- function(
+  x, 
+  y, 
+  dnames=c("x", "y")) {
+  x = as.numeric(x)
+  y = as.numeric(y)
+  stopifnot(all(unique(c(x,y)) %in% c(0, 1, NA)))
+  tt = sum(x * y)
+  t1=sum(x)
+  t2=sum(y)
+  tab = matrix(c(length(x)-t1-t2+tt,  t1-tt, t2-tt, tt), 2, 2)
+  n = list(c("FALSE", "TRUE"), c("FALSE", "TRUE"))
+  names(n) = dnames
+  dimnames(tab) = n
+  tab = as.table(tab)
+  return(tab) 
+}
+
 keep.obj = ls()
 
+
+
 for (correct in options){
+	
 	all.obj = ls()
 	rm.obj = all.obj[!(all.obj %in% c(keep.obj, "keep.obj"))]
 	rm(list=rm.obj)
@@ -55,7 +77,8 @@ for (correct in options){
 	        xlev = object$xlevels)
 	    if (is.null(cl <- attr(Terms, "dataClasses"))) 
 	            stop("no dataclasses")
-	    X <- model.matrix(Terms, m, contrasts.arg = object$contrasts)
+	    X <- model.matrix(Terms, m, contrasts.arg = 
+	    	object$contrasts)
 	    # p <- object$rank
 	    beta <- object$coefficients
 	    beta = beta[ !is.na(beta) ]
@@ -100,10 +123,13 @@ for (correct in options){
 	vol.sdatas = vol.datas = vol.data
 	reses = sreses = res
 
-	get.pred <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-	if (is.na(get.pred)) get.pred = 112
-	x = fdf[get.pred,]
+	cut.vol.data = cut.vol.sdata = vol.data
+	pauc.cut.vol.data = pauc.cut.vol.sdata = cut.vol.data
 
+	get.pred <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+	if (is.na(get.pred)) get.pred = 3
+	x = fdf[get.pred,]
+	print(get.pred)
 
 # for (get.pred in runpreds){
 
@@ -118,7 +144,9 @@ for (correct in options){
 	keep.ind = img.pred$keep.ind
 	rm(list="img.pred")
     for (i in 1:3) gc()	
+	df$include = df$value >= 30 & df$value <= 100
 	df$in0100 = df$value >= 0 & df$value <= 100
+	# df$in20_85 = df$value >= 20 & df$value <= 85
 	df$mask = df$mask > 0
 	
 	######################################
@@ -141,7 +169,7 @@ for (correct in options){
 
 
 	#### need this because the length of df has changed
-	roi.not.in = which(keep.ind %in% roi.not.in)	
+	roi.not.in = which(keep.ind %in% roi.not.in)
 
 	df = df[keep.ind,]
 	Y =  df$Y
@@ -150,6 +178,46 @@ for (correct in options){
 
 
 	df$img = fdf$img[1]
+
+	fpr.stop = .01
+
+	cc = complete.cases(df)
+	stopifnot(all(cc))
+
+	test.gam.pred = predict(gam.mod, 
+		df, 
+		newdata.guaranteed = TRUE,
+		type="response")
+    cat("GAM Prediciton \n")
+    
+    test.gam.pred = as.numeric(test.gam.pred)
+	test.gam.pred = test.gam.pred * df$include
+
+	# gam.cut.vols = sum(test.gam.pred > gam.acc[, "cutoff"])
+	# gam.cut.vols = gam.cut.vols * vres
+	
+	# gam.pauc.cut.vols = sum(test.gam.pred > gam.pauc.cut[, "cutoff"])
+	# gam.pauc.cut.vols = gam.pauc.cut.vols * vres
+
+
+    # gam.pred <- prediction( test.gam.pred, df$Y)
+    # # pred <- prediction( test.pred.all, test$Y)
+    # # pred <- prediction( test.pred.05, test$Y)
+
+    # test.gam.pauc = performance(gam.pred, "auc", 
+    # 	fpr.stop= fpr.stop)
+    # test.gam.pauc = test.gam.pauc@y.values[[1]] / fpr.stop
+    # test.gam.pauc
+
+    # test.gam.acc = performance(gam.pred, "acc")
+    # ind = which.max(test.gam.acc@y.values[[1]])
+    # test.gam.cutoff = test.gam.acc@x.values[[1]][[ind]]
+    # test.gam.acc = test.gam.acc@y.values[[1]][ind]
+    # test.gam.acc = c(accuracy=test.gam.acc, cutoff= test.gam.cutoff)
+    # test.gam.acc = t(test.gam.acc)
+    # test.gam.acc
+
+
 
 	# for (imod in  seq(lmod)){
 	# 	irow = which(vol.diff$imod == imod & 
@@ -168,7 +236,7 @@ for (correct in options){
 
 		colnames(preds) = colnames(res)[seq(ncol(preds))]
 		preds = cbind(preds, rowMean, rowMed, rowMax, rowMin,
-			rowProd, rowGeom)
+			rowProd, rowGeom, gam=test.gam.pred)
 		rownames(preds) = NULL
 
 		#### if the mask did not contain these voxels, 
@@ -176,11 +244,28 @@ for (correct in options){
 		preds[roi.not.in, ] = 0
 
 		#### only values 0 to 100 are likely to be ROI
-		preds = preds * df$in0100
+		# preds = preds * df$in0100
+		preds = preds * df$include
 
+
+		cut.filename = file.path(outdir, 
+		paste0("Model_Cutoffs", adder, ".Rda"))
+
+		load(file=cut.filename)
+
+		stopifnot(all(names(all.cuts) == colnames(preds)))
+		stopifnot(all(names(all.pauc.cuts) == colnames(preds)))
+
+		cut.vols = colSums(t(t(preds) > all.cuts))
+		cut.vols = cut.vols * vres
+		cut.vol.data[get.pred, ] = c(vol.roi, cut.vols)
+
+		pauc.cut.vols = colSums(t(t(preds) > all.pauc.cuts))
+		pauc.cut.vols = pauc.cut.vols * vres
+		pauc.cut.vol.data[get.pred, ] = c(vol.roi, 
+			pauc.cut.vols)
 
 		vols = colSums(preds)
-
 		vols = vols * vres
 		vol.data[get.pred, ] = c(vol.roi, vols)
 
@@ -254,9 +339,30 @@ for (correct in options){
 
 		svols = colSums(spreds)
 		svols = svols * vres
-
 		vol.sdata[get.pred, ] = c(vol.roi, svols)
 
+		runtabs = function(x, y){
+			tabs = vector(mode="list", length=ncol(preds))
+			for (itab in seq(ncol(x))){
+				tabs[[itab]] = my.tab(x[, itab] > y[itab], df$Y)
+				print(itab)
+			}
+			tabs
+		}
+		cut.tabs = runtabs(preds, all.cuts)
+		cut.stabs = runtabs(spreds, all.cuts)
+
+		pauc.cut.tabs = runtabs(preds, all.pauc.cuts)
+		pauc.cut.stabs = runtabs(spreds, all.pauc.cuts)
+
+		cut.svols = colSums(t(t(spreds) > all.cuts))
+		cut.svols = cut.svols * vres
+		cut.vol.sdata[get.pred, ] = c(vol.roi, cut.svols)
+
+		pauc.cut.svols = colSums(t(t(spreds) > all.pauc.cuts))
+		pauc.cut.svols = pauc.cut.svols * vres
+		pauc.cut.vol.sdata[get.pred, ] = c(vol.roi, 
+			pauc.cut.svols)	
 
 		# print(vol.roi)
 		# print(vol.pred)		
@@ -268,48 +374,62 @@ for (correct in options){
 
 		# mask.overlay(roi, img > .1, col.y="red", window=c(0, 1))
 
-		fpr.stop = .1
 
-		r.preds = alply(preds, 2, function(nd){
-			pred <- prediction( nd, Y)			
-		}, .progress = "text")
+		# r.preds = alply(preds, 2, function(nd){
+		# 	pred <- prediction( nd, Y)			
+		# }, .progress = "text")
 
-		accs = t(laply(r.preds, function(pred){
+		# accs = t(laply(r.preds, function(pred){
+		# 	acc = performance(pred, "acc")
+		# 	ind = which.max(acc@y.values[[1]])
+		# 	cutoff = acc@x.values[[1]][ind]
+		# 	acc = acc@y.values[[1]][ind]
+		# 	return(c(accuracy=acc, cutoff= cutoff))
+		# }))
+
+
+		# paucs = laply(r.preds, function(pred){
+		# 	pauc = performance(pred, "auc", fpr.stop= fpr.stop)
+		# 	pauc = pauc@y.values[[1]] / fpr.stop
+		# 	# print(pauc)
+		# 	return(pauc)
+		# }, .progress = "text")
+
+
+		r.res = alply(preds, 2, function(nd){
+			pred <- prediction( nd, Y)				
 			acc = performance(pred, "acc")
 			ind = which.max(acc@y.values[[1]])
 			cutoff = acc@x.values[[1]][ind]
 			acc = acc@y.values[[1]][ind]
-			return(c(accuracy=acc, cutoff= cutoff))
-		}))
+			acc = c(accuracy=acc, cutoff= cutoff)
 
-		paucs = laply(r.preds, function(pred){
 			pauc = performance(pred, "auc", fpr.stop= fpr.stop)
 			pauc = pauc@y.values[[1]] / fpr.stop
-			# print(pauc)
-			return(pauc)
+			list(acc = acc, pauc = pauc)
 		}, .progress = "text")
+
+		accs = sapply(r.res, `[[`, "acc")
+		paucs = sapply(r.res, `[[`, "pauc")
 
 		res[get.pred, ] = paucs
 
 		##### running for smoothed data
-		r.spreds = alply(spreds, 2, function(nd){
-			pred <- prediction( nd, Y)			
-		}, .progress = "text")
-
-		saccs = t(laply(r.spreds, function(pred){
+		s.res = alply(spreds, 2, function(nd){
+			pred <- prediction( nd, Y)				
 			acc = performance(pred, "acc")
 			ind = which.max(acc@y.values[[1]])
 			cutoff = acc@x.values[[1]][ind]
 			acc = acc@y.values[[1]][ind]
-			return(c(accuracy=acc, cutoff= cutoff))
-		}))		
+			acc = c(accuracy=acc, cutoff= cutoff)
 
-		spaucs = laply(r.spreds, function(pred){
 			pauc = performance(pred, "auc", fpr.stop= fpr.stop)
 			pauc = pauc@y.values[[1]] / fpr.stop
-			# print(pauc)
-			return(pauc)
+			list(acc = acc, pauc = pauc)
 		}, .progress = "text")
+
+		saccs = sapply(s.res, `[[`, "acc")
+		spaucs = sapply(s.res, `[[`, "pauc")
 
 		sres[get.pred, ] = spaucs
 		print(get.pred)
@@ -321,8 +441,15 @@ for (correct in options){
 			probs = seq(0.95, 1, by=0.01))
 		rownames(col.q) = colnames(preds)
 
-	save(vol.data, vol.sdata, res, sres, lmod, benchmark,
+	save(vol.data, vol.sdata, 
+		cut.vol.data, cut.vol.sdata,
+		pauc.cut.vol.data, pauc.cut.vol.sdata,
+		res, sres, lmod, benchmark,
 		paucs, spaucs, fpr.stop,
+		pauc.cut.tabs, all.cuts, all.pauc.cuts,
+		pauc.cut.stabs, 
+		cut.tabs, 
+		cut.stabs, 		
 		col.q,
 		saccs, accs, brain.vol, not0100, 
 		file = predname)
