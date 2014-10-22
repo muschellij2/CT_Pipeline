@@ -13,6 +13,7 @@ library(ROCR)
 library(matrixStats)
 library(ggplot2)
 library(smallPDF)
+library(reshape2)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -26,10 +27,15 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "N3"
+correct = "Affine"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
         "SyN", "SyN_sinc", "Rigid", "Affine")
-for (correct in options){
+
+icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+if (is.na(icorr)) icorr = 1
+correct = options[icorr]
+
+# for (correct in options){
     
     correct = match.arg(correct, options)
     adder = switch(correct, 
@@ -92,50 +98,37 @@ for (correct in options){
     ##############################
     # Run lmod number of models - not all the models - leave out
     ##############################
-    lmod = 10
-    fdf.run = fdf[seq(lmod), ]
+    filename = file.path(outdir, 
+        paste0("Collapsed_Models", adder, ".Rda"))
+    load(filename)
 
-    moddname = nii.stub(basename(fdf.run$img))
-    moddname = file.path(fdf.run$outdir, 
-        paste0(moddname, "_predictors", adder, ".Rda"))
+    ##############################
+    # Run lmod number of models - not all the models - leave out
+    ##############################
+    fname = file.path(outdir, 
+        paste0("Aggregate_data", adder, ".Rda"))
 
-    all.df = NULL
-    for (imod in seq(lmod)){
-        load(moddname[imod])
+    system.time({load(file = fname)})
 
-        df = img.pred$df
-        keep.ind = img.pred$keep.ind
-        nim = img.pred$nim
-        df = df[ keep.ind, ]
+    fname = file.path(outdir, 
+        paste0("Aggregate_data_cutoffs", adder, ".Rda"))
 
-        df$img = fdf.run$img[imod]
-        all.df = rbind(all.df, df)
-        rm(list=c("img.pred", "df"))
-        print(imod)
-    }
+    load(fname) 
 
-
-    ich = which(all.df$Y == 1)
-    noich = which(all.df$Y != 1)
-
-    size = 1e5
-    prop = .25
-    n.ich = ceiling(size*prop)
-    n.noich = size - n.ich
-    ich.ind = sample(ich, size=n.ich)
-    noich.ind = sample(noich, size=n.noich)
-    samp.ind = sort(c(ich.ind, noich.ind))
-
-    # samp.ind = sample(nrow(df), size= 1e4)
-    samps = seq(nrow(all.df)) %in% samp.ind
-    train = all.df[samps,]
-    test = all.df[!samps,]
-
-    runnames = names(train)
+    runnames = colnames(all.df)
     nosmooth = c("any_zero_neighbor",
             "thresh", "pct_zero_neighbor")
     runnames = runnames[ !(runnames %in% 
         c("mask", "Y", "img", nosmooth))]
+
+    train = all.df[samps,]
+    test = all.df[!samps,]
+
+    qdat = melt(quants)
+    colnames(qdat) = c("q", "pred", "value", "Y")
+    qdat = qdat[ qdat$q %in% c("0.1%", "99.9%"), ]
+    qdat$Y = as.numeric(qdat$Y)
+
     pdfname = file.path(outdir, 
         paste0("Aggregate_Data_Plots", adder, ".pdf"))
     # pdf(pdfname)
@@ -157,8 +150,26 @@ for (correct in options){
             print(gg)
             print(iname)
         }
+        h = ggplot(train, aes(fill = factor(Y))) + 
+            geom_histogram(alpha = 0.5)
+        h2 = ggplot(train) + facet_wrap(~ Y, nrow=2) + 
+            geom_histogram()       
+        for (iname in runnames){
+            dat = qdat[ qdat$pred %in% iname, ]
+            hh = h + aes_string(x = iname) + 
+                geom_vline(data=dat, 
+                    aes(xintercept = value, colour = factor(Y)))
+            hh2 = h2 + aes_string(x = iname) + 
+                geom_vline(data=dat, aes(xintercept = value))
+            hh = hh + ggtitle(iname)
+            hh2 = hh2 + ggtitle(iname)
+            print(hh)
+            print(hh2)
+            print(iname)
+        }
+
     smallpdf.off(pdfname = pdfname, 
         pdfobj = pdfobj, 
         clean = TRUE)
 
-}
+# }

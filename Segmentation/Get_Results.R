@@ -91,7 +91,10 @@ for (correct in options){
 	reses = sreses = res
 
 	cut.vol.datas = cut.vol.sdatas = vol.data
+	cut.vol.tsdatas = cut.vol.sdatas
+
 	pauc.cut.vol.datas = pauc.cut.vol.sdatas = cut.vol.datas
+	# pauc.cut.vol.tsdatas = pauc.cut.vol.sdatas
 
 	benches = vector(length= length(runpreds))
 	all.saccs = all.accs = reses
@@ -110,8 +113,8 @@ for (correct in options){
 	}
 
 	for (get.pred in 1:nrow(fdf)){
-		if (get.pred > 110) next;
 		
+		if (get.pred == 111) next;
 		idoutdir = fdf$outdir[get.pred]	
 		predname = nii.stub(basename(fdf$img[get.pred]))
 		predname = file.path(idoutdir, 
@@ -129,20 +132,27 @@ for (correct in options){
 
 		cut.vol.datas[get.pred, ] = cut.vol.data[get.pred,]
 		cut.vol.sdatas[get.pred, ] = cut.vol.sdata[get.pred,]
+		cut.vol.tsdatas[get.pred, ] = cut.vol.tsdata[get.pred,]
 
 		mod.accs[get.pred, ] = sapply(cut.tabs, get.acc)
 		mod.saccs[get.pred, ] = sapply(cut.stabs, get.acc)
+		# mod.tsaccs[get.pred, ] = sapply(cut.tabs.smooth, get.acc)
 
 		mod.sens[get.pred, ] = sapply(cut.tabs, get.sens)
 		mod.ssens[get.pred, ] = sapply(cut.stabs, get.sens)
+		# mod.tssens[get.pred, ] = sapply(cut.tabs.smooth, get.sens)
 
 		mod.spec[get.pred, ] = sapply(cut.tabs, get.spec)
 		mod.sspec[get.pred, ] = sapply(cut.stabs, get.spec)		
+		# mod.tsspec[get.pred, ] = sapply(cut.tabs.smooth, get.spec)
 
 		pauc.cut.vol.datas[get.pred, ] = 
 			pauc.cut.vol.data[get.pred,]
 		pauc.cut.vol.sdatas[get.pred, ] = 
 			pauc.cut.vol.sdata[get.pred,]
+		# pauc.cut.vol.tsdatas[get.pred, ] = 
+		# 	pauc.cut.vol.tsdata[get.pred,]
+				
 
 		benches[get.pred] = benchmark
 		# print(get.pred)
@@ -170,8 +180,11 @@ for (correct in options){
 	save(sres, res, valid.ind, test.ind,
 		vol.data, vol.sdata,
 		cut.vol.datas, cut.vol.sdatas,
+		cut.vol.tsdatas,
+		# pauc.cut.vol.tsdatas,
 		pauc.cut.vol.datas, pauc.cut.vol.sdatas,
 		mod.saccs, mod.accs,
+		# mod.tsaccs, mod.tssens, mod.tsspec,
 		mod.sens, mod.ssens,
 		mod.spec, mod.sspec,
 		all.accs, all.saccs, benches,
@@ -189,44 +202,77 @@ for (correct in options){
 	voldiff = vd - truevol
 	adiff = abs(voldiff)
 
-	cut.adiff = abs(
-		cut.vol.datas[-nopred, 
+
+	######################################
+	# Taking volume differences from truth and subsetting
+	######################################
+	cut.diff = cut.vol.datas[-nopred, 
 			!colnames(cut.vol.datas) %in% "truth"] - 
 		truevol
-		)
-	cut.sadiff = abs(
-		cut.vol.sdatas[-nopred, 
+	cut.adiff = abs(cut.diff)
+
+	cut.sdiff = cut.vol.sdatas[-nopred, 
 			!colnames(cut.vol.sdatas) %in% "truth"] -
 		truevol
-		)	
+	cut.sadiff = abs(cut.sdiff)
 
-	sadiff = abs(vsd - truevol) 
-	valid.svol = sadiff[valid.ind,]
-	test.svol = sadiff[test.ind,]
+	cut.tsdiff = cut.vol.tsdatas[-nopred, 
+			!colnames(cut.vol.sdatas) %in% "truth"] -
+		truevol
+	cut.tsadiff = abs(cut.tsdiff)				
 
-	valid.vol = adiff[valid.ind,]
-	test.vol = adiff[test.ind,]
+	svoldiff = vsd - truevol
+	sadiff = abs(svoldiff) 
+	valid.svol = svoldiff[valid.ind,]
+	test.svol = svoldiff[test.ind,]
 
-	cut.valid.svol = cut.sadiff[valid.ind,]
-	cut.test.svol = cut.sadiff[test.ind,]
+	######################################
+	# The ones with a's are absolute, should just do in plot code
+	######################################
+	valid.vol = voldiff[valid.ind,]
+	test.vol = voldiff[valid.ind,]
 
-	cut.valid.vol = cut.adiff[valid.ind,]
-	cut.test.vol = cut.adiff[test.ind,]		
+	valid.avol = adiff[valid.ind,]
+	test.avol = adiff[test.ind,]
 
+	valid.savol = sadiff[valid.ind,]
+	test.savol = sadiff[test.ind,]
+
+	cut.valid.svol = cut.sdiff[valid.ind,]
+	cut.test.svol = cut.sdiff[test.ind,]
+
+	cut.valid.savol = cut.sadiff[valid.ind,]
+	cut.test.savol = cut.sadiff[test.ind,]
+
+	cut.valid.tsvol = cut.tsdiff[valid.ind,]
+	cut.test.tsvol = cut.tsdiff[test.ind,]	
+
+	cut.valid.tsavol = cut.tsadiff[valid.ind,]
+	cut.test.tsavol = cut.tsadiff[test.ind,]
+
+	cut.valid.vol = cut.diff[valid.ind,]
+	cut.test.vol = cut.diff[test.ind,]		
+
+	cut.valid.avol = cut.adiff[valid.ind,]
+	cut.test.avol = cut.adiff[test.ind,]
+
+	######################################
+	# Getting pAUC
+	######################################
 	res = res[-nopred, ]
 	sres = sres[-nopred, ]
-
-	all.accs = all.accs[-nopred, ]
-	all.saccs = all.saccs[-nopred, ]
-
-	
-	benches = benches[-nopred]
 
 	valid.res = res[valid.ind,]
 	test.res = res[test.ind,]
 
 	valid.sres = sres[valid.ind,]
 	test.sres = sres[test.ind,]
+
+	######################################
+	# Getting Accuracy
+	######################################
+	all.accs = all.accs[-nopred, ]
+	all.saccs = all.saccs[-nopred, ]
 
 	valid.acc = all.accs[valid.ind,]
 	valid.sacc = all.saccs[valid.ind,]
@@ -235,7 +281,7 @@ for (correct in options){
 	test.sacc = all.saccs[test.ind,]
 
 	cut.all.accs = mod.accs[-nopred, ]
-	cut.all.saccs = mod.saccs[-nopred, ]	
+	cut.all.saccs = mod.saccs[-nopred, ]
 
 	cut.valid.acc = cut.all.accs[valid.ind,]
 	cut.valid.sacc = cut.all.saccs[valid.ind,]
@@ -243,13 +289,19 @@ for (correct in options){
 	cut.test.acc = mod.accs[test.ind,]
 	cut.test.sacc = mod.saccs[test.ind,]
 
-
+	######################################
+	# Getting Benchmarks
+	######################################
+	benches = benches[-nopred]
 	valid.bench = benches[valid.ind]
-	test.bench = benches[test.ind]
+	test.bench = benches[test.ind]	
 
 	bench.m = matrix(valid.bench, nrow=length(valid.bench), 
 		ncol = ncol(valid.acc), byrow=FALSE)
 
+	######################################
+	# Getting Difference in accuracy and benchmark
+	######################################
 	bench.diff = valid.acc - bench.m
 	n_above = colSums(bench.diff > 0)
 
@@ -276,7 +328,7 @@ for (correct in options){
 		subset.ind = test.ind
 	}
 	subset.ids = ffdf$id[subset.ind]
-
+	truth = truevol[subset.ind]
 
 	pdfname = file.path(outdir, 
 		paste0("Modeling_", group, "_Results", adder, ".pdf"))
@@ -397,34 +449,105 @@ for (correct in options){
 		return(quants)
 	}
 
+	ba.plotter = function(data, truth, 
+		title="", 
+		ncol=4, nrow=5,
+		forcex=FALSE, xlimits=c(0, 1), 
+		forcey = FALSE, ylimits = c(0, 13)){
+		long = melt(data)
+		colnames(long) = c("id", "model", "value")
+		long$truth = truth
+
+		g = ggplot(data=long, aes(x=truth, y=value)) + 
+		geom_point() + geom_smooth(se=FALSE) +
+			facet_wrap(~ model, nrow=nrow, ncol= ncol) 
+		g = g + ggtitle(title)
+		if (forcex) g= g + xlim(xlimits)
+		if (forcey) g= g + ylim(ylimits)
+		print(g)
+
+		return(invisible())
+	}
+
+	nkeep = 4
+
+	stop5 = colMeans(sres[subset.ind,])
+	stop5 = names(sort(stop5, decreasing=TRUE))[1:nkeep]
+
+	top5 = colMeans(res[subset.ind,])
+	top5 = names(sort(top5, decreasing=TRUE))[1:nkeep]
 
 
-	top5 = colMeans(sres[subset.ind,])
-	top5 = names(sort(top5, decreasing=TRUE))[1:4]
+	###########################################
+	# Volume differences and BA plots for all models
+	###########################################
+	# plotter(voldiff[subset.ind, ], 
+	#   title= "Difference in Predicted vs. True Volume, Unsmoothed")
 
+	# plotter(svoldiff[subset.ind, ], 
+	#   title= "Difference in Predicted vs. True Volume, Smoothed")
 
-	volres = plotter(adiff[subset.ind, ], 
+	# ba.plotter(voldiff[subset.ind, ], truth = truth,
+	#   title= "Difference in Predicted vs. True Volume, Unsmoothed")
+
+	# ba.plotter(svoldiff[subset.ind, ], 
+	#   title= "Difference in Predicted vs. True Volume, Smoothed")
+
+	###########################################
+	# Volume differences and BA plots for best models
+	###########################################
+	plotter(voldiff[subset.ind, top5], 
 	  title= "Difference in Predicted vs. True Volume, Unsmoothed")
-	volsres = plotter(sadiff[subset.ind, ], 
+
+	plotter(svoldiff[subset.ind, stop5], 
+	  title= "Difference in Predicted vs. True Volume, Smoothed")
+
+	ba.plotter(voldiff[subset.ind, top5], truth = truth,
+	  title= "Difference in Predicted vs. True Volume, Unsmoothed")
+
+	ba.plotter(svoldiff[subset.ind, stop5], truth = truth,
 	  title= "Difference in Predicted vs. True Volume, Smoothed")
 
 
-	volres = plotter(cut.adiff[subset.ind, ], 
-	  title= 
-	  	"Difference in Predicted vs. True Volume, Unsmoothed, Cut")
+	###########################################
+	# Absolute Volume differences for all models
+	###########################################
+	# volres = plotter(adiff[subset.ind, ], 
+	#   title= paste0("Abs Difference in Predicted vs. ", 
+	#   	"True Volume, Unsmoothed"))	
+	# volsres = plotter(sadiff[subset.ind, ], 
+	#   title= paste0("Abs Difference in Predicted vs. ", 
+	#   	"True Volume, Smoothed"))
 
-	volres = plotter(cut.adiff[subset.ind, 
-		c("mod_agg", "median", "gmean", "gam", "min")], 
-	  title= 
-	  	"Difference in Predicted vs. True Volume, Unsmoothed, Cut")	
-	volsres = plotter(cut.sadiff[subset.ind, ], 
-	  title= 
-	  "Difference in Predicted vs. True Volume, Smoothed, Cut")	
+	###########################################
+	# Absolute Volume differences for best models
+	###########################################
+	volres = plotter(adiff[subset.ind, top5], 
+	  title= paste0("Abs Difference in Predicted vs. ", 
+	  	"True Volume, Unsmoothed"),
+	  ncol= 1, nrow=nkeep)	
+	volsres = plotter(sadiff[subset.ind, stop5], 
+	  title= paste0("Abs Difference in Predicted vs. ", 
+	  	"True Volume, Smoothed"),
+	  ncol= 1, nrow=nkeep)	
 
-	volsres = plotter(cut.sadiff[subset.ind, 
-		c("mod_agg", "median", "gmean", "gam", "min")], 
-	  title= 
-	  "Difference in Predicted vs. True Volume, Smoothed, Cut")		
+
+	# volres = plotter(cut.adiff[subset.ind, ], 
+	#   title= 
+	#   	"Difference in Predicted vs. True Volume, Unsmoothed, Cut")
+
+	# volres = plotter(cut.adiff[subset.ind, 
+	# 	c("mod_agg", "median", "gmean", "gam", "min")], 
+	#   title= 
+	#   	"Difference in Predicted vs. True Volume, Unsmoothed, Cut")	
+	# volsres = plotter(cut.sadiff[subset.ind, ], 
+	#   title= 
+	#   "Difference in Predicted vs. True Volume, Smoothed, Cut")	
+
+	# volsres = plotter(cut.sadiff[subset.ind, 
+	# 	c("mod_agg", "median", "gmean", "gam", "min")], 
+	#   title= 
+	#   "Difference in Predicted vs. True Volume, Smoothed, Cut")		
 
 	# volsres = plotter(sadiff[subset.ind, top5], 
 	# 	title= "Difference in Predicted vs. True Volume, Smoothed")
@@ -499,24 +622,27 @@ for (correct in options){
 
 	g3
 
-	vres = plotter(res[subset.ind, top5], title= 
+	###########################################
+	# pAUC for best models
+	###########################################
+	plotter(res[subset.ind, top5], title= 
 		paste0("Partial AUC (under ", fpr.stop, 
 		" FDR) Distribution, Unsmoothed"), 
-		ncol= 1, nrow=5, forcex = TRUE)
+		ncol= 1, nrow=nkeep, forcex = TRUE)
 
-	vsres = plotter(sres[subset.ind, top5], title= 
+	plotter(sres[subset.ind, stop5], title= 
 		paste0("Partial AUC (under ", fpr.stop, 
 		" FDR) Distribution, Smoothed"),
-		ncol= 1, nrow=5, forcex = TRUE)
+		ncol= 1, nrow=nkeep, forcex = TRUE)
 
-	both = sres[subset.ind, top5]
+	both = sres[subset.ind, stop5]
 	colnames(both) = paste0("smooth_", colnames(both))
 	both = cbind(both, res[subset.ind, top5])
 
 	plotter(both, title= paste0("Partial AUC (under ", 
 		fpr.stop, 
 		" FDR) Distribution"),
-		ncol= 1, nrow=8, forcex = TRUE)
+		ncol= 1, nrow=nkeep*2, forcex = TRUE)
 
 	dev.off()
 
@@ -528,7 +654,7 @@ for (correct in options){
 		plotter(both, 
 		title= paste0("Partial AUC (under ", fpr.stop, 
 		" FDR) Distribution"),
-		ncol= 1, nrow=8, forcex = TRUE,
+		ncol= 1, nrow=nkeep*2, forcex = TRUE,
 		forcey = TRUE, ylimits = c(0, 13))
 	dev.off()
 

@@ -31,9 +31,37 @@ outdir = file.path(basedir, "results")
 correct = "none"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 		"SyN", "SyN_sinc", "Rigid", "Affine")
+nopts = length(options)
 
-# for (correct in options){
+
+#### load voxel data
+outfile = file.path(outdir, "Voxel_Info.Rda")
+load(file=outfile )
+
+outfile = file.path(outdir, "111_Filenames.Rda")
+load(file = outfile)
+
+mod.filename = file.path(outdir, 
+	paste0("Collapsed_Models.Rda"))
+x = load(mod.filename)	
+cn = colnames(res)
+rm(list=x)
+group = "Training"
+
+p = length(cn)
+
+m.pauc = matrix(NA, nrow=length(options), ncol = p)
+colnames(m.pauc) = cn
+
+m.spauc = m.pauc
+m.vdiff = m.pauc
+m.svdiff = m.vdiff
+
+icorr = 1
+
+for (icorr in seq(nopts)){
 	
+	correct = options[icorr]
 	print(correct)
 	correct = match.arg(correct, options)
 	adder = switch(correct, 
@@ -47,13 +75,6 @@ options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 		"Rigid" = "_Rigid",
 		"Affine" = "_Affine")
 
-
-	#### load voxel data
-	outfile = file.path(outdir, "Voxel_Info.Rda")
-	load(file=outfile )
-
-	outfile = file.path(outdir, "111_Filenames.Rda")
-	load(file = outfile)
 
 
 	mod.filename = file.path(outdir, 
@@ -76,13 +97,14 @@ options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 
 
 	ffdf = fdf[-nopred, ]
-	group = "Training"
 	if (group == "Training"){
 		subset.ind = valid.ind
 	}
 	if (group == "Test"){
 		subset.ind = test.ind
 	}
+
+	subset.ids = ffdf$id[subset.ind]
 
 	vsd = vol.sdata
 	vsd = vsd[-nopred,]
@@ -96,72 +118,97 @@ options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 	voldiff = vd - truevol
 	adiff = abs(voldiff)
 
-	cut.adiff = abs(
-		cut.vol.datas[-nopred, 
+	######################################
+	# Taking volume differences from truth and subsetting
+	######################################
+	cut.diff = cut.vol.datas[-nopred, 
 			!colnames(cut.vol.datas) %in% "truth"] - 
 		truevol
-		)
-	cut.sadiff = abs(
-		cut.vol.sdatas[-nopred, 
+	cut.adiff = abs(cut.diff)
+
+	cut.sdiff = cut.vol.sdatas[-nopred, 
 			!colnames(cut.vol.sdatas) %in% "truth"] -
 		truevol
-		)	
+	cut.sadiff = abs(cut.sdiff)
 
-	sadiff = abs(vsd - truevol) 
-	svol = sadiff[subset.ind,]
+	cut.tsdiff = cut.vol.tsdatas[-nopred, 
+			!colnames(cut.vol.sdatas) %in% "truth"] -
+		truevol
+	cut.tsadiff = abs(cut.tsdiff)				
 
-	vol = adiff[subset.ind,]
+	svoldiff = vsd - truevol
+	sadiff = abs(svoldiff) 
 
-	cut.svol = cut.sadiff[subset.ind,]
+	######################################
+	# The ones with a's are absolute, should just do in plot code
+	######################################
+	vol = voldiff[subset.ind,]
 
-	cut.valid.vol = cut.adiff[subset.ind,]
+	avol = adiff[subset.ind,]
 
+	svol = svoldiff[subset.ind,]
+	savol = sadiff[subset.ind,]
+
+	cut.svol = cut.sdiff[subset.ind,]
+	cut.savol = cut.sadiff[subset.ind,]
+
+	cut.valid.tsvol = cut.tsdiff[subset.ind,]
+	cut.valid.tsavol = cut.tsadiff[subset.ind,]
+
+	cut.valid.vol = cut.diff[subset.ind,]
+	cut.valid.avol = cut.adiff[subset.ind,]
+
+	######################################
+	# Getting pAUC
+	######################################
 	res = res[-nopred, ]
 	sres = sres[-nopred, ]
 
+	res = res[subset.ind,]
+	sres = sres[subset.ind,]
+
+	######################################
+	# Getting Accuracy
+	######################################
 	all.accs = all.accs[-nopred, ]
 	all.saccs = all.saccs[-nopred, ]
-	
-	benches = benches[-nopred]
-
-	res = res[subset.ind,]
-
-	sres = sres[subset.ind,]
 
 	acc = all.accs[subset.ind,]
 	sacc = all.saccs[subset.ind,]
 
 	cut.all.accs = mod.accs[-nopred, ]
-	cut.all.saccs = mod.saccs[-nopred, ]	
+	cut.all.saccs = mod.saccs[-nopred, ]
 
 	cut.acc = cut.all.accs[subset.ind,]
 	cut.sacc = cut.all.saccs[subset.ind,]
 
 
+	######################################
+	# Getting Benchmarks
+	######################################
+	benches = benches[-nopred]
 	bench = benches[subset.ind]
 
-	bench.diff = acc - bench
-	n_above = colSums(bench.diff > 0)
-
-	above_bench = apply(bench.diff > 0, 2, all)
-	best.acc = which(above_bench)
-	biggest.acc_diff = which.max(colMeans(bench.diff))
-
-	best.res= apply(res, 1, which.max)
-	best.sres= apply(sres, 1, which.max)
-
-	# sacc = valid.sacc
-	# acc = valid.acc
-	# inds = valid.ind
-	# benches = valid.bench
-	# vol = valid.vol
-	# svol = valid.svol
-	# sres = valid.sres
-
-	subset.ids = ffdf$id[subset.ind]
+	bench.m = matrix(bench, nrow=length(bench), 
+		ncol = ncol(acc), byrow=FALSE)
 
 
+	fcn = colMedians
+	m.pauc[icorr, ] = do.call(fcn, list(res))
+	m.spauc[icorr, ] = do.call(fcn, list(sres))
 
-	
+	m.vdiff[icorr, ] = do.call(fcn, list(avol))
+	m.svdiff[icorr, ] = do.call(fcn, list(savol))
 
+	print(icorr)
+}
+
+which(m.pauc == max(m.pauc), arr.ind=TRUE)
+max(m.pauc)
+which(m.spauc == max(m.spauc), arr.ind=TRUE)
+max(m.spauc)
+which(m.vdiff == min(m.vdiff), arr.ind=TRUE)
+min(m.vdiff)
+which(m.svdiff == min(m.svdiff), arr.ind=TRUE)
+min(m.svdiff)
 # }
