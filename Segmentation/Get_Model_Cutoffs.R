@@ -162,6 +162,20 @@ correct = options[icorr]
     test = all.df[!samps,]
 	test$include = test$value >= 30 & test$value <= 100
 
+    fname = file.path(outdir, 
+        paste0("Aggregate_data_cutoffs", adder, ".Rda"))
+
+    load(file = fname)
+    keepnames = colnames(est.cutoffs)
+    include = rep(TRUE, length=ncol(df))
+    for (icut in keepnames){
+        qcuts = est.cutoffs[, icut]
+        include = include & 
+            (test[, icut] >= qcuts[1] & test[, icut] <= qcuts[2])
+    }
+
+    test$include.all = include
+
 	preds = t(laply(all.mods, short_predict, newdata= test, 
                   .progress = "text"))
 

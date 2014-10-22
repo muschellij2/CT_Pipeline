@@ -123,8 +123,9 @@ for (correct in options){
 	vol.sdatas = vol.datas = vol.data
 	reses = sreses = res
 
-	cut.vol.data = cut.vol.sdata = vol.data
+	cut.vol.data = cut.vol.sdata = cut.vol.tsdata = vol.data
 	pauc.cut.vol.data = pauc.cut.vol.sdata = cut.vol.data
+	pauc.cut.vol.tsdata = pauc.cut.vol.sdata
 
 	get.pred <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 	if (is.na(get.pred)) get.pred = 3
@@ -145,6 +146,24 @@ for (correct in options){
 	rm(list="img.pred")
     for (i in 1:3) gc()	
 	df$include = df$value >= 30 & df$value <= 100
+
+
+    fname = file.path(outdir, 
+        paste0("Aggregate_data_cutoffs", adder, ".Rda"))
+
+    load(file = fname)
+    keepnames = colnames(est.cutoffs)
+    include = rep(TRUE, length=nrow(df))
+    for (icut in keepnames){
+    	qcuts = est.cutoffs[, icut]
+    	include = include & 
+    		(df[, icut] >= qcuts[1] & df[, icut] <= qcuts[2])
+    }
+
+	df$include.all = include
+
+		# df$dist_centroid <= 75
+
 	df$in0100 = df$value >= 0 & df$value <= 100
 	# df$in20_85 = df$value >= 20 & df$value <= 85
 	df$mask = df$mask > 0
@@ -172,6 +191,12 @@ for (correct in options){
 	roi.not.in = which(keep.ind %in% roi.not.in)
 
 	df = df[keep.ind,]
+
+	pct.out = sum(df$Y[! df$include.all]) / sum(df$Y)
+	pct.reduced = sum(1-df$Y[!df$include.all]) / sum(1-df$Y)	
+
+	sum(df$include)
+	sum(df$include.all)
 	Y =  df$Y
 	benchmark = 1-mean(df$Y)
 	brain.vol = nrow(df) * vres
@@ -196,7 +221,8 @@ for (correct in options){
 	# gam.cut.vols = sum(test.gam.pred > gam.acc[, "cutoff"])
 	# gam.cut.vols = gam.cut.vols * vres
 	
-	# gam.pauc.cut.vols = sum(test.gam.pred > gam.pauc.cut[, "cutoff"])
+	# gam.pauc.cut.vols = sum(test.gam.pred > 
+	# gam.pauc.cut[, "cutoff"])
 	# gam.pauc.cut.vols = gam.pauc.cut.vols * vres
 
 
@@ -213,7 +239,8 @@ for (correct in options){
     # ind = which.max(test.gam.acc@y.values[[1]])
     # test.gam.cutoff = test.gam.acc@x.values[[1]][[ind]]
     # test.gam.acc = test.gam.acc@y.values[[1]][ind]
-    # test.gam.acc = c(accuracy=test.gam.acc, cutoff= test.gam.cutoff)
+    # test.gam.acc = c(accuracy=test.gam.acc, 
+    # cutoff= test.gam.cutoff)
     # test.gam.acc = t(test.gam.acc)
     # test.gam.acc
 
@@ -256,10 +283,13 @@ for (correct in options){
 		scut.filename = file.path(outdir, 
 		paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
 
-		load(file=scut.filename)		
+		load(file=scut.filename)
 
 		stopifnot(all(names(all.cuts) == colnames(preds)))
 		stopifnot(all(names(all.pauc.cuts) == colnames(preds)))
+
+		stopifnot(all(names(all.scuts) == colnames(preds)))
+		stopifnot(all(names(all.spauc.cuts) == colnames(preds)))	
 
 		cut.vols = colSums(t(t(preds) > all.cuts))
 		cut.vols = cut.vols * vres
@@ -355,19 +385,31 @@ for (correct in options){
 			tabs
 		}
 		cut.tabs = runtabs(preds, all.cuts)
-		cut.stabs = runtabs(spreds, all.cuts)
+		cut.stabs = runtabs(spreds, all.scuts)
+		cut.tabs.smooth = runtabs(spreds, all.cuts)
 
 		pauc.cut.tabs = runtabs(preds, all.pauc.cuts)
-		pauc.cut.stabs = runtabs(spreds, all.pauc.cuts)
+		pauc.cut.stabs = runtabs(spreds, all.spauc.cuts)
+		pauc.cut.tabs.smooth = runtabs(spreds, all.pauc.cuts)
 
-		cut.svols = colSums(t(t(spreds) > all.cuts))
+		cut.svols = colSums(t(t(spreds) > all.scuts))
 		cut.svols = cut.svols * vres
 		cut.vol.sdata[get.pred, ] = c(vol.roi, cut.svols)
 
-		pauc.cut.svols = colSums(t(t(spreds) > all.pauc.cuts))
+		cut.vols.smooth = colSums(t(t(spreds) > all.cuts))
+		cut.vols.smooth = cut.vols.smooth * vres
+		cut.vol.tsdata[get.pred, ] = c(vol.roi, cut.vols.smooth)
+
+
+		pauc.cut.svols = colSums(t(t(spreds) > all.spauc.cuts))
 		pauc.cut.svols = pauc.cut.svols * vres
 		pauc.cut.vol.sdata[get.pred, ] = c(vol.roi, 
 			pauc.cut.svols)	
+
+		pauc.cut.svols = colSums(t(t(spreds) > all.pauc.cuts))
+		pauc.cut.svols = pauc.cut.svols * vres
+		pauc.cut.vol.tsdata[get.pred, ] = c(vol.roi, 
+			pauc.cut.svols)
 
 		# print(vol.roi)
 		# print(vol.pred)		
@@ -449,6 +491,10 @@ for (correct in options){
 	save(vol.data, vol.sdata, 
 		cut.vol.data, cut.vol.sdata,
 		pauc.cut.vol.data, pauc.cut.vol.sdata,
+		pauc.cut.vol.tsdata,
+		cut.vol.tsdata, 
+		cut.tabs.smooth,
+		pauc.cut.tabs.smooth,
 		res, sres, lmod, benchmark,
 		paucs, spaucs, fpr.stop,
 		pauc.cut.tabs, all.cuts, all.pauc.cuts,
@@ -456,6 +502,7 @@ for (correct in options){
 		cut.tabs, 
 		cut.stabs, 		
 		col.q,
+		pct.out, pct.reduced,
 		saccs, accs, brain.vol, not0100, 
 		file = predname)
 	print(correct)

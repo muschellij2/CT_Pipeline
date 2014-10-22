@@ -113,48 +113,62 @@ correct = options[icorr]
     ##############################
     # Run lmod number of models - not all the models - leave out
     ##############################
-    fdf.run = fdf[run.ind, ]
+    # fdf.run = fdf[run.ind, ]
 
-    moddname = nii.stub(basename(fdf.run$img))
-    moddname = file.path(fdf.run$outdir, 
-        paste0(moddname, "_predictors", adder, ".Rda"))
+    # moddname = nii.stub(basename(fdf.run$img))
+    # moddname = file.path(fdf.run$outdir, 
+    #     paste0(moddname, "_predictors", adder, ".Rda"))
 
-    all.df = NULL
-    for (imod in seq(nrow(fdf.run))){
-        load(moddname[imod])
+    # all.df = NULL
+    # for (imod in seq(nrow(fdf.run))){
+    #     load(moddname[imod])
 
-        df = img.pred$df
-        keep.ind = img.pred$keep.ind
-        nim = img.pred$nim
-        df = df[ keep.ind, ]
+    #     df = img.pred$df
+    #     keep.ind = img.pred$keep.ind
+    #     nim = img.pred$nim
+    #     df = df[ keep.ind, ]
 
-        df$img = fdf.run$img[imod]
-        all.df = rbind(all.df, df)
-        rm(list=c("img.pred", "df"))
-        print(imod)
-    }
+    #     df$img = fdf.run$img[imod]
+    #     all.df = rbind(all.df, df)
+    #     rm(list=c("img.pred", "df"))
+    #     print(imod)
+    # }
 
-
-    ich = which(all.df$Y == 1)
-    noich = which(all.df$Y != 1)
-
-    size = 1e5
-    prop = .25
-    n.ich = ceiling(size*prop)
-    n.noich = size - n.ich
-    ich.ind = sample(ich, size=n.ich)
-    noich.ind = sample(noich, size=n.noich)
-    samp.ind = sort(c(ich.ind, noich.ind))
-
-    # samp.ind = sample(nrow(df), size= 1e4)
-    samps = seq(nrow(all.df)) %in% samp.ind
+    fname = file.path(outdir, 
+        paste0("Aggregate_data", adder, ".Rda"))
+    load(fname)
     
-    img = all.df$img
-    all.df$img = NULL    
+    runnames = colnames(all.df)
+    nosmooth = c("any_zero_neighbor",
+            "thresh", "pct_zero_neighbor")
+    runnames = runnames[ !(runnames %in% 
+        c("mask", "Y", "img", nosmooth))]
 
+    fname = file.path(outdir, 
+        paste0("Aggregate_data_cutoffs", adder, ".Rda"))
+
+    load(file = fname)
+    
     train = all.df[samps,]
     test = all.df[!samps,]
 
+
+
+    keepnames = colnames(est.cutoffs)
+    include = rep(TRUE, length=nrow(all.df))
+    for (icut in keepnames){
+        qcuts = est.cutoffs[, icut]
+        include = include & 
+            (all.df[, icut] >= qcuts[1] & 
+                all.df[, icut] <= qcuts[2])
+        print(icut)
+    }
+
+    sum(all.df$Y[!include])/ sum(all.df$Y)
+    sum(include)/ length(include)
+    all.df$include.all = include
+
+    test$include.all = include[!samps]
 
     runmod = function(formstr){
         form = as.formula(formstr)
@@ -170,8 +184,10 @@ correct = options[icorr]
         runmod( formstr= paste0(formstr, " - ", x))
         }, .progress = "text")
 
+
     ### used gam - but bam supposedly faster
-    gam.mod = bam(Y ~ 
+    gam.time = system.time({
+        gam.mod = bam(Y ~ 
         s(moment1) + 
         s(moment2) + 
         s(moment3) + 
@@ -189,6 +205,8 @@ correct = options[icorr]
         s(smooth20)
         , data=train, family= binomial(), 
         method = "fREML")
+    })
+    gam.time
 
     remove_lmparts = function(mod){
         keep = c("coefficients", "xlevels", 
@@ -223,6 +241,7 @@ correct = options[icorr]
         .progress = "text")
 
     test.pred = short_predict(mod, test)
+    test.pred = test.pred * test$include.all
 
     pred <- prediction( test.pred, test$Y)
     fpr.stop = fdr.stop = .01
@@ -248,6 +267,8 @@ correct = options[icorr]
     cat("GAM Prediciton \n")
     
     test.gam.pred = as.numeric(test.gam.pred)
+    test.gam.pred = test.gam.pred * test$include.all
+
     gam.pred <- prediction( test.gam.pred, test$Y)
     # pred <- prediction( test.pred.all, test$Y)
     # pred <- prediction( test.pred.05, test$Y)
@@ -281,6 +302,8 @@ correct = options[icorr]
     for (i in seq_along(take.mods)){
         imod = take.mods[[i]]
         test.preds = short_predict(imod, newdata=test)
+        test.preds = test.preds * test$include.all
+
         preds <- prediction( test.preds, test$Y)
         myperf = performance(preds, "auc", fpr.stop = fpr.stop)
         myperf = unlist(myperf@y.values) / fpr.stop
@@ -325,6 +348,7 @@ correct = options[icorr]
 
     save(mods, take.mods, paucs, pauc, fdf.run, 
         pauc.cut, paucs.cut,
+        gam.time,
         accs, acc, gam.mod, gam.acc,  gam.pauc, 
         gam.pauc.cut,
         file = fname)
