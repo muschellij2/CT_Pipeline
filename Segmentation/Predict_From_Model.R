@@ -25,8 +25,8 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 correct = "none"
-options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-        "SyN", "SyN_sinc", "Rigid", "Affine")
+options = c("none", "SyN", "SyN_sinc", "Rigid", "Affine",
+		"N3", "N4", "N3_SS", "N4_SS")
 
 my.tab <- function(
   x, 
@@ -46,9 +46,13 @@ my.tab <- function(
   return(tab) 
 }
 
+types = c("_zval2")
+# , "_zval2"
+# "_include_all", 
+type = types[4]
+
+
 keep.obj = ls()
-
-
 
 for (correct in options){
 	
@@ -128,7 +132,7 @@ for (correct in options){
 	pauc.cut.vol.tsdata = pauc.cut.vol.sdata
 
 	get.pred <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-	if (is.na(get.pred)) get.pred = 3
+	if (is.na(get.pred)) get.pred = 21
 	x = fdf[get.pred,]
 	print(get.pred)
 
@@ -153,16 +157,24 @@ for (correct in options){
 
     load(file = fname)
     keepnames = colnames(est.cutoffs)
+	keepnames = keepnames[!( keepnames %in% 
+	c("dist_centroid", "smooth10", "smooth20", "moment2", 
+		"moment4", "moment3"))]    
     include = rep(TRUE, length=nrow(df))
     for (icut in keepnames){
     	qcuts = est.cutoffs[, icut]
-    	include = include & 
-    		(df[, icut] >= qcuts[1] & df[, icut] <= qcuts[2])
+    	colname = paste0(icut, ".cutoff")
+    	df[, colname] = df[, icut] >= qcuts[1] & 
+    		df[, icut] <= qcuts[2]
+    	include = include & df[, colname]
     }
 
 	df$include.all = include
 
-		# df$dist_centroid <= 75
+    df$zval = df[, "zscore3.cutoff"] & df$include &
+    	df$pct_thresh.cutoff
+    df$zval2 = df[, "zscore2.cutoff"] & df$zval
+	# df$dist_centroid <= 75
 
 	df$in0100 = df$value >= 0 & df$value <= 100
 	# df$in20_85 = df$value >= 20 & df$value <= 85
@@ -192,11 +204,7 @@ for (correct in options){
 
 	df = df[keep.ind,]
 
-	pct.out = sum(df$Y[! df$include.all]) / sum(df$Y)
-	pct.reduced = sum(1-df$Y[!df$include.all]) / sum(1-df$Y)	
 
-	sum(df$include)
-	sum(df$include.all)
 	Y =  df$Y
 	benchmark = 1-mean(df$Y)
 	brain.vol = nrow(df) * vres
@@ -213,10 +221,10 @@ for (correct in options){
 		df, 
 		newdata.guaranteed = TRUE,
 		type="response")
-    cat("GAM Prediciton \n")
+    cat("GAM Prediction \n")
     
     test.gam.pred = as.numeric(test.gam.pred)
-	test.gam.pred = test.gam.pred * df$include
+	test.gam.pred = test.gam.pred
 
 	# gam.cut.vols = sum(test.gam.pred > gam.acc[, "cutoff"])
 	# gam.cut.vols = gam.cut.vols * vres
@@ -250,47 +258,67 @@ for (correct in options){
 	# 	irow = which(vol.diff$imod == imod & 
 	# 		vol.diff$get.pred == get.pred)
 
-		preds = t(laply(all.mods, short_predict, newdata= df, 
-                  .progress = "text"))
+	preds = t(laply(all.mods, short_predict, newdata= df, 
+              .progress = "text"))
 
-		#### we only think values 0 to 100 are actually blood
-		rowMean = rowMeans(preds)
-		rowMed = rowMedians(preds)
-		rowMax = rowMaxs(preds)
-		rowMin = rowMins(preds)
-		rowProd = exp(rowSums(log(preds)))
-		rowGeom = exp(rowMeans(log(preds)))
+	#### we only think values 0 to 100 are actually blood
+	rowMean = rowMeans(preds)
+	rowMed = rowMedians(preds)
+	rowMax = rowMaxs(preds)
+	rowMin = rowMins(preds)
+	rowProd = exp(rowSums(log(preds)))
+	rowGeom = exp(rowMeans(log(preds)))
 
-		colnames(preds) = colnames(res)[seq(ncol(preds))]
-		preds = cbind(preds, rowMean, rowMed, rowMax, rowMin,
-			rowProd, rowGeom, gam=test.gam.pred)
-		rownames(preds) = NULL
+	colnames(preds) = colnames(res)[seq(ncol(preds))]
+	preds = cbind(preds, rowMean, rowMed, rowMax, rowMin,
+		rowProd, rowGeom, gam=test.gam.pred)
+	rownames(preds) = NULL
 
-		#### if the mask did not contain these voxels, 
-		#### then they are 0
-		preds[roi.not.in, ] = 0
+	#### if the mask did not contain these voxels, 
+	#### then they are 0
+	preds[roi.not.in, ] = 0
 
+	cut.filename = file.path(outdir, 
+	paste0("Model_Cutoffs", adder, ".Rda"))
+
+	load(file=cut.filename)
+
+	scut.filename = file.path(outdir, 
+	paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
+
+	load(file=scut.filename)
+
+	stopifnot(all(names(all.cuts) == colnames(preds)))
+	stopifnot(all(names(all.pauc.cuts) == colnames(preds)))
+
+	stopifnot(all(names(all.scuts) == colnames(preds)))
+	stopifnot(all(names(all.spauc.cuts) == colnames(preds)))
+
+	xpreds = preds
+
+	for (type in types){
+		if (type == ""){
+			df$multiplier = 1
+		}
+		if (type == "_include"){
+			df$multiplier = df$include
+		}	
+		if (type == "_include_all"){
+			df$multiplier = df$include.all
+		}
+		if (type == "_zval"){
+			df$multiplier = df$zval
+		}		
+		if (type == "_zval2"){
+			df$multiplier = df$zval2
+		}								
+		preds = xpreds
 		#### only values 0 to 100 are likely to be ROI
 		# preds = preds * df$in0100
-		preds = preds * df$include
+		preds = preds * df$multiplier
 
 
-		cut.filename = file.path(outdir, 
-		paste0("Model_Cutoffs", adder, ".Rda"))
-
-		load(file=cut.filename)
-
-		scut.filename = file.path(outdir, 
-		paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
-
-		load(file=scut.filename)
-
-		stopifnot(all(names(all.cuts) == colnames(preds)))
-		stopifnot(all(names(all.pauc.cuts) == colnames(preds)))
-
-		stopifnot(all(names(all.scuts) == colnames(preds)))
-		stopifnot(all(names(all.spauc.cuts) == colnames(preds)))	
-
+	
 		cut.vols = colSums(t(t(preds) > all.cuts))
 		cut.vols = cut.vols * vres
 		cut.vol.data[get.pred, ] = c(vol.roi, cut.vols)
@@ -479,33 +507,35 @@ for (correct in options){
 		spaucs = sapply(s.res, `[[`, "pauc")
 
 		sres[get.pred, ] = spaucs
-		print(get.pred)
+		# print(get.pred)
 		predname = nii.stub(basename(fdf$img[get.pred]))
 		predname = file.path(id.outdir, 
-			paste0(predname, "_model_results", adder, ".Rda"))
+			paste0(predname, "_model_results", adder, 
+				type, ".Rda"))
 
 		col.q = colQuantiles(preds, 
 			probs = seq(0.95, 1, by=0.01))
 		rownames(col.q) = colnames(preds)
 
-	save(vol.data, vol.sdata, 
-		cut.vol.data, cut.vol.sdata,
-		pauc.cut.vol.data, pauc.cut.vol.sdata,
-		pauc.cut.vol.tsdata,
-		cut.vol.tsdata, 
-		cut.tabs.smooth,
-		pauc.cut.tabs.smooth,
-		res, sres, lmod, benchmark,
-		paucs, spaucs, fpr.stop,
-		pauc.cut.tabs, all.cuts, all.pauc.cuts,
-		pauc.cut.stabs, 
-		cut.tabs, 
-		cut.stabs, 		
-		col.q,
-		pct.out, pct.reduced,
-		saccs, accs, brain.vol, not0100, 
-		file = predname)
-	print(correct)
+		save(vol.data, vol.sdata, 
+			cut.vol.data, cut.vol.sdata,
+			pauc.cut.vol.data, pauc.cut.vol.sdata,
+			pauc.cut.vol.tsdata,
+			cut.vol.tsdata, 
+			cut.tabs.smooth,
+			pauc.cut.tabs.smooth,
+			res, sres, lmod, benchmark,
+			paucs, spaucs, fpr.stop,
+			pauc.cut.tabs, all.cuts, all.pauc.cuts,
+			pauc.cut.stabs, 
+			cut.tabs, 
+			cut.stabs, 	
+			col.q,
+			saccs, accs, brain.vol, not0100, 
+			file = predname)
+		rm(list=c("s.res", "r.res", "spreds"))
+	}
+		print(correct)
 }
 # }
 # }

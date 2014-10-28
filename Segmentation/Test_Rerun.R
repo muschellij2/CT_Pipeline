@@ -42,7 +42,6 @@ addons = paste0(scen$ttype, "_", scen$interpolator)
 fdf[, addons] = NA
 
 for (iscen in seq(nrow(scen))){
-    
     addon = addons[iscen]
     
     # ttype = "Rigid"
@@ -90,8 +89,6 @@ for (iscen in seq(nrow(scen))){
     }
 
     ofile = stubfile(x$ss, d = x$outdir, ext = img_ext)
-    outprefix = stubfile(x$ss, d = x$outdir)
-
     roi.ofile = paste0(ofile, "_ROI.nii.gz")
     mask.ofile = paste0(ofile, "_Mask.nii.gz")
     ofile = paste0(ofile, ".nii.gz")
@@ -99,18 +96,6 @@ for (iscen in seq(nrow(scen))){
     binary = c(roi.ofile, mask.ofile)
     files = c(ofile, binary)
     ex = all(file.exists(files))
-    # if (!ex){
-        ss.res = ants_regwrite(filename = x$ss, 
-            n3correct = FALSE, 
-            other.files = c(x$roi, x$mask), 
-            other.outfiles = c(roi.ofile, mask.ofile),
-            outfile = ofile, retimg = TRUE, 
-            typeofTransform = ttype,
-            template.file = ss.tempfile, 
-            interpolator = interpolator,
-            remove.warp = FALSE,
-            outprefix=outprefix)
-        
         roi =readNIfTI(roi.ofile, 
             reorient=FALSE)
         vals = roi[roi > 0]
@@ -120,73 +105,14 @@ for (iscen in seq(nrow(scen))){
         est = sapply(cuts, function(x) sum(vals > x)/1000)
         vdiff = est - vol
         adiff = abs(est - vol)
-        best.est = which.min(vdiff)
+        best.est = which.min(adiff)
         best.cutoff = cuts[best.est]
         fdf[iimg, addon] = best.cutoff
         outfile = file.path(x$iddir, "Predictors", 
             paste0("Volume_cutoff_", addon, ".Rda"))
         save(best.cutoff, vdiff, adiff, cuts, 
             est, best.est, file = outfile) 
-    # }
-    # if (file.exists(mask.ofile)){
-    #     fslmaths(file= mask.ofile, 
-    #         outfile = mask.ofile,
-    #         opts = "-thr 0.5 -bin", 
-    #         retimg = FALSE)
-    # }
-    # if (file.exists(roi.ofile)){
-    #     fslmaths(file= roi.ofile, 
-    #         outfile = roi.ofile,
-    #         opts = "-thr 0.5 -bin", 
-    #         retimg = FALSE) 
-    # }  
-
-
-    # ofile = stubfile(x$img, d = x$outdir, ext = img_ext)
-    # roi.ofile = paste0(ofile, "_ROI.nii.gz")
-    # mask.ofile = paste0(ofile, "_Mask.nii.gz")
-    # ofile = paste0(ofile, ".nii.gz")
-    # print(ofile)
-    # binary = c(roi.ofile, mask.ofile)
-    # files = c(ofile, binary)
-    # ex = all(file.exists(files))
-    # if (!ex){
-
-    #     res = ants_regwrite(filename = x$img, 
-    #         n3correct = FALSE, 
-    #         other.files = c(x$roi, x$mask), 
-    #         other.outfiles = c(roi.ofile, mask.ofile),
-    #         outfile = ofile, retimg = TRUE,
-    #         typeofTransform = ttype,     
-    #         template.file = template.file, 
-    #         interpolator = interpolator,        
-    #         remove.warp = TRUE)
-    #     roi =readNIfTI(roi.ofile, 
-    #         reorient=FALSE)
-    #     vals = roi[roi > 0]
-    #     cuts = seq(0.01, 1, by=0.001)
-    #     vres = prod(pixdim(roi)[2:4])
-    #     stopifnot(vres == 1)
-    #     est = sapply(cuts, function(x) sum(vals > x)/1000)
-    #     vdiff = abs(est - vol)
-    #     best.est = which.min(vdiff)
-    #     best.cutoff = cuts[best.est]
-    #     fdf$ssbest.cut[iimg] = best.cutoff
-    #
-    # }
-
-    # if (file.exists(mask.ofile)){
-    #     fslmaths(file= mask.ofile, 
-    #         outfile = mask.ofile,
-    #         opts = "-thr 0.5 -bin", 
-    #         retimg = FALSE)
-    # }
-    # if (file.exists(roi.ofile)){    
-    #     fslmaths(file= roi.ofile, 
-    #         outfile = roi.ofile,
-    #         opts = "-thr 0.5 -bin", 
-    #         retimg = FALSE) 
-    # } 
+    
     print(iscen)
 }
 

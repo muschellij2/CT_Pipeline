@@ -26,7 +26,9 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 rerun = FALSE
-correct = "none"
+overwrite = FALSE
+
+correct = "N3_SS"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
         "SyN", "SyN_sinc", "Rigid", "Affine")
 
@@ -48,7 +50,7 @@ load(file = outfile)
 # correct = scenarios$correct[iscen]
 
 iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(iimg)) iimg = 5
+if (is.na(iimg)) iimg = 111
 
 runx = x = fdf[iimg,]
 
@@ -143,7 +145,6 @@ for (correct in options){
 		"Rigid" = x$rig_ssimg,
 		"Affine" = x$aff_ssimg
 		)
-	overwrite = rerun
 	mask.fname = switch(correct,
 		"none" = x$mask,
 		"N3" = x$mask,
@@ -164,8 +165,9 @@ for (correct in options){
 		"SyN" = x$synssroi,
 		"SyN_sinc" = x$sinc_synssroi,
 		"Rigid" = x$rig_ssroi,
-		"Affine" = x$aff_ssroi		
+		"Affine" = x$aff_ssroi
 		)	
+	print(correct)
 
 	if (!file.exists(outfile) | rerun){
 	  	system.time({
@@ -189,11 +191,13 @@ for (correct in options){
 	# Rerun localization 
 	df = img.pred$df
 	df$mask = df$mask > 0
+	stopifnot(all(df$Y %in% c(0, 1)))
+
 	keep.ind = img.pred$keep.ind
 	nim = img.pred$nim
 	df = df[ keep.ind, ]
 	miss.roi = img.pred$miss.roi
-	rm("img.pred")
+	rm(list="img.pred")
 
 	#############################################
 	# Case-Control Sampling
