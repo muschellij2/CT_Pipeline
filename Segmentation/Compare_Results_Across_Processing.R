@@ -34,6 +34,9 @@ options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 nopts = length(options)
 
 
+types = c("", "_include", "_zval", "_zval2")
+type = types[1]
+
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
@@ -45,8 +48,27 @@ mod.filename = file.path(outdir,
 	paste0("Collapsed_Models.Rda"))
 x = load(mod.filename)	
 cn = colnames(res)
-rm(list=x)
+
+nopred = seq(non.aggmods)
+vd = vol.data
+vd = vd[-nopred,]
+nr = nrow(vd)
+valid.ind = ceiling(nr/2)
+test.ind = seq( valid.ind +1, nr)
+valid.ind = seq(1, valid.ind)
 group = "Training"
+
+ffdf = fdf[-nopred, ]
+if (group == "Training"){
+	subset.ind = valid.ind
+}
+if (group == "Test"){
+	subset.ind = test.ind
+}
+
+subset.ids = ffdf$id[subset.ind]
+
+rm(list=c(x, "vd"))
 
 p = length(cn)
 
@@ -57,7 +79,13 @@ m.spauc = m.pauc
 m.vdiff = m.pauc
 m.svdiff = m.vdiff
 
+truevols = matrix(NA, ncol=length(options), 
+	nrow = length(subset.ind))
+colnames(truevols) = options
 icorr = 1
+
+
+
 
 for (icorr in seq(nopts)){
 	
@@ -82,29 +110,10 @@ for (icorr in seq(nopts)){
 	load(mod.filename)	
 
 	outfile = file.path(outdir, 
-		paste0("Model_performance_results", adder, ".Rda")
+		paste0("Model_performance_results", adder, type, 
+			".Rda")
 		)
-	load(file = outfile)
-
-
-	nopred = seq(non.aggmods)
-	vd = vol.data
-	vd = vd[-nopred,]
-	nr = nrow(vd)
-	valid.ind = ceiling(nr/2)
-	test.ind = seq( valid.ind +1, nr)
-	valid.ind = seq(1, valid.ind)
-
-
-	ffdf = fdf[-nopred, ]
-	if (group == "Training"){
-		subset.ind = valid.ind
-	}
-	if (group == "Test"){
-		subset.ind = test.ind
-	}
-
-	subset.ids = ffdf$id[subset.ind]
+	x=load(file = outfile)
 
 	vsd = vol.sdata
 	vsd = vsd[-nopred,]
@@ -113,6 +122,9 @@ for (icorr in seq(nopts)){
 	###############################
 	# Separate data into validation and test
 	###############################
+	vd = vol.data
+	vd = vd[-nopred,]
+	nr = nrow(vd)	
 	truevol = vd[,"truth"]
 	vd = vd[, !(colnames(vd) %in% "truth")]
 	voldiff = vd - truevol
@@ -199,9 +211,14 @@ for (icorr in seq(nopts)){
 
 	m.vdiff[icorr, ] = do.call(fcn, list(avol))
 	m.svdiff[icorr, ] = do.call(fcn, list(savol))
-
+	truevols[,icorr] = truevol[subset.ind]
 	print(icorr)
 }
+
+tvol = truevols[, "none"]
+tvols = truevols[, colnames(truevols) %in% c("none")]
+vdiff = (tvols - tvol)
+vdat = melt(vdiff)
 
 which(m.pauc == max(m.pauc), arr.ind=TRUE)
 max(m.pauc)

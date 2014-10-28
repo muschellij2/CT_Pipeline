@@ -24,7 +24,7 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "SyN"
+correct = "N3_SS"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
         "SyN", "SyN_sinc", "Rigid", "Affine")
 
@@ -104,6 +104,7 @@ correct = options[icorr]
         print(imod)
     }
 
+    stopifnot(all(all.df$Y %in% c(0, 1)))
     names(l.keep.ind) = fdf.run$img
 
     runnames = colnames(all.df)
@@ -115,12 +116,13 @@ correct = options[icorr]
 
     quants = dlply(all.df[, c(runnames, "Y")], .(Y), function(x) {
         r=t(colQuantiles(x[, runnames], 
-            probs = c(0, 0.001, 0.01, 0.99, 0.999, 1)))
+            probs = c(0, 0.001, 0.005, 0.01, 
+                0.99, 0.995, 0.999, 1)))
         colnames(r) = runnames
         r
     })
 
-    est.cutoffs = quants$`1`[ c("0.1%", "99.9%"), ]
+    est.cutoffs = quants$`1`[ c("0.5%", "99.5%"), ]
 
     fname = file.path(outdir, 
         paste0("Aggregate_data_cutoffs", adder, ".Rda"))

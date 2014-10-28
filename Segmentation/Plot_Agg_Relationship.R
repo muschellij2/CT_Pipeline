@@ -1,10 +1,11 @@
-#####################################################################
+#71
+####################################################################
 ## This code is for prediciton of Image Segmentation of CT
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-#####################################################################
-#####################################################################
+####################################################################
+####################################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
@@ -27,7 +28,7 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "Affine"
+correct = "none"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
         "SyN", "SyN_sinc", "Rigid", "Affine")
 
@@ -35,7 +36,7 @@ icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 if (is.na(icorr)) icorr = 1
 correct = options[icorr]
 
-# for (correct in options){
+for (correct in options){
     
     correct = match.arg(correct, options)
     adder = switch(correct, 
@@ -59,7 +60,8 @@ correct = options[icorr]
             xlev = object$xlevels)
         if (is.null(cl <- attr(Terms, "dataClasses"))) 
                 stop("no dataclasses")
-        X <- model.matrix(Terms, m, contrasts.arg = object$contrasts)
+        X <- model.matrix(Terms, m, 
+            contrasts.arg = object$contrasts)
         # p <- object$rank
         beta <- object$coefficients
         beta = beta[ !is.na(beta) ]
@@ -170,6 +172,7 @@ correct = options[icorr]
 
     smallpdf.off(pdfname = pdfname, 
         pdfobj = pdfobj, 
+        extra.opts = "-quality 100 -limit thread 1",
         clean = TRUE)
 
-# }
+}
