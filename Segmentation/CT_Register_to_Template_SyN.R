@@ -33,10 +33,13 @@ load(file=outfile )
 outfile = file.path(outdir, "111_Filenames_with_volumes.Rda")
 load(file = outfile)
 
-scen = expand.grid(ttype = c("Affine", "Rigid", "SyN"),
+regs = c("Affine", "Rigid", "SyN")
+regs = "Rigid"
+scen = expand.grid(ttype = regs,
     interpolator = c("Linear", "LanczosWindowedSinc"),
     stringsAsFactors = FALSE)
-iscen = 1
+iscen = 4
+scen = scen[2,, drop=FALSE]
 addons = paste0(scen$ttype, "_", scen$interpolator) 
 
 fdf[, addons] = NA
@@ -90,7 +93,8 @@ for (iscen in seq(nrow(scen))){
     }
 
     ofile = stubfile(x$ss, d = x$outdir, ext = img_ext)
-    outprefix = stubfile(x$ss, d = x$outdir)
+    # outprefix = stubfile(x$ss, d = x$outdir)
+    outprefix = ofile
 
     roi.ofile = paste0(ofile, "_ROI.nii.gz")
     mask.ofile = paste0(ofile, "_Mask.nii.gz")
@@ -108,25 +112,25 @@ for (iscen in seq(nrow(scen))){
             typeofTransform = ttype,
             template.file = ss.tempfile, 
             interpolator = interpolator,
-            remove.warp = FALSE,
+            remove.warp = TRUE,
             outprefix=outprefix)
         
-        roi =readNIfTI(roi.ofile, 
-            reorient=FALSE)
-        vals = roi[roi > 0]
-        cuts = seq(0.01, 1, by=0.001)
-        vres = prod(pixdim(roi)[2:4])
-        stopifnot(vres == 1)
-        est = sapply(cuts, function(x) sum(vals > x)/1000)
-        vdiff = est - vol
-        adiff = abs(est - vol)
-        best.est = which.min(vdiff)
-        best.cutoff = cuts[best.est]
-        fdf[iimg, addon] = best.cutoff
-        outfile = file.path(x$iddir, "Predictors", 
-            paste0("Volume_cutoff_", addon, ".Rda"))
-        save(best.cutoff, vdiff, adiff, cuts, 
-            est, best.est, file = outfile) 
+        # roi =readNIfTI(roi.ofile, 
+        #     reorient=FALSE)
+        # vals = roi[roi > 0]
+        # cuts = seq(0.01, 1, by=0.001)
+        # vres = prod(pixdim(roi)[2:4])
+        # stopifnot(vres == 1)
+        # est = sapply(cuts, function(x) sum(vals >= x)/1000)
+        # vdiff = est - vol
+        # adiff = abs(est - vol)
+        # best.est = which.min(adiff)
+        # best.cutoff = cuts[best.est]
+        # fdf[iimg, addon] = best.cutoff
+        # outfile = file.path(x$iddir, "Predictors", 
+        #     paste0("Volume_cutoff_", addon, ".Rda"))
+        # save(best.cutoff, vdiff, adiff, cuts, 
+        #     est, best.est, file = outfile) 
     # }
     # if (file.exists(mask.ofile)){
     #     fslmaths(file= mask.ofile, 
@@ -142,6 +146,9 @@ for (iscen in seq(nrow(scen))){
     # }  
 
 
+    #########################################        
+    # Non-skull stripped data
+    #########################################
     # ofile = stubfile(x$img, d = x$outdir, ext = img_ext)
     # roi.ofile = paste0(ofile, "_ROI.nii.gz")
     # mask.ofile = paste0(ofile, "_Mask.nii.gz")

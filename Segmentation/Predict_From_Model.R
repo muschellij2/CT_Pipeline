@@ -24,9 +24,13 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "none"
-options = c("none", "SyN", "SyN_sinc", "Rigid", "Affine",
-		"N3", "N4", "N3_SS", "N4_SS")
+correct = "Rigid_sinc"
+# options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "Affine_sinc")
+# options = c("none", "N3_SS", "N4_SS",
+# 	"Rigid",  "Rigid_sinc")
+options = "Rigid_sinc"
 
 my.tab <- function(
   x, 
@@ -49,7 +53,7 @@ my.tab <- function(
 types = c("_zval2")
 # , "_zval2"
 # "_include_all", 
-type = types[4]
+type = types[1]
 
 
 keep.obj = ls()
@@ -61,16 +65,18 @@ for (correct in options){
 	rm(list=rm.obj)
     for (i in 1:3) gc()
     correct = match.arg(correct, options)
-    adder = switch(correct, 
-        "none"= "",
-        "N3"="_N3",
-        "N4" = "_N4",
-        "N3_SS" = "_N3_SS",
-        "N4_SS" = "_N4_SS", 
-        "SyN" = "_SyN",
-        "SyN_sinc" = "_SyN_sinc",
-        "Rigid" = "_Rigid",
-        "Affine" = "_Affine")
+	adder = switch(correct, 
+		"none"= "",
+		"N3"="_N3",
+		"N4" = "_N4",
+		"N3_SS" = "_N3_SS",
+		"N4_SS" = "_N4_SS", 
+		"SyN" = "_SyN",
+		"SyN_sinc" = "_SyN_sinc",
+		"Rigid" = "_Rigid",
+		"Affine" = "_Affine",
+		"Rigid_sinc" = "_Rigid_sinc",
+		"Affine_sinc" = "_Affine_sinc")
 
 	short_predict = function(object, newdata, 
 		lthresh=  .Machine$double.eps^0.5){
@@ -132,7 +138,7 @@ for (correct in options){
 	pauc.cut.vol.tsdata = pauc.cut.vol.sdata
 
 	get.pred <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-	if (is.na(get.pred)) get.pred = 21
+	if (is.na(get.pred)) get.pred = 3
 	x = fdf[get.pred,]
 	print(get.pred)
 
@@ -217,14 +223,15 @@ for (correct in options){
 	cc = complete.cases(df)
 	stopifnot(all(cc))
 
-	test.gam.pred = predict(gam.mod, 
-		df, 
+	test.gam.pred = rep(0, length=nrow(df))
+	gam.pred = predict(gam.mod, 
+		df[ df$zval2,], 
 		newdata.guaranteed = TRUE,
-		type="response")
+		type="response", block.size=1e5)
     cat("GAM Prediction \n")
     
-    test.gam.pred = as.numeric(test.gam.pred)
-	test.gam.pred = test.gam.pred
+    gam.pred = as.numeric(gam.pred)
+	test.gam.pred[ df$zval2 ] = gam.pred
 
 	# gam.cut.vols = sum(test.gam.pred > gam.acc[, "cutoff"])
 	# gam.cut.vols = gam.cut.vols * vres
@@ -267,7 +274,8 @@ for (correct in options){
 	rowMax = rowMaxs(preds)
 	rowMin = rowMins(preds)
 	rowProd = exp(rowSums(log(preds)))
-	rowGeom = exp(rowMeans(log(preds)))
+    nr = nrow(preds)
+    rowGeom = rowProd ^ (1/nr)
 
 	colnames(preds) = colnames(res)[seq(ncol(preds))]
 	preds = cbind(preds, rowMean, rowMed, rowMax, rowMin,

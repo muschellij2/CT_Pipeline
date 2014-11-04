@@ -26,9 +26,12 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "N3_SS"
-options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-        "SyN", "SyN_sinc", "Rigid", "Affine")
+correct = "Rigid_sinc"
+# options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "Affine_sinc")
+options = c("none", "N3_SS", "N4_SS", 
+      "Rigid", "Rigid_sinc")
 
 short_predict = function(object, newdata, 
     lthresh=  .Machine$double.eps^0.5){
@@ -69,7 +72,7 @@ outfile = file.path(outdir, "111_Filenames.Rda")
 load(file = outfile)
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 4
+if (is.na(icorr)) icorr = 5
 correct = options[icorr]
 
 # for (correct in options){
@@ -87,7 +90,9 @@ correct = options[icorr]
         "SyN" = "_SyN",
         "SyN_sinc" = "_SyN_sinc",
         "Rigid" = "_Rigid",
-        "Affine" = "_Affine")
+        "Affine" = "_Affine",
+        "Rigid_sinc" = "_Rigid_sinc",
+        "Affine_sinc" = "_Affine_sinc")
 
     filename = file.path(outdir, 
         paste0("Collapsed_Models", adder, ".Rda"))
@@ -130,72 +135,98 @@ correct = options[icorr]
     moddname = file.path(fdf.run$outdir, 
         paste0(moddname, "_predictors", adder, ".Rda"))
 
-    L = nrow(fdf.run)
-    all.spreds = all.preds = all.df = NULL
-    imod = 1
+    fname = file.path(outdir, 
+        paste0("Aggregate_data", adder, ".Rda"))
+    load(fname)
 
+    all.df$mask = all.df$mask > 0
+    all.df$multiplier = mult.df$multiplier
+
+    all.ind = which(all.df$multiplier)
+
+    all.preds = matrix(0, nrow=nrow(all.df), ncol= length(all.mods))
+    for (imod in seq_along(all.mods)){
+        x = short_predict(
+            object = all.mods[[imod]],
+            newdata=all.df[all.ind,])
+        all.preds[all.ind, imod] = x 
+        print(imod)
+    }
+
+    colnames(all.preds) = names(all.mods)
+    # all.preds = t(laply(all.mods, short_predict, newdata= all.df, 
+    #               .progress = "text"))
+    add.preds = matrix(0, nrow=nrow(all.df), ncol= 7)
+    colnames(add.preds) = c("rowMean", "rowMed", "rowMax", 
+        "rowMin", "rowProd", "rowGeom", "gam")
+
+    add.preds[ all.ind, "rowMean"] = 
+        rowMeans(all.preds[  all.ind, ])
+    add.preds[ all.ind, "rowMed"] = 
+        rowMedians(all.preds[  all.ind, ])    
+    add.preds[ all.ind, c("rowMin", "rowMax")] = 
+        rowRanges(all.preds[  all.ind, ]) 
+
+    nr = nrow(all.preds)
+    add.preds[ all.ind, c("rowProd")] = 
+        exp(rowSums(log(all.preds[all.ind, ])))
+    add.preds[ all.ind, c("rowGeom")] = 
+       add.preds[ all.ind, c("rowProd")] ^ (1/nr)
+
+
+    gam.pred = predict(gam.mod, 
+        all.df[all.ind,], 
+        newdata.guaranteed = TRUE,
+        type="response", block.size=5e5)
+    cat("GAM Prediction \n")
+    
+    gam.pred = as.numeric(gam.pred)
+
+    add.preds[all.ind, "gam"] = gam.pred
+
+    all.preds = cbind(all.preds, add.preds)
+    rm(list="add.preds")
+
+    rownames(all.preds) = NULL
+
+    all.preds = all.preds * all.df$multiplier
+
+    # train = all.df[samps,]
+    # test$include = test$value >= 30 & test$value <= 100
+
+    L = nrow(fdf.run)
+    all.spreds = array(NA, dim = dim(all.preds))
+    imod = 1
+    
     for (imod in seq(L)){
         
+        imgname = fdf.run$img[imod]
+        ind = which(img %in% imgname)
+        keep.ind = l.keep.ind[[imod]]
+        stopifnot(length(ind) == length(keep.ind))
+
+        pred = all.preds[ind, ]
+
         load(moddname[imod])
-
-        df = img.pred$df
-        keep.ind = img.pred$keep.ind
         nim = img.pred$nim
+        rm(list="img.pred")
+        ipred = 1
 
-        id.outdir = fdf.run$outdir[imod]
+        for (ipred in seq(ncol(all.spreds))) {
+            orig.img = nim
+            orig.img[keep.ind] = pred[, ipred]
+            orig.img[is.na(orig.img)] = 0
 
-        df$img = fdf.run$img[imod]
-
-        #####################################
-        # Load already-predicted images
-        #####################################
-        cn = names(all.cuts)
-        icol = cn[1]
-        preds = matrix(NA, nrow=nrow(df), 
-            ncol=ncol(res)) 
-        colnames(preds) = cn
-        spreds = preds
-        outstub = nii.stub(fdf.run$img[imod], bn=TRUE)
-        for (icol in cn){
-            outimg = file.path(id.outdir, 
-                paste0(outstub, "_", icol, adder))
-            img = readNIfTI(fname = outimg, reorient= FALSE)
-            stopifnot(prod(dim(img)) == nrow(df))
-            preds[, icol] = c(img)
-
-            outimg = paste0(outimg, "_smoothed", adder)
-            img = readNIfTI(fname = outimg, reorient= FALSE)
-            stopifnot(prod(dim(img)) == nrow(df))
-            spreds[, icol] = c(img)
-
-            print(icol)
+            #### smooth the results
+            sm.img  = mean_image(orig.img, nvoxels = 1)
+            # sm.img = local_moment(img, nvoxels = 1, moment =1,
+            #   center = FALSE)[[1]]
+            sm.img = sm.img[keep.ind]
+            sm.img[abs(sm.img) <  .Machine$double.eps^0.5 ] = 0
+            all.spreds[ind, ipred] = sm.img
+            # all.spreds[roi.not.in, ipred] = 0
+            print(ipred)
         }
-        preds = preds[keep.ind,]
-        spreds = spreds[keep.ind,]
-        df = df[ keep.ind, ]
-
-        ich = which(df$Y == 1)
-        noich = which(df$Y != 1)
-        df$mask = df$mask > 0
-
-        size = 1e4
-        prop = .25
-        n.ich = ceiling(size*prop)
-        n.noich = size - n.ich
-        ich.ind = sample(ich, size=n.ich)
-        noich.ind = sample(noich, size=n.noich)
-        samp.ind = sort(c(ich.ind, noich.ind))
-
-        df = df[samp.ind,]
-
-        df$include = df$value >= 30 & df$value <= 100        
-        preds = preds[samp.ind, ] * df$include 
-        spreds = spreds[samp.ind, ] * df$include 
-
-        all.df = rbind(all.df, df)
-        all.spreds = rbind(all.spreds, spreds)
-        all.preds = rbind(all.preds, preds)
-        rm(list=c("img.pred", "df", "preds", "spreds"))
         print(imod)
     }
 
@@ -213,6 +244,7 @@ correct = options[icorr]
 		}, perf@x.values, perf@y.values, pred@cutoffs)
 	}
 
+    cn = colnames(all.spreds)
 
 	r.sres = alply(all.spreds, 2, function(nd){
 		pred <- prediction( nd, all.df$Y)				

@@ -1,4 +1,4 @@
-####################################################################
+###################################################################
 ## This code is for prediciton of Image Segmentation of CT
 ##
 ## Author: John Muschelli
@@ -7,8 +7,12 @@
 ####################################################################
 rm(list=ls())
 library(plyr)
-
+library(cttools)
+library(fslr)
+library(ROCR)
 library(matrixStats)
+library(extrantsr)
+library(ANTsR)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -29,21 +33,19 @@ load(file=outfile )
 outfile = file.path(outdir, "111_Filenames_with_volumes.Rda")
 load(file = outfile)
 
-scen = expand.grid(ttype = c("Affine", "Rigid", "SyN"),
+# regs =c("Affine", "Rigid", "SyN")
+regs = "Rigid"
+scen = expand.grid(ttype = regs,
     interpolator = c("Linear", "LanczosWindowedSinc"),
     stringsAsFactors = FALSE)
 iscen = 1
 addons = paste0(scen$ttype, "_", scen$interpolator) 
-addons.diff = paste0(addons, ".diff")
-addons.adiff = paste0(addons, ".adiff")
 
-fdf[, addons.adiff] = fdf[, addons.diff] = fdf[, addons] = NA
+fdf[, addons] = NA
 
 for (iscen in seq(nrow(scen))){
     
     addon = addons[iscen]
-    addon.diff = addons.diff[iscen]
-    addon.adiff = addons.adiff[iscen]
     
     # ttype = "Rigid"
     ttype = scen$ttype[iscen]
@@ -57,10 +59,9 @@ for (iscen in seq(nrow(scen))){
     img_ext = paste0("_", ttype, int_ext)
 
 
-    # template.file = file.path(tempdir, "scct_unsmooth.nii.gz")
-    # ss.tempfile = file.path(tempdir, "Skull_Stripped",
-    #     "scct_unsmooth_SS_First_Pass_0.1.nii.gz")
-
+    template.file = file.path(tempdir, "scct_unsmooth.nii.gz")
+    ss.tempfile = file.path(tempdir, "Skull_Stripped",
+        "scct_unsmooth_SS_First_Pass_0.1.nii.gz")
 
     makedir = sapply( fdf$outdir, function(x) {
     	if (!file.exists(x)){
@@ -68,45 +69,52 @@ for (iscen in seq(nrow(scen))){
     	}
     })
     fdf$ss = gsub("_Mask", "", fdf$mask)
-    iimg = 21
+    iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+    if (is.na(iimg)) iimg = 21
+    vol = fdf$truevol[iimg]
 
-    for (iimg in seq(nrow(fdf))){
-        vol = fdf$truevol[iimg]
 
-        x = fdf[iimg,]
-
-        stubfile = function(x, d = NULL, ext = ""){
-          b = nii.stub(x, bn=TRUE)
-          b = paste0(b, ext)
-          file.path(d, b)
-        }
-
-        outfile = file.path(x$iddir, "Predictors", 
-            paste0("Volume_cutoff_", addon, ".Rda"))
-
-        ####################################
-        ## Run both with the Skull Stripped and not skull stripped
-        ####################################
-        xcut = load(file = outfile) 
-
-        fdf[iimg, addon] = best.cutoff
-        fdf[iimg, addon.diff] = vdiff[best.est]
-        fdf[iimg, addon.adiff] = adiff[best.est]
-        # fdf[iimg, addon.diff] = vdiff[best.est]
-        print(iimg)
+    stubfile = function(x, d = NULL, ext = ""){
+      b = nii.stub(x, bn=TRUE)
+      b = paste0(b, ext)
+      file.path(d, b)
     }
+
+    ####################################
+    ## Run both with the Skull Stripped and not skull stripped
+    ####################################
+
+    x = fdf[iimg,]
+
+    x$outdir = file.path(x$iddir, outputdir)
+    if (!file.exists(x$outdir)){
+        dir.create(x$outdir, showWarnings =FALSE)
+    }
+
+    ofile = stubfile(x$ss, d = x$outdir, ext = img_ext)
+    outprefix = stubfile(x$ss, d = x$outdir)
+
+    roi.ofile = paste0(ofile, "_ROI.nii.gz")
+    mask.ofile = paste0(ofile, "_Mask.nii.gz")
+    ofile = paste0(ofile, ".nii.gz")
+    print(ofile)
+    binary = c(roi.ofile, mask.ofile)
+    files = c(ofile, binary)
+    ex = all(file.exists(files))
+    # if (!ex){
+    if (file.exists(mask.ofile)){
+        fslmaths(file= mask.ofile, 
+            outfile = mask.ofile,
+            opts = "-thr 0.5 -bin", 
+            retimg = FALSE)
+    }
+    if (file.exists(roi.ofile)){
+        fslmaths(file= roi.ofile, 
+            outfile = roi.ofile,
+            opts = "-thr 0.5 -bin", 
+            retimg = FALSE) 
+    }  
+
     print(iscen)
 }
 
-
-cmed = colMedians(as.matrix(fdf[, addons]))
-cm = colMeans(as.matrix(fdf[, addons]))
-colMins(as.matrix(fdf[, addons]))
-
-(cmed.diff = colMedians(as.matrix(fdf[, addons.diff])))
-(cm.diff = colMeans(as.matrix(fdf[, addons.diff])))
-(cmax.diff = colMaxs(as.matrix(fdf[, addons.diff])))
-
-(cmed.adiff = colMedians(as.matrix(fdf[, addons.adiff])))
-(cm.adiff = colMeans(as.matrix(fdf[, addons.adiff])))
-(cmax.adiff = colMaxs(as.matrix(fdf[, addons.adiff])))

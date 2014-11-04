@@ -1,10 +1,10 @@
-#####################################################################
+####################################################################
 ## This code creates a filename rda
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-#####################################################################
-#####################################################################
+####################################################################
+####################################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
@@ -69,8 +69,10 @@ fdf$n4ssimg = gsub("_N3Correct[.]nii[.]gz",
 	"_N4Correct.nii.gz", 
     fdf$n3ssimg)
 
-fdf$n4bias_field = gsub("_N3Correct", "_BiasField_N4", fdf$n3img)
-fdf$n4ssbias_field= gsub("_N3Correct", "_BiasField_N4", fdf$n3ssimg)
+fdf$n4bias_field = gsub("_N3Correct", "_BiasField_N4", 
+  fdf$n3img)
+fdf$n4ssbias_field= gsub("_N3Correct", "_BiasField_N4", 
+  fdf$n3ssimg)
 
 
 fdf$syndir = file.path(fdf$iddir, "SyN_Registered")
@@ -84,9 +86,11 @@ fdf$synssmask = gsub("_SyN[.]nii[.]gz", "_SyN_Mask.nii.gz",
 
 fdf$sinc_synssimg = gsub("_SyN[.]nii[.]gz", "_SyN_sinc.nii.gz", 
   fdf$synssimg)
-fdf$sinc_synssroi = gsub("_SyN[.]nii[.]gz", "_SyN_sinc_ROI.nii.gz", 
+fdf$sinc_synssroi = gsub("_SyN[.]nii[.]gz", 
+  "_SyN_sinc_ROI.nii.gz", 
   fdf$synssimg)
-fdf$sinc_synssmask = gsub("_SyN[.]nii[.]gz", "_SyN_sinc_Mask.nii.gz", 
+fdf$sinc_synssmask = gsub("_SyN[.]nii[.]gz", 
+  "_SyN_sinc_Mask.nii.gz", 
   fdf$synssimg)
 
 
@@ -99,6 +103,18 @@ fdf$aff_ssroi = gsub("_Affine[.]nii[.]gz", "_Affine_ROI.nii.gz",
 fdf$aff_ssmask = gsub("_Affine[.]nii[.]gz", "_Affine_Mask.nii.gz", 
   fdf$aff_ssimg)
 
+fdf$sinc_aff_ssimg = gsub("_SyN[.]nii[.]gz", 
+  "_Affine_sinc.nii.gz", 
+  basename(fdf$synssimg))
+fdf$sinc_aff_ssimg = file.path(fdf$aff_dir, fdf$sinc_aff_ssimg)
+fdf$sinc_aff_ssroi = gsub("_Affine[.]nii[.]gz", 
+  "_Affine_sinc_ROI.nii.gz", 
+  fdf$aff_ssimg)
+fdf$sinc_aff_ssmask = gsub("_Affine[.]nii[.]gz", 
+  "_Affine_sinc_Mask.nii.gz", 
+  fdf$aff_ssimg)
+
+
 fdf$rig_dir = file.path(fdf$iddir, "Rigid_Registered")
 fdf$rig_ssimg = gsub("_SyN[.]nii[.]gz", "_Rigid.nii.gz", 
   basename(fdf$synssimg))
@@ -108,6 +124,19 @@ fdf$rig_ssroi = gsub("_Rigid[.]nii[.]gz", "_Rigid_ROI.nii.gz",
   fdf$rig_ssimg)
 fdf$rig_ssmask = gsub("_Rigid[.]nii[.]gz", "_Rigid_Mask.nii.gz", 
   fdf$rig_ssimg)
+
+fdf$sinc_rig_ssimg = gsub("_SyN[.]nii[.]gz", 
+  "_Rigid_sinc.nii.gz", 
+  basename(fdf$synssimg))
+fdf$sinc_rig_ssimg = file.path(fdf$rig_dir, fdf$sinc_rig_ssimg)
+
+fdf$sinc_rig_ssroi = gsub("_Rigid_sinc[.]nii[.]gz", 
+  "_Rigid_sinc_ROI.nii.gz", 
+  fdf$sinc_rig_ssimg)
+fdf$sinc_rig_ssmask = gsub("_Rigid_sinc[.]nii[.]gz", 
+  "_Rigid_sinc_Mask.nii.gz", 
+  fdf$sinc_rig_ssimg)
+
 
 ############################
 # Only 1 scan right now
