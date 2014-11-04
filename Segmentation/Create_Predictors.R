@@ -1,101 +1,206 @@
+###################################################################
+## This code is for Creating Predictors for each individual
+##
+## Author: John Muschelli
+## Last updated: May 20, 2014
+###################################################################
+###################################################################
 rm(list=ls())
+library(plyr)
 library(cttools)
+library(devtools)
 library(ROCR)
 library(fslr)
-library(AnalyzeFMRI)
+library(mgcv)
+library(getopt)
+homedir = "/Applications"
+rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
+if (Sys.info()[["user"]] %in% "jmuschel") {
+  homedir = "~"
+  rootdir = "/dexter/disk2/smart/stroke_ct/ident"
+}
+progdir = file.path(rootdir, "programs")
+basedir = file.path(rootdir, "Registration")
+tempdir = file.path(rootdir, "Template")
+atlasdir = file.path(tempdir, "atlases")
+outdir = file.path(basedir, "results")
 
-options(fsl.path='/usr/local/fsl')
-setwd("~/Desktop/scratch")
-# stub = "100-318_20070723_0957_CT_3_CT_Head-"
-stub = "100-362_20100126_1926_CT_2_CT_ROUTINE"
-img = readNIfTI(paste0(stub, ".nii.gz"), 
-                reorient=FALSE)
-mask = readNIfTI(paste0(stub, "_SS_Mask_0.01.nii.gz"), 
-                 reorient=FALSE)
-roi = readNIfTI(paste0(stub, "ROI.nii.gz"), 
-                reorient=FALSE)
-# erode the mask
-mask = fslerode(file=mask, kopts = "-kernel box 1x1x1", 
-                  reorient=FALSE, retimg = TRUE)
+spec = matrix(c(
+	'correct', 'c', 1, "character",
+	'rerun'   , 'r', 1, "logical",
+	'overwrite'  , 'o', 1, "logical"
+), byrow=TRUE, ncol=4);
+opt = getopt(spec);
 
-nvoxels = 1
+correct = opt$correct
+rerun = opt$rerun
+overwrite = opt$overwrite
 
-preds = make_predictors(img, mask, nvoxels = 1)
+print(opt)
+# args<-commandArgs(trailingOnly = TRUE)
+# print(args)
+# correct = args[1]
+# rerun = as.logical(args[2])
+# overwrite = as.logical(args[3])
+# print(rerun)
+# print(overwrite)
 
-df = data.frame(preds[ mask > 0, ])
-df$Y = roi[mask > 0]
+# correct = "Rigid_sinc"
+# options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "Affine_sinc")
+# options = c("none", "N3", "N4", "N3_SS", "N4_SS", 
+# 		"Rigid", "Rigid_sinc")
+options = c("none", "N3_SS", "N4_SS", 
+		"Rigid", "Rigid_sinc")
+# options = c("Rigid", "Rigid_sinc")
 
-samps = seq(nrow(df)) %in% sample(nrow(df), size= 1e4)
-train = df[samps,]
-test = df[!samps,]
+#### load voxel data
+outfile = file.path(outdir, "Voxel_Info.Rda")
+load(file=outfile )
 
-mod = glm(Y ~ . - zero_100 - gauss, data=train, family=binomial())
-
-test.pred = predict(mod, newdata=test, type="response")
-train.pred = predict(mod, newdata=train, type="response")
-
-pred <- prediction( test.pred, test$Y)
-perf <- performance(pred,"tpr","fpr", fdr.stop= .1)
-
-auc = performance(pred, "auc")@y.values[[1]]
-# plot(perf)
-fpr.stop = .1
-pauc = performance(pred, "auc", fpr.stop= fpr.stop)
-pauc = pauc@y.values[[1]] / fpr.stop
-pauc
+outfile = file.path(outdir, "111_Filenames.Rda")
+load(file = outfile)
 
 
+# iscen <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+# if (is.na(iscen)) iscen = 1
 
 
-predimg = img
-predimg[!is.na(predimg)] = 0
-predimg[is.na(predimg)] = 0
-predimg[mask > 0][samps] = train.pred
-predimg[mask > 0][!samps] = test.pred
-predimg = window_img(predimg, window = c(0, 1))
+# scenarios = expand.grid(iimg = seq(nrow(fdf)), 
+# 	correct = options, stringsAsFactors = FALSE )
+# iimg = scenarios$iimg[iscen]
+# correct = scenarios$correct[iscen]
 
-diff = abs((roi - predimg))
-dimg = predimg
-dimg@.Data = diff
+iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+if (is.na(iimg)) iimg = 3
 
-#########################################################
-# Smoothing predictions
-#########################################################
-prob.img = mean_image(predimg, 1)
-pimg = predimg
-pimg[!is.na(pimg)] = 0
-pimg[is.na(pimg)] = 0
-pimg@.Data = prob.img
-pimg[abs(pimg) < 1e-13] = 0
+runx = x = fdf[iimg,]
 
-smooth.pred = pimg[mask > 0][!samps]
-spred <- prediction( smooth.pred, test$Y)
-pauc = performance(spred, "auc", fpr.stop= fpr.stop)
-pauc = pauc@y.values[[1]] / fpr.stop
-pauc
+remove_lmparts = function(mod){
+	keep = c("coefficients", "xlevels", 
+		"contrasts", "family", "terms")
+	mn = names(mod)
+	mn = mn[ !( mn %in% keep)]
+	for (iname in mn){
+		mod[[iname]] = NULL
+	}
+	mod
+}
 
-# Coefficients:
-#   Estimate Std. Err z value Pr(>|z|)    
-# (Intercept) -1.259e+01  8.884e-01 -14.173  < 2e-16 ***
-#   moment1      1.914e-01  4.119e-02   4.647 3.37e-06 ***
-#   moment2      1.603e+00  4.204e-01   3.813 0.000138 ***
-#   moment3     -1.328e-01  2.779e-02  -4.778 1.77e-06 ***
-#   moment4     -1.274e+00  3.790e-01  -3.362 0.000773 ***
-#   pct.thresh   3.502e+00  1.110e+00   3.155 0.001607 ** 
-#   pct.0       -3.638e+02  1.901e+04  -0.019 0.984729    
-# value       -3.580e-02  2.596e-02  -1.379 0.167798    
-# threshTRUE   6.171e-01  5.734e-01   1.076 0.281773 
-# Second model
-# Coefficients:
-#   Estimate Std. Err z value Pr(>|z|)    
-# (Intercept) -15.39703    0.62893 -24.481  < 2e-16 ***
-#   moment1       0.19541    0.01942  10.061  < 2e-16 ***
-#   moment2       1.10830    0.09911  11.182  < 2e-16 ***
-#   moment3      -0.06771    0.01256  -5.391 7.01e-08 ***
-#   moment4      -0.86272    0.08059 -10.705  < 2e-16 ***
-#   pct.thresh    0.95659    0.75201   1.272  0.20336    
-# pct.0       -16.41426    2.19523  -7.477 7.59e-14 ***
-#   value         0.02185    0.01268   1.722  0.08501 .  
-# threshTRUE    1.33921    0.36124   3.707  0.00021 ***
-#   ---
-#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+sub_samp = function(x, pct = .1, maxcut = 5e3){
+	rr = range(x)
+	breaks = seq(rr[1], rr[2], length.out = 10)
+	cuts = cut(x, breaks= breaks, include.lowest=TRUE)
+	levs = levels(cuts)
+	l = lapply(levs, function(ilev){
+		which(cuts == ilev)
+	})
+	n.inlev = sapply(l, length)
+	n.inlev = ceiling(n.inlev*pct)
+	n.inlev = pmin(n.inlev, maxcut)
+	ind = sort(unlist(mapply(function(ind, n){
+		sample(ind, size = n)
+	}, l, n.inlev)))
+	return(ind)
+}
+
+
+remove_gamparts = function(mod){
+    keep = c("assign", "cmX", "coefficients", "contrasts", 
+        "family", 
+        "formula", "model", "na.action", "nsdf", "pred.formula", 
+        "pterms", "smooth",  "Xcentre", "xlevels", "terms")
+    # "Vp",
+    mn = names(mod)
+    mn = mn[ !( mn %in% keep)]
+    for (iname in mn){
+        mod[[iname]] = NULL
+    }
+    mod$model = mod$model[1,]
+    mod
+}
+
+
+
+# for (correct in options){
+    
+    correct = match.arg(correct, options)
+
+	adder = switch(correct, 
+		"none"= "",
+		"N3"="_N3",
+		"N4" = "_N4",
+		"N3_SS" = "_N3_SS",
+		"N4_SS" = "_N4_SS", 
+		"SyN" = "_SyN",
+		"SyN_sinc" = "_SyN_sinc",
+		"Rigid" = "_Rigid",
+		"Affine" = "_Affine",
+		"Rigid_sinc" = "_Rigid_sinc",
+		"Affine_sinc" = "_Affine_sinc")
+
+	# fdf = fdf[1:10,]
+# run_model = function(x, fpr.stop = .1){
+	fname= nii.stub(basename(x$img))
+	fname = paste0(fname, "_predictors", adder, ".Rda")
+	outfile = file.path(x$outdir, fname)
+	fname = switch(correct,
+		"none" = x$img,
+		"N3" = x$n3img,
+		"N4" = x$n4img,
+		"N3_SS" = x$n3ssimg,
+		"N4_SS" = x$n4ssimg,
+		"SyN" = x$synssimg,
+		"SyN_sinc" = x$sinc_synssimg,
+		"Rigid" = x$rig_ssimg,
+		"Affine" = x$aff_ssimg,
+		"Rigid_sinc" = x$sinc_rig_ssimg,
+		"Affine_sinc" = x$sinc_aff_ssimg		
+		)
+	mask.fname = switch(correct,
+		"none" = x$mask,
+		"N3" = x$mask,
+		"N4" = x$mask,
+		"N3_SS" = x$mask,
+		"N4_SS" = x$mask,
+		"SyN" = x$synssmask,
+		"SyN_sinc" = x$sinc_synssmask,
+		"Rigid" = x$rig_ssmask,
+		"Affine" = x$aff_ssmask,
+		"Rigid_sinc" = x$sinc_rig_ssmask,
+		"Affine_sinc" = x$sinc_aff_ssmask
+		)
+	roi.fname = switch(correct,
+		"none" = x$roi,
+		"N3" = x$roi,
+		"N4" = x$roi,
+		"N3_SS" = x$roi,
+		"N4_SS" = x$roi,
+		"SyN" = x$synssroi,
+		"SyN_sinc" = x$sinc_synssroi,
+		"Rigid" = x$rig_ssroi,
+		"Affine" = x$aff_ssroi,
+		"Rigid_sinc" = x$sinc_rig_ssroi,
+		"Affine_sinc" = x$sinc_aff_ssroi
+		)	
+	print(correct)
+
+	if (!file.exists(outfile) | rerun){
+	  	system.time({
+	  		img.pred = make_predictors(
+	  		img= fname, 
+	  		mask = mask.fname, 
+	  		roi = roi.fname,
+	  		nvoxels = 1, 
+	  		moments = 1:4, lthresh = 40, uthresh = 80,
+	  		save_imgs = TRUE, 
+	  		outdir = x$outdir,
+	  		overwrite = overwrite, 
+	  		verbose= TRUE)
+	  	})
+		save(img.pred, file=outfile, compress = TRUE)
+	} 
+
+# }
+	

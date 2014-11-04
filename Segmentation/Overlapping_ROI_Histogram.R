@@ -24,7 +24,8 @@ outdir = file.path(basedir, "results")
 
 correct = "none"
 options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-		"SyN", "SyN_sinc", "Rigid", "Affine")
+        "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+        "Affine_sinc")
 
 dval.df = hval.df = val.df = NULL
 
@@ -57,7 +58,9 @@ for (correct in options){
 		"SyN" = "_SyN",
 		"SyN_sinc" = "_SyN_sinc",
 		"Rigid" = "_Rigid",
-		"Affine" = "_Affine")
+		"Affine" = "_Affine",
+		"Rigid_sinc" = "_Rigid_sinc",
+		"Affine_sinc" = "_Affine_sinc")
 
 
 

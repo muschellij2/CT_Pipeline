@@ -29,13 +29,17 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 correct = "none"
-options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-		"SyN", "SyN_sinc", "Rigid", "Affine")
+# options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "Affine_sinc")
+options = c("none", "N3_SS", "N4_SS", 
+		"Rigid", "Rigid_sinc")
 
-types = c("", "_include", "_zval", "_zval2")
+# types = c("", "_include", "_zval", "_zval2")
+types = c("_zval2")
 # "_include_all", 
 # types = "_include_all"
-type = types[4]
+type = types[1]
 
 
 for (correct in options){
@@ -51,7 +55,9 @@ for (correct in options){
 		"SyN" = "_SyN",
 		"SyN_sinc" = "_SyN_sinc",
 		"Rigid" = "_Rigid",
-		"Affine" = "_Affine")
+		"Affine" = "_Affine",
+		"Rigid_sinc" = "_Rigid_sinc",
+		"Affine_sinc" = "_Affine_sinc")
 	
 
 	short_predict = function(object, newdata, lthresh=  
@@ -78,7 +84,7 @@ for (correct in options){
 	outfile = file.path(outdir, "Voxel_Info.Rda")
 	load(file=outfile )
 
-	outfile = file.path(outdir, "111_Filenames.Rda")
+	outfile = file.path(outdir, "111_Filenames_with_volumes.Rda")
 	load(file = outfile)
 
 
@@ -120,7 +126,7 @@ for (correct in options){
 
 		for (get.pred in 1:nrow(fdf)){
 			
-			if (get.pred == 111) next;
+			# if (get.pred == 111) next;
 			idoutdir = fdf$outdir[get.pred]	
 			predname = nii.stub(basename(fdf$img[get.pred]))
 			predname = file.path(idoutdir, 
@@ -171,14 +177,24 @@ for (correct in options){
 		res = reses
 		sres = sreses
 
-
 		nopred = seq(non.aggmods)
-		vd = vol.data
-		vd = vd[-nopred,]
-		nr = nrow(vd)
+		ffdf = fdf[-nopred, ]
+		nr = nrow(ffdf)
 		valid.ind = ceiling(nr/2)
 		test.ind = seq( valid.ind +1, nr)
 		valid.ind = seq(1, valid.ind)
+
+		group = "Training"
+		if (group == "Training"){
+			subset.ind = valid.ind
+		}
+		if (group == "Test"){
+			subset.ind = test.ind
+		}
+		varslice = ffdf$varslice[subset.ind]
+		subset.ids = ffdf$id[subset.ind]
+		truevol = ffdf$truevol[subset.ind]
+
 
 		outfile = file.path(outdir, 
 			paste0("Model_performance_results", adder, type, 
@@ -198,6 +214,7 @@ for (correct in options){
 			all.accs, all.saccs, benches,
 			valid.ind, test.ind, nopred, 
 			file = outfile)
+
 		vsd = vol.sdata
 		vsd = vsd[-nopred,]
 		vsd = vsd[, !(colnames(vsd) %in% "truth")]
@@ -205,7 +222,9 @@ for (correct in options){
 		###############################
 		# Separate data into validation and test
 		###############################
-		truevol = vd[,"truth"]
+		vd = vol.data
+		vd = vd[-nopred,]
+		# truevol = vd[,"truth"]
 		vd = vd[, !(colnames(vd) %in% "truth")]
 		voldiff = vd - truevol
 		adiff = abs(voldiff)
@@ -327,24 +346,14 @@ for (correct in options){
 		# vol = valid.vol
 		# svol = valid.svol
 		# sres = valid.sres
-		ffdf = fdf[-nopred, ]
-		group = "Training"
-		if (group == "Training"){
-			subset.ind = valid.ind
-		}
-		if (group == "Test"){
-			subset.ind = test.ind
-		}
-		subset.ids = ffdf$id[subset.ind]
-		truth = truevol[subset.ind]
 
-
-		plotter = function(data, title="", 
+		plotter = function(data, title="", varslice = NA,
 			ncol=4, nrow=5,
 			forcex=FALSE, xlimits=c(0, 1), 
 			forcey = FALSE, ylimits = c(0, 13)){
 			long = melt(data)
 			colnames(long) = c("id", "model", "value")
+			long$varslice = varslice
 			probs = seq(0, 1, by=.1)
 			quants = ddply(long, .(model), function(x) {
 					quantile(x$value, probs = probs)
@@ -379,9 +388,11 @@ for (correct in options){
 
 
 			g = ggplot(data=long, aes(x=value, colour = model)) + 
-				geom_density()
+				geom_density() 
+			g2 = g + facet_wrap(~varslice)
 			g = ggplot(data=long, aes(x=value)) + geom_histogram() + 
 				facet_wrap(~ model, nrow=nrow, ncol= ncol) 
+			g2 = g + aes(fill=varslice)
 			g = g + geom_vline(data=means, aes(xintercept=mean),
 				colour="red") + 
 				facet_wrap(~ model, nrow=nrow, ncol= ncol)
@@ -497,7 +508,7 @@ for (correct in options){
 		# plotter(svoldiff[subset.ind, ], 
 		#   title= "Difference in Predicted vs. True Volume, Smoothed")
 
-		# ba.plotter(voldiff[subset.ind, ], truth = truth,
+		# ba.plotter(voldiff[subset.ind, ], truth = truevol,
 		#   title= "Difference in Predicted vs. True Volume, Unsmoothed")
 
 		# ba.plotter(svoldiff[subset.ind, ], 
@@ -507,15 +518,16 @@ for (correct in options){
 		# Volume differences and BA plots for best models
 		###########################################
 		plotter(voldiff[subset.ind, top5], 
+			varslice =fdf$varslice[subset.ind],
 		  title= "Difference in Predicted vs. True Volume, Unsmoothed")
 
 		plotter(svoldiff[subset.ind, stop5], 
 		  title= "Difference in Predicted vs. True Volume, Smoothed")
 
-		ba.plotter(voldiff[subset.ind, top5], truth = truth,
+		ba.plotter(voldiff[subset.ind, top5], truth = truevol,
 		  title= "Difference in Predicted vs. True Volume, Unsmoothed")
 
-		ba.plotter(svoldiff[subset.ind, stop5], truth = truth,
+		ba.plotter(svoldiff[subset.ind, stop5], truth = truevol,
 		  title= "Difference in Predicted vs. True Volume, Smoothed")
 
 

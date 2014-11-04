@@ -26,9 +26,12 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "N3_SS"
-options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-        "SyN", "SyN_sinc", "Rigid", "Affine")
+correct = "Rigid_sinc"
+# options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "Affine_sinc")
+options = c("none",  "N3_SS", "N4_SS",
+    "Rigid", "Rigid_sinc")
 
 short_predict = function(object, newdata, 
     lthresh=  .Machine$double.eps^0.5){
@@ -69,7 +72,7 @@ outfile = file.path(outdir, "111_Filenames.Rda")
 load(file = outfile)
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 4
+if (is.na(icorr)) icorr = 5
 correct = options[icorr]
 
 # for (correct in options){
@@ -87,7 +90,9 @@ correct = options[icorr]
         "SyN" = "_SyN",
         "SyN_sinc" = "_SyN_sinc",
         "Rigid" = "_Rigid",
-        "Affine" = "_Affine")
+        "Affine" = "_Affine",
+        "Rigid_sinc" = "_Rigid_sinc",
+        "Affine_sinc" = "_Affine_sinc")
 
     filename = file.path(outdir, 
         paste0("Collapsed_Models", adder, ".Rda"))
@@ -127,54 +132,17 @@ correct = options[icorr]
         paste0(moddname, "_predictors", adder, ".Rda"))
 
 
+    fname = file.path(outdir, 
+        paste0("Aggregate_data", adder, ".Rda"))
+    load(fname)
 
-    all.df = NULL
-    for (imod in seq(nrow(fdf.run))){
-        load(moddname[imod])
-
-        df = img.pred$df
-        keep.ind = img.pred$keep.ind
-        nim = img.pred$nim
-        df = df[ keep.ind, ]
-
-        df$img = fdf.run$img[imod]
-        all.df = rbind(all.df, df)
-        rm(list=c("img.pred", "df"))
-        print(imod)
-    }
-
-    ich = which(all.df$Y == 1)
-    noich = which(all.df$Y != 1)
-    all.df$mask = all.df$mask > 0
-
-    size = 1e5
-    prop = .25
-    n.ich = ceiling(size*prop)
-    n.noich = size - n.ich
-    ich.ind = sample(ich, size=n.ich)
-    noich.ind = sample(noich, size=n.noich)
-    samp.ind = sort(c(ich.ind, noich.ind))
-
-    # samp.ind = sample(nrow(df), size= 1e4)
-    samps = seq(nrow(all.df)) %in% samp.ind  
 
     # train = all.df[samps,]
+	# test$include = test$value >= 30 & test$value <= 100
+    all.df$mask = all.df$mask > 0 
+    
     test = all.df[!samps,]
-	test$include = test$value >= 30 & test$value <= 100
-
-    fname = file.path(outdir, 
-        paste0("Aggregate_data_cutoffs", adder, ".Rda"))
-
-    load(file = fname)
-    keepnames = colnames(est.cutoffs)
-    include = rep(TRUE, length=ncol(df))
-    for (icut in keepnames){
-        qcuts = est.cutoffs[, icut]
-        include = include & 
-            (test[, icut] >= qcuts[1] & test[, icut] <= qcuts[2])
-    }
-
-    test$include.all = include
+    test$multiplier = mult.df[!samps, "multiplier"]
 
 	preds = t(laply(all.mods, short_predict, newdata= test, 
                   .progress = "text"))
@@ -193,7 +161,7 @@ correct = options[icorr]
 
 	#### only values 0 to 100 are likely to be ROI
 	# preds = preds * df$in0100
-	preds = preds * test$include
+	preds = preds * test$multiplier
 	fpr.stop = 0.01
 
 	opt.cut = function(perf, pred){

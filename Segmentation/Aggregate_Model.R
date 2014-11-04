@@ -26,9 +26,12 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "SyN"
-options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-        "SyN", "SyN_sinc", "Rigid", "Affine")
+correct = "none"
+# options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "Affine_sinc")
+options = c("none", "N3_SS", "N4_SS", 
+      "Rigid", "Rigid_sinc")
 
 short_predict = function(object, newdata, 
     lthresh=  .Machine$double.eps^0.5){
@@ -69,7 +72,7 @@ outfile = file.path(outdir, "111_Filenames.Rda")
 load(file = outfile)
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 1
+if (is.na(icorr)) icorr = 5
 correct = options[icorr]
 
 # for (correct in options){
@@ -87,10 +90,13 @@ correct = options[icorr]
         "SyN" = "_SyN",
         "SyN_sinc" = "_SyN_sinc",
         "Rigid" = "_Rigid",
-        "Affine" = "_Affine")
+        "Affine" = "_Affine",
+        "Rigid_sinc" = "_Rigid_sinc",
+        "Affine_sinc" = "_Affine_sinc")
+
 
     filename = file.path(outdir, 
-        paste0("Collapsed_Models", adder, ".Rda"))
+        paste0("Result_Formats", adder, ".Rda"))
     load(filename)
 
     makedir = sapply( fdf$outdir, function(x) {
@@ -144,31 +150,35 @@ correct = options[icorr]
     runnames = runnames[ !(runnames %in% 
         c("mask", "Y", "img", nosmooth))]
 
-    fname = file.path(outdir, 
-        paste0("Aggregate_data_cutoffs", adder, ".Rda"))
+    # fname = file.path(outdir, 
+    #     paste0("Aggregate_data_cutoffs", adder, ".Rda"))
 
-    load(file = fname)
+    # load(file = fname)
     
+
+    # keepnames = colnames(est.cutoffs)
+    # include = rep(TRUE, length=nrow(all.df))
+    # for (icut in keepnames){
+    #     qcuts = est.cutoffs[, icut]
+    #     include = include & 
+    #         (all.df[, icut] >= qcuts[1] & 
+    #             all.df[, icut] <= qcuts[2])
+    #     print(icut)
+    # }
+
+    # sum(all.df$Y[!include])/ sum(all.df$Y)
+    # sum(include)/ length(include)
+    # all.df$include.all = include
+
+    # all.df$zval = all.df[, "zscore3.cutoff"] & all.df$include &
+    #     all.df$pct_thresh.cutoff
+    # all.df$zval2 = all.df[, "zscore2.cutoff"] & all.df$zval
+
+    # all.df$multiplier = all.df$zval2
+
     train = all.df[samps,]
     test = all.df[!samps,]
 
-
-
-    keepnames = colnames(est.cutoffs)
-    include = rep(TRUE, length=nrow(all.df))
-    for (icut in keepnames){
-        qcuts = est.cutoffs[, icut]
-        include = include & 
-            (all.df[, icut] >= qcuts[1] & 
-                all.df[, icut] <= qcuts[2])
-        print(icut)
-    }
-
-    sum(all.df$Y[!include])/ sum(all.df$Y)
-    sum(include)/ length(include)
-    all.df$include.all = include
-
-    test$include.all = include[!samps]
 
     runmod = function(formstr){
         form = as.formula(formstr)
@@ -184,6 +194,7 @@ correct = options[icorr]
         runmod( formstr= paste0(formstr, " - ", x))
         }, .progress = "text")
 
+    test$multiplier = mult.df[!samps, "multiplier"]
 
     ### used gam - but bam supposedly faster
     gam.time = system.time({
@@ -241,7 +252,7 @@ correct = options[icorr]
         .progress = "text")
 
     test.pred = short_predict(mod, test)
-    test.pred = test.pred * test$include.all
+    test.pred = test.pred * test$multiplier
 
     pred <- prediction( test.pred, test$Y)
     fpr.stop = fdr.stop = .01
@@ -267,7 +278,7 @@ correct = options[icorr]
     cat("GAM Prediciton \n")
     
     test.gam.pred = as.numeric(test.gam.pred)
-    test.gam.pred = test.gam.pred * test$include.all
+    test.gam.pred = test.gam.pred * test$multiplier
 
     gam.pred <- prediction( test.gam.pred, test$Y)
     # pred <- prediction( test.pred.all, test$Y)
@@ -302,7 +313,7 @@ correct = options[icorr]
     for (i in seq_along(take.mods)){
         imod = take.mods[[i]]
         test.preds = short_predict(imod, newdata=test)
-        test.preds = test.preds * test$include.all
+        test.preds = test.preds * test$multiplier
 
         preds <- prediction( test.preds, test$Y)
         myperf = performance(preds, "auc", fpr.stop = fpr.stop)

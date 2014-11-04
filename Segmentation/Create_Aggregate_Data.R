@@ -25,8 +25,11 @@ atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
 correct = "N3_SS"
-options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-        "SyN", "SyN_sinc", "Rigid", "Affine")
+# options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "Affine_sinc")
+options = c("none", "N3_SS", "N4_SS", 
+      "Rigid", "Rigid_sinc")
 
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
@@ -36,7 +39,7 @@ outfile = file.path(outdir, "111_Filenames.Rda")
 load(file = outfile)
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 1
+if (is.na(icorr)) icorr = 5
 correct = options[icorr]
 
 # for (correct in options){
@@ -54,10 +57,12 @@ correct = options[icorr]
         "SyN" = "_SyN",
         "SyN_sinc" = "_SyN_sinc",
         "Rigid" = "_Rigid",
-        "Affine" = "_Affine")
+        "Affine" = "_Affine",
+        "Rigid_sinc" = "_Rigid_sinc",
+        "Affine_sinc" = "_Affine_sinc")
 
     filename = file.path(outdir, 
-        paste0("Collapsed_Models", adder, ".Rda"))
+        paste0("Result_Formats", adder, ".Rda"))
     load(filename)
 
     makedir = sapply( fdf$outdir, function(x) {
@@ -104,6 +109,8 @@ correct = options[icorr]
         print(imod)
     }
 
+    keep.colnames = colnames(all.df)
+
     stopifnot(all(all.df$Y %in% c(0, 1)))
     names(l.keep.ind) = fdf.run$img
 
@@ -120,7 +127,7 @@ correct = options[icorr]
                 0.99, 0.995, 0.999, 1)))
         colnames(r) = runnames
         r
-    })
+    }, .progress = "text")
 
     est.cutoffs = quants$`1`[ c("0.5%", "99.5%"), ]
 
@@ -129,10 +136,39 @@ correct = options[icorr]
 
     save(est.cutoffs, quants, file = fname)
     
+    keepnames = colnames(est.cutoffs)
+    include = rep(TRUE, length=nrow(all.df))
+    for (icut in keepnames){
+        qcuts = est.cutoffs[, icut]
+        colname = paste0(icut, ".cutoff")
+        all.df[, colname] = all.df[, icut] >= qcuts[1] & 
+            all.df[, icut] <= qcuts[2]
+        include = include & all.df[, colname]
+        print(icut)
+    }
+
+
+
+    sum(all.df$Y[!include])/ sum(all.df$Y)
+    sum(include)/ length(include)
+    all.df$include.all = include
+
+    all.df$include = all.df$value >= 30 & all.df$value <= 100
+
+
+    all.df$zval = all.df[, "zscore3.cutoff"] & all.df$include &
+        all.df$pct_thresh.cutoff
+    all.df$zval2 = all.df[, "zscore2.cutoff"] & all.df$zval
+
+    sum(all.df$Y[! all.df$zval2]) / sum(all.df$Y)
+    sum(1-all.df$Y[! all.df$zval2]) / sum(1-all.df$Y)
+
+    all.df$multiplier = all.df$zval2
+
     seed = 20141022
     set.seed(seed)
-    ich = which(all.df$Y == 1)
-    noich = which(all.df$Y != 1)
+    ich = which(all.df$Y == 1 & all.df$multiplier) 
+    noich = which(all.df$Y != 1 & all.df$multiplier)
 
     size = 1e5
     prop = .25
@@ -144,7 +180,11 @@ correct = options[icorr]
 
     # samp.ind = sample(nrow(df), size= 1e4)
     samps = seq(nrow(all.df)) %in% samp.ind
-    
+
+    mult.df = all.df[, !colnames(all.df) %in% keep.colnames]
+    all.df = all.df[, colnames(all.df) %in% keep.colnames]    
+
+
     img = all.df$img
     all.df$img = NULL    
 
@@ -154,9 +194,18 @@ correct = options[icorr]
     fname = file.path(outdir, 
         paste0("Aggregate_data", adder, ".Rda"))
 
-    save(all.df, samps, img, 
+    save(all.df, mult.df, samps, img, 
         size, prop, n.ich, n.noich, 
         fdf.run, seed, l.keep.ind,
         file = fname)
+
+    train = all.df[samps,]
+    tr.img = img[samps,]
+    tr.mult.df = mult.df[samps,]
+    fname = file.path(outdir, 
+        paste0("Sample_Aggregate_data", adder, ".Rda"))
+
+    save(tr.mult.df, train, tr.img,
+        file = fname)    
 
 # }

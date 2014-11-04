@@ -66,8 +66,8 @@ if (runonlybad) ids = ids[bad.ids]
 
 verbose =TRUE
 untar = FALSE
-convert <- TRUE
-skullstrip <- FALSE
+convert <- FALSE
+skullstrip <- TRUE
 plotss = TRUE
 regantry <- FALSE
 untgantry <- FALSE
@@ -212,7 +212,7 @@ if (!ROIformat){
     if (skullstrip){
 
       if (runall) {
-
+        cat("Skull Stripping")
           # system.time(Skull_Strip(basedir, CTonly=TRUE, 
           #   opts="-f 0.1 -b", 
           #   verbose=verbose))
@@ -231,11 +231,11 @@ if (!ROIformat){
         iimg = 1
         
         scen = expand.grid(int=c("0.01", "0.1", "0.35"),
-                           presmooth=c(TRUE, FALSE),
-                           refill = c(TRUE, FALSE))
+                           presmooth=c(TRUE),
+                           refill = c(FALSE))
         rownames(scen)= NULL
-        w = which(!scen$presmooth & scen$refill)
-        scen = scen[-w, ]
+        w = !scen$presmooth & scen$refill
+        scen = scen[!w, ]
 
         mid.folder = function(x, folname = ""){
           d = dirname(x)
