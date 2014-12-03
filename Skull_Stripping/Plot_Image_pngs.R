@@ -17,9 +17,37 @@ if (Sys.info()[["user"]] %in% "jmuschel") {
 }
 progdir = file.path(rootdir, "programs")
 basedir = file.path(rootdir, "Registration")
+datadir = file.path(basedir, "data")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 rundir = file.path(progdir, "Skull_Stripping")
+
+########################################
+# Read in Checked data
+########################################
+cuts = c("0.01", "0.1", "0.35")
+checks = lapply(cuts, function(cut){
+	fname = file.path(datadir, 
+		paste0("Check_", cut, ".csv"))
+	x = read.csv(fname, as.is=TRUE)	
+	x$int = cut
+	x
+})
+checks = do.call("rbind", checks)
+checks$name = gsub("/", ":", checks$name)
+checks$stub = gsub("(.*)_SS_0.*", "\\1", checks$name)
+checks = checks[ order(checks$stub, checks$int), ]
+checks = ddply(checks, .(stub), function(x){
+	x$Gantry = max(x$Gantry)
+	x$Crani = max(x$Crani)
+	x
+})
+
+check.imgs = checks
+rm(list="checks")
+
+#############################
+check.imgs$name = gsub("[.]png$", "", check.imgs$name)
 
 rerun = FALSE
 
@@ -27,7 +55,7 @@ ids = list.files(basedir, pattern = "^\\d.*\\d$")
 iddirs = file.path(basedir, ids)
 ssdirs = file.path(iddirs, "Skull_Stripped")
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(iid)) iid = 23
+if (is.na(iid)) iid = 20
 # for (iid in seq_along(ids)){
 	id = ids[iid]
 	iddir = iddirs[iid]

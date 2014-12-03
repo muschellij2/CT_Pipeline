@@ -24,7 +24,7 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "N3_SS"
+correct = "none"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
@@ -39,7 +39,7 @@ outfile = file.path(outdir, "111_Filenames.Rda")
 load(file = outfile)
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 5
+if (is.na(icorr)) icorr = 1
 correct = options[icorr]
 
 # for (correct in options){
@@ -159,6 +159,8 @@ correct = options[icorr]
     all.df$zval = all.df[, "zscore3.cutoff"] & all.df$include &
         all.df$pct_thresh.cutoff
     all.df$zval2 = all.df[, "zscore2.cutoff"] & all.df$zval
+    all.df$zval_all = all.df[, "zscore_template.cutoff"] & 
+        all.df$zval2
 
     sum(all.df$Y[! all.df$zval2]) / sum(all.df$Y)
     sum(1-all.df$Y[! all.df$zval2]) / sum(1-all.df$Y)
@@ -200,12 +202,13 @@ correct = options[icorr]
         file = fname)
 
     train = all.df[samps,]
-    tr.img = img[samps,]
+    # tr.img = img[samps,]
     tr.mult.df = mult.df[samps,]
     fname = file.path(outdir, 
         paste0("Sample_Aggregate_data", adder, ".Rda"))
 
-    save(tr.mult.df, train, tr.img,
+    save(tr.mult.df, train, 
+        # tr.img,
         file = fname)    
 
 # }

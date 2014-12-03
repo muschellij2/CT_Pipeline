@@ -11,6 +11,7 @@ library(oro.nifti)
 library(plyr)
 library(XML)
 library(stringr)
+library(fslr)
 homedir = "/Applications"
 basedir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -44,9 +45,11 @@ cutdown = function(img, outdim= c(181, 217, 181)){
 	return(img)
 }
 
-
-bmask = readNIfTI(
-  file.path(fsltemp, "MNI152_T1_1mm_brain_mask.nii.gz"))
+bmask.file = file.path(fsltemp, "MNI152_T1_1mm_brain_mask.nii.gz")
+bmask = fslfill(bmask.file, outfile=NULL, retimg=TRUE, bin=FALSE)
+app = "_Filled"
+# bmask = readNIfTI(bmask.file)
+# app = ""
 reg.bmask = bmask > 0
 bmask = cutdown(bmask)
 bmask = bmask > 0
@@ -331,7 +334,8 @@ save(tal.df, tal.img, tal.list,
 	jhut1.list, jhut2.list,
 	jhut1.nolr.list, jhut2.nolr.list, 
 	jhut1.nolr.df, jhut2.nolr.df, 
-	file= file.path(outdir, "All_FSL_Atlas_Labels.Rda"))
+	file= file.path(outdir, 
+		paste0("All_FSL_Atlas_Labels", app, ".Rda")))
 
 
 

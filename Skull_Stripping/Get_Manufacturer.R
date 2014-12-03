@@ -65,29 +65,18 @@ if (!smooth){
 	all.df$fname = gsub("_Mask", "_nopresmooth_Mask", all.df$fname)	
 }
 
-sdf = split(all.df, all.df$img)
-
-idf <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(idf)) idf = 346
-
-# for (idf in seq_along(sdf)){
-	df = sdf[[idf]]
-	img = readNIfTI(df$img[1], reorient=FALSE)
-	iimg = 1
-	for (iimg in seq(nrow(df))){
-		fname = df$fname[iimg]
-		pngname = file.path(outdir, 
-			paste0(nii.stub(fname, bn = TRUE), '.png'))
-		if (!file.exists(pngname) | rerun){
-
-			mask = readNIfTI(fname, reorient=FALSE)
-
-			png(pngname, type="cairo")
-				mask.overlay(img, mask, 
-					window=c(0, 100))
-			dev.off()
-		} 
-		print(iimg)
-	}
+all.df = all.df[ file.exists(all.df$hdr), ]
+all.df$manu = NA
+all.df = all.df[, c("id", "stub", "hdr", "manu")]
+all.df = unique(all.df)
+for (idf in seq(nrow(all.df))){
+	load(all.df$hdr[idf])
+	manu = unique(dcmtables[, "0008-0070-Manufacturer"])
+	stopifnot(length(manu) <= 1)
+	all.df$manu[idf] = manu
 	print(idf)
-# }
+}
+
+hdrs = all.df
+outfile = file.path(resdir, "Manufacturer_Data.Rda")
+save(hdrs, file= outfile)

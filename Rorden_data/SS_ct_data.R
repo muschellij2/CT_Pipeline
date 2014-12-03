@@ -16,22 +16,28 @@ regdir = file.path(homedir, "CT_lesions")
 
 
 # scandir = file.path(homedir, "CT_lesions")
-scandir = file.path(homedir, "CT_lesions")
+scandir = file.path(homedir, "ct_scans")
 # setwd(homedir)
 outdir = tempdir()
 
 
-files = list.files(scandir, pattern = "^v.*_CT.nii", full.names=TRUE)
-ifile = 1
+files = list.files(scandir, pattern = "^rx.*.nii", full.names=TRUE)
+files = files[ !grepl("_SS_", files)]
+ifile = 30
+
 
 for (ifile in seq_along(files)){
 	print(ifile)
 	myfile = files[ifile]
+	img = clinical_c2h(myfile)
 	ssfile = paste0(nii.stub(myfile), "_SS_0.01")
-	ss = CT_Skull_Strip(myfile, 
-		retimg=TRUE, 
+	ss = CT_Skull_Strip(img, 
+		retimg=FALSE, 
+		lthresh = -50,
+		uthresh = 100,
+		sigma = 3,
 		outfile = ssfile)
-	ssfile = paste0(ssfile, ".nii")
+	# ssfile = paste0(ssfile, ".nii")
 	############################
 	# Copying files over
 	############################

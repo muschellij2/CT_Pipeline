@@ -35,7 +35,7 @@ img_cut = function(img, breaks, ...){
 	levs = levels(cuts)
 	cuts = as.numeric(cuts)
 	# res.p[ rs > ncut ] = cuts
-	img@.Data = array(cuts, dim=dim(img))
+  img = niftiarr(img, array(cuts, dim=dim(img)))
 	return(list(img=img, levs=levs))
 }
 

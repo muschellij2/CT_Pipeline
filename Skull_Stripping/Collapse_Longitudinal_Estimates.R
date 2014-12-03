@@ -108,6 +108,9 @@ if (is.na(iid)) iid = 5
 ######################################
 # read in volume data
 ######################################
+# adder = ""
+adder = "_nopresmooth"
+bad.ids = NULL
 all.df = NULL
 for (iid in seq_along(ids)){
 	id = ids[iid]
@@ -117,12 +120,15 @@ for (iid in seq_along(ids)){
 	if (!file.exists(outdir)){
 		dir.create(outdir)
 	}
-	outfile = file.path(outdir, "Skull_Strip_Volumes.Rda")
+	outfile = file.path(outdir, paste0(
+		"Skull_Strip_Volumes", adder, ".Rda"))
 	if (file.exists(outfile)){
 		load(outfile)
 		all.df = rbind(all.df, df)
+	} else {
+		bad.ids = c(bad.ids, id)
 	}
-	print(iid)
+	# print(iid)
 }
 
 
@@ -174,8 +180,14 @@ all.df$img = file.path(dirname(dirname(all.df$fname)),
 
 stopifnot(all(file.exists(all.df$img)))
 
-outfile = file.path(resdir, "Longitudinal_Skull_Strip_Data.Rda")
+outfile = file.path(resdir, 
+	paste0("Longitudinal_Skull_Strip_Data", adder, ".Rda"))
 save(all.df, file= outfile)
+
+set.seed(20141103)
+all.df$alpha = 0.2
+ids = sample(all.df$id, size = 5)
+all.df$alpha[ all.df$id %in% ids] = 0.8
 ######################################
 # subset 0.01
 ######################################	
@@ -184,8 +196,7 @@ df = all.df[ grep("SS_0.01", all.df$fname, fixed=TRUE), ]
 check.ids = c("120-376", "131-316", "133-417", "134-327")
 tsize = 16
 
-g = ggplot(df, aes(x= as.numeric(from_base), 
-	colour=id)) + 
+gbase = ggplot(df, aes(x= as.numeric(from_base))) + 
 	geom_line() +
 	guides(colour=FALSE)  + 
 	xlab("Days from Baseline Scan") +
@@ -199,6 +210,7 @@ g = ggplot(df, aes(x= as.numeric(from_base),
         title = element_text(size=tsize),
         strip.text = element_text(size = tsize+4),
         axis.text  = element_text(size=tsize-2))
+g = gbase + aes(colour=id)
 gtrue = g + aes(y= truevol) + 
 	ylab("Estimated Intracranial Volume")
 gstrue = gtrue  + 
@@ -270,9 +282,9 @@ tau.sq <- vc$id[1]
 sigma.sq <- smod$sigma^2
 tau.sq/(tau.sq+sigma.sq)
 
-save(ddf, mod, smod, vc, tau.sq, sigma.sq, 
-	file= file.path(resdir, "ICC_data.Rda")
-	)
+save(ddf, mod, smod, vc, 
+	tau.sq, sigma.sq, 
+	file = file.path(resdir, "ICC_data.Rda"))
 
 
 ddf10 = df[df$before_crani & df$level == 0 & df$from_base < 10,]
@@ -294,7 +306,16 @@ tau.sq <- vc$id[1]
 sigma.sq <- smod$sigma^2
 tau.sq/(tau.sq+sigma.sq)
 
-
+pngname = file.path(resdir, 
+	"Intraclass_Correlation_no_crani_check_day10_black.png")
+png(pngname, type="cairo", 
+	res=600, height=7, width=7, units="in")
+	g10 = (gbase + aes(group=id, alpha=alpha)) %+% ddf10
+	g10 = g10 + aes(y= truevol) + 
+	ylab("Estimated Intracranial Volume") + 
+	guides(alpha=FALSE)
+	print(g10)
+dev.off()
 
 # "173-312" is bad one
 g = ggplot(df[ df$site_number %in% c("173", "232"), ], 

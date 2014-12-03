@@ -24,13 +24,14 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "Rigid_sinc"
+correct = "Rigid"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
-# options = c("none", "N3_SS", "N4_SS",
-# 	"Rigid",  "Rigid_sinc")
-options = "Rigid_sinc"
+options = c("none", "N3_SS", "N4_SS",
+	"Rigid",  "Rigid_sinc")
+# options = c("none", "Rigid_sinc")
+# options = "Rigid"
 
 my.tab <- function(
   x, 
@@ -50,7 +51,7 @@ my.tab <- function(
   return(tab) 
 }
 
-types = c("_zval2")
+types = c("_zval2", "_zval_all")
 # , "_zval2"
 # "_include_all", 
 type = types[1]
@@ -138,7 +139,7 @@ for (correct in options){
 	pauc.cut.vol.tsdata = pauc.cut.vol.sdata
 
 	get.pred <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-	if (is.na(get.pred)) get.pred = 3
+	if (is.na(get.pred)) get.pred = 71
 	x = fdf[get.pred,]
 	print(get.pred)
 
@@ -151,6 +152,8 @@ for (correct in options){
 		paste0(predname, "_predictors", adder, ".Rda"))
 	load(predname)
 	df = img.pred$df
+	stopifnot(all(df$Y %in% c(0, 1)))
+
 	nim = img.pred$nim
 	keep.ind = img.pred$keep.ind
 	rm(list="img.pred")
@@ -181,6 +184,9 @@ for (correct in options){
     	df$pct_thresh.cutoff
     df$zval2 = df[, "zscore2.cutoff"] & df$zval
 	# df$dist_centroid <= 75
+    df$zval_all = df[, "zscore_template.cutoff"] & df$zval2
+
+    df$subset = df$zval2
 
 	df$in0100 = df$value >= 0 & df$value <= 100
 	# df$in20_85 = df$value >= 20 & df$value <= 85
@@ -193,9 +199,37 @@ for (correct in options){
 	vres = prod(vdim) / 1000
 
 	Y =  df$Y
+
+	######################################
+	# Get volume of ROI, using varslice if needed
+	######################################	
 	vol.roi = sum(Y) * vres	
 
+	if (correct %in% c("none", "N3_SS", "N4_SS")) {
+		x$hdr = file.path(x$iddir, "Sorted",
+			paste0(nii.stub(x$img, bn=TRUE), 
+				"_Header_Info.Rda"))
+		hdrload = load(x$hdr)
+		img = nim
+		img[is.na(img)] = 0
+		img@.Data = array(df$Y, dim=dim(img))
+		vol.roi = get_roi_vol(img, dcmtables)$truevol
+	}
+
+
+
 	not0100 = sum(df$Y[ !df$in0100 ])
+
+	brain.vol = sum(df$mask) * vres
+	if (correct %in% c("none", "N3_SS", "N4_SS")) {
+		img = nim
+		img[is.na(img)] = 0
+		img@.Data[keep.ind] = 1
+		brain.vol = get_roi_vol(img, dcmtables)$truevol
+	}
+
+
+
 
 	######################################
 	# Keep all ROI = 1, even if not inmask
@@ -213,8 +247,6 @@ for (correct in options){
 
 	Y =  df$Y
 	benchmark = 1-mean(df$Y)
-	brain.vol = nrow(df) * vres
-
 
 	df$img = fdf$img[1]
 
@@ -225,13 +257,14 @@ for (correct in options){
 
 	test.gam.pred = rep(0, length=nrow(df))
 	gam.pred = predict(gam.mod, 
-		df[ df$zval2,], 
+		df[ df$subset,], 
 		newdata.guaranteed = TRUE,
 		type="response", block.size=1e5)
     cat("GAM Prediction \n")
     
     gam.pred = as.numeric(gam.pred)
-	test.gam.pred[ df$zval2 ] = gam.pred
+    gam.pred[gam.pred > 1] = 1
+	test.gam.pred[ df$subset ] = gam.pred
 
 	# gam.cut.vols = sum(test.gam.pred > gam.acc[, "cutoff"])
 	# gam.cut.vols = gam.cut.vols * vres
@@ -319,26 +352,58 @@ for (correct in options){
 		}		
 		if (type == "_zval2"){
 			df$multiplier = df$zval2
-		}								
+		}	
+		if (type == "_zval_all"){
+			df$multiplier = df$zval_all
+		}										
 		preds = xpreds
 		#### only values 0 to 100 are likely to be ROI
 		# preds = preds * df$in0100
 		preds = preds * df$multiplier
 
 
-	
-		cut.vols = colSums(t(t(preds) > all.cuts))
-		cut.vols = cut.vols * vres
-		cut.vol.data[get.pred, ] = c(vol.roi, cut.vols)
+		################################
+		# Running with variable slice thickness
+		################################
 
-		pauc.cut.vols = colSums(t(t(preds) > all.pauc.cuts))
-		pauc.cut.vols = pauc.cut.vols * vres
-		pauc.cut.vol.data[get.pred, ] = c(vol.roi, 
-			pauc.cut.vols)
+		run_vol = function(runpred){
+			img = nim
+			img[is.na(img)] = 0
+			img@.Data[keep.ind] = runpred
+			vol = get_roi_vol(img, dcmtables)$truevol 
+		}
 
-		vols = colSums(preds)
-		vols = vols * vres
+		rpreds = t(t(preds) > all.cuts)
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			vols = aaply(rpreds, 2, run_vol,
+				.progress = "text")
+		} else {
+			vols = colSums(rpreds)
+			vols = vols * vres
+		}
+		cut.vol.data[get.pred, ] = c(vol.roi, vols)
+
+
+		rpreds = t(t(preds) > all.pauc.cuts)
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			vols = aaply(rpreds, 2, run_vol,
+				.progress = "text")
+		} else {
+			vols = colSums(rpreds)
+			vols = vols * vres
+		}
+		pauc.cut.vol.data[get.pred, ] = c(vol.roi, vols)
+
+		rpreds = preds
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			vols = aaply(rpreds, 2, run_vol,
+				.progress = "text")
+		} else {
+			vols = colSums(rpreds)
+			vols = vols * vres
+		}				
 		vol.data[get.pred, ] = c(vol.roi, vols)
+
 
 		# pred.imgs = vector(mode="list", length=ncol(preds))
 		spreds = matrix(nrow=nrow(preds), ncol=ncol(preds))
@@ -357,7 +422,7 @@ for (correct in options){
 			# pred.imgs[[ipred]] = img
 			outimg = nii.stub(fdf$img[get.pred], bn=TRUE)
 			outimg = file.path(id.outdir, 
-				paste0(outimg, "_", cn, adder))			
+				paste0(outimg, "_", cn, adder))	
 			writeNIfTI(img, filename = outimg )
 
 			#### smooth the results
@@ -408,16 +473,65 @@ for (correct in options){
 		##################
 
 
-		svols = colSums(spreds)
-		svols = svols * vres
-		vol.sdata[get.pred, ] = c(vol.roi, svols)
+
+		rpreds = t(t(spreds) > all.scuts)
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			vols = aaply(rpreds, 2, run_vol,
+				.progress = "text")
+		} else {
+			vols = colSums(rpreds)
+			vols = vols * vres
+		}
+		cut.vol.sdata[get.pred, ] = c(vol.roi, vols)
+
+		rpreds = t(t(spreds) > all.cuts)
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			vols = aaply(rpreds, 2, run_vol,
+				.progress = "text")
+		} else {
+			vols = colSums(rpreds)
+			vols = vols * vres
+		}
+		cut.vol.tsdata[get.pred, ] = c(vol.roi, vols)
+
+		rpreds = t(t(spreds) > all.spauc.cuts)
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			vols = aaply(rpreds, 2, run_vol,
+				.progress = "text")
+		} else {
+			vols = colSums(rpreds)
+			vols = vols * vres
+		}
+		pauc.cut.vol.sdata[get.pred, ] = c(vol.roi, vols)
+
+		rpreds = t(t(spreds) > all.pauc.cuts)
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			vols = aaply(rpreds, 2, run_vol,
+				.progress = "text")
+		} else {
+			vols = colSums(rpreds)
+			vols = vols * vres
+		}
+		pauc.cut.vol.tsdata[get.pred, ] = c(vol.roi, vols)		
+
+		rpreds = spreds
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			vols = aaply(rpreds, 2, run_vol,
+				.progress = "text")
+		} else {
+			vols = colSums(rpreds)
+			vols = vols * vres
+		}			
+		vol.sdata[get.pred, ] = c(vol.roi, vols)
+
 
 		runtabs = function(x, y){
-			tabs = vector(mode="list", length=ncol(preds))
+			tabs = vector(mode="list", length=ncol(x))
 			for (itab in seq(ncol(x))){
 				tabs[[itab]] = my.tab(x[, itab] > y[itab], df$Y)
 				print(itab)
 			}
+			names(tabs) = colnames(x)
 			tabs
 		}
 		cut.tabs = runtabs(preds, all.cuts)
@@ -428,24 +542,7 @@ for (correct in options){
 		pauc.cut.stabs = runtabs(spreds, all.spauc.cuts)
 		pauc.cut.tabs.smooth = runtabs(spreds, all.pauc.cuts)
 
-		cut.svols = colSums(t(t(spreds) > all.scuts))
-		cut.svols = cut.svols * vres
-		cut.vol.sdata[get.pred, ] = c(vol.roi, cut.svols)
-
-		cut.vols.smooth = colSums(t(t(spreds) > all.cuts))
-		cut.vols.smooth = cut.vols.smooth * vres
-		cut.vol.tsdata[get.pred, ] = c(vol.roi, cut.vols.smooth)
-
-
-		pauc.cut.svols = colSums(t(t(spreds) > all.spauc.cuts))
-		pauc.cut.svols = pauc.cut.svols * vres
-		pauc.cut.vol.sdata[get.pred, ] = c(vol.roi, 
-			pauc.cut.svols)	
-
-		pauc.cut.svols = colSums(t(t(spreds) > all.pauc.cuts))
-		pauc.cut.svols = pauc.cut.svols * vres
-		pauc.cut.vol.tsdata[get.pred, ] = c(vol.roi, 
-			pauc.cut.svols)
+		
 
 		# print(vol.roi)
 		# print(vol.pred)		
@@ -478,8 +575,7 @@ for (correct in options){
 		# 	return(pauc)
 		# }, .progress = "text")
 
-
-		r.res = alply(preds, 2, function(nd){
+		run_acc = function(nd){
 			pred <- prediction( nd, Y)				
 			acc = performance(pred, "acc")
 			ind = which.max(acc@y.values[[1]])
@@ -490,26 +586,19 @@ for (correct in options){
 			pauc = performance(pred, "auc", fpr.stop= fpr.stop)
 			pauc = pauc@y.values[[1]] / fpr.stop
 			list(acc = acc, pauc = pauc)
-		}, .progress = "text")
+		}
+
+		r.res = alply(preds, 2, run_acc, .progress = "text")
 
 		accs = sapply(r.res, `[[`, "acc")
 		paucs = sapply(r.res, `[[`, "pauc")
-
+		names(paucs) = colnames(accs) =
+			as.character(unlist(attr(r.res,"split_labels")))
 		res[get.pred, ] = paucs
 
-		##### running for smoothed data
-		s.res = alply(spreds, 2, function(nd){
-			pred <- prediction( nd, Y)				
-			acc = performance(pred, "acc")
-			ind = which.max(acc@y.values[[1]])
-			cutoff = acc@x.values[[1]][ind]
-			acc = acc@y.values[[1]][ind]
-			acc = c(accuracy=acc, cutoff= cutoff)
 
-			pauc = performance(pred, "auc", fpr.stop= fpr.stop)
-			pauc = pauc@y.values[[1]] / fpr.stop
-			list(acc = acc, pauc = pauc)
-		}, .progress = "text")
+		##### running for smoothed data
+		s.res = alply(spreds, 2, run_acc, .progress = "text")
 
 		saccs = sapply(s.res, `[[`, "acc")
 		spaucs = sapply(s.res, `[[`, "pauc")
