@@ -26,14 +26,14 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "N3_SS"
+correct = "Rigid_sinc"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
 options = c("none", "N3_SS", "N4_SS", 
       "Rigid", "Rigid_sinc")
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 1
+if (is.na(icorr)) icorr = 5
 correct = options[icorr]
 
 keep.obj = ls()
@@ -58,7 +58,7 @@ adder = switch(correct,
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
 
-outfile = file.path(outdir, "111_Filenames.Rda")
+outfile = file.path(outdir, "111_Filenames_with_volumes.Rda")
 load(file = outfile)
 
 
@@ -78,7 +78,7 @@ stopifnot(file.exists(outfiles))
 # 	paste0("Collapsed_Models", adder, ".Rda"))
 # load(mod.filename)
 
-get.pred = 1
+get.pred = 11
 # get.pred = 50
 
 fname = file.path(outdir, 
@@ -105,7 +105,7 @@ ffdf = fdf[-nopred, ]
 ffdf = ffdf[subset.ind,]
 
 allnames = c(paste0(keepnames, ".cutoff"), 
-		"include", "include.all", "zval", "zval2")
+		"include", "include.all", "zval", "zval2", "zval_all")
 cn = c(outer(allnames, c(".out", ".reduced"), paste0))
 ffdf[, cn] = NA
 ffdf$nroi = NA
@@ -139,6 +139,7 @@ for (get.pred in seq(nrow(ffdf))){
     df$zval = df[, "zscore3.cutoff"] & df$include &
     	df$pct_thresh.cutoff
     df$zval2 = df[, "zscore2.cutoff"] & df$zval
+    df$zval_all = df[, "zscore_template.cutoff"] & df$zval2
 
     # pdfname = file.path(outdir, 
     #     paste0("Aggregate_Data_Plots", adder, ".pdf"))

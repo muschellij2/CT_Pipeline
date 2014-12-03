@@ -35,6 +35,9 @@ E = matrix(rnorm(N*B), nrow=N, ncol = B)
 BX = matrix(beta* true.pct, nrow=N, ncol = B)
 Y = BX + E
 
+#### get p-value for true X
+
+
 # true.mod = lm(Y ~ true.pct)
 # true.smod = summary(true.mod)
 # true.r2 = true.smod$r.squared

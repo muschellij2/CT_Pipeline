@@ -2,7 +2,6 @@ rm(list=ls())
 library(cttools)
 library(fslr)
 library(plyr)
-library(methods)
 options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
 
 setup <- function(id, study = "Registration"){
@@ -16,18 +15,7 @@ setup <- function(id, study = "Registration"){
     rootdir <- "/dexter/disk2/smart/stroke_ct/ident"
     cluster =TRUE;
   }
-  rootdir <- path.expand(rootdir)
-
-  # ss <- as.numeric(strsplit(id, "-")[[1]][2])
-  # if (ss > 4000){
-  #   study <- "CLEAR_III"
-  #   dpath <- file.path("CLEAR", "CLEAR III")
-  # } else if (ss > 300 & ss < 500){
-  #   dpath <- study <- "MISTIE"
-  # } else if (ss > 500 & ss < 4000) {
-  #   dpath <- study <- "ICES" 
-  # }
-
+    rootdir <- path.expand(rootdir)
 
   rootdir <<- path.expand(rootdir)
   homedir <<- file.path(rootdir, study)
@@ -44,33 +32,24 @@ setup <- function(id, study = "Registration"){
 
 
 #### setting up if things are on the cluster or not
-## ROIformat after 134-327.zip
-ROIformat = TRUE
-study = "Registration"
+ROIformat = FALSE
+study = "MISTIE_III"
 if (ROIformat) {
-  study = "ROI_data"
+  study = paste0(study, "_ROI")
 }
 
 setup(study, study=study)
-
-if (ROIformat) setup("Long_ROIS", study=study)
-
 
 ids = list.dirs(homedir, recursive=FALSE, full.names=FALSE)
 ids = basename(ids)
 ids = grep("\\d\\d\\d-(\\d|)\\d\\d\\d", ids, value=TRUE)
 length(ids)
 
-
-runonlybad = FALSE
-
-if (runonlybad) ids = ids[bad.ids]
-
 verbose =TRUE
 untar = FALSE
 convert <- TRUE
-skullstrip <- TRUE
-plotss = TRUE
+skullstrip <- FALSE
+plotss = FALSE
 regantry <- FALSE
 untgantry <- FALSE
 runall <- TRUE
@@ -86,57 +65,10 @@ dcm2niicmd = "dcm2nii_2009"
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-# iid = 100 needs ss
-
-if (is.na(iid)) iid <- 33
+if (is.na(iid)) iid <- 2
 
 id <- ids[iid]
 setup(id, study = study)
-
-zeroed <- dir(path=basedir, pattern= ".*Zeroed.*\\.nii\\.gz", 
-  recursive=TRUE, full.names=TRUE)
-for (ifile in seq_along(zeroed)) {
-  system(sprintf('rm "%s"', zeroed[ifile]))
-}
-
-# zeroed <- dir(path=homedir, pattern= ":.*.gz", 
-# recursive=TRUE, full.names=TRUE)
-# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', 
-# zeroed[ifile]))
-
-# zeroed <- dir(path=homedir, pattern= ":.*.txt", recursive=TRUE, 
-# full.names=TRUE)
-# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', 
-# zeroed[ifile]))
-
-# zeroed <- dir(path=homedir, pattern= "'.*.tar.gz", 
-# recursive=TRUE, full.names=TRUE)
-# for (ifile in seq_along(zeroed)) system(sprintf('rm "%s"', 
-# zeroed[ifile]))
-
-
-if (regantry){
-  ### re-run gantry tilt on the data
-   files <- dir(path=homedir, pattern="_ungantry.tar.gz$", 
-    full.names=TRUE, 
-        recursive=TRUE)
-    if (untgantry) {
-      ifile <- files[1]
-      ### untarball the files using R's command
-      if (length(files) > 0){
-        for (ifile in files){
-          dname <- dirname(ifile)
-          untar(ifile, exdir = dname, 
-            compressed="gzip")
-          if (verbose) print(ifile)
-        }
-      }
-    } # untarball gantry
-    fnames <- basename(files)
-    gantniis <- gsub("_ungantry.tar.gz", ".nii.gz", 
-      fnames, fixed=TRUE)
-    gantniis <- file.path(dirname(dirname(files)), gantniis)
-} 
 
 #### loop through IDS and convert them to nii, gantry tilted
 ### 301-520 needs to use Study Date/Time instead of Series Date/Time
@@ -144,17 +76,15 @@ if (regantry){
 
 setup(id, study=study)
 
-for (iid in 34:55){
+# for (iid in seq_along(ids)){
 
   id <- ids[iid]
   print(id)
   setup(id, study = study)
   # source(file.path(progdir, "file_functions.R"))
-  dcmsortopt <- ifelse(id %in% c("301-520", "191-309"), 
-    '-s ', "")
-  useStudyDate <- id %in% c("301-520", "191-309")
 
-
+  dcmsortopt <- ifelse(grepl("-301$", id), '-s ', "")
+  useStudyDate <- grepl("-301$", id)
 
 
   if (convert) {
@@ -176,42 +106,21 @@ for (iid in 34:55){
                               useRdcm2nii= useRdcm2nii,
                               id = id, 
                               isSorted = isSorted,
-                              removeDups = removeDups,
-                              dcmsortopt = dcmsortopt, 
+                              removeDups=removeDups,
+                              dcmsortopt=dcmsortopt, 
                               ROIformat = ROIformat,
-                              dcm2niicmd = dcm2niicmd, 
-                              useStudyDate = useStudyDate, 
-                              check_series = FALSE,
-                              useNA='ifany'))
+                              dcm2niicmd=dcm2niicmd, 
+                              useStudyDate = useStudyDate))
 
-      # contime <- system.time(convert_DICOM(basedir, progdir, 
-      #                         verbose=verbose, untar=untar, 
-      #                         useRdcmsort= TRUE, 
-      #                         useRdcm2nii= FALSE,
-      #                         id = id, 
-      #                         dcmsortopt=dcmsortopt, 
-      #                         dcm2niicmd=dcm2niicmd))    
+ 
       print(contime)
 
-      ## dropout the niis that are not needed
-      # lis <- includeMatrix(basedir, dropstring="ungantry", error=TRUE)
-      # outs <- lis$outs
-      # mis <- lis$mis
 
-      # dropniis <- outs$fname[outs$Takeout]
-      # dropniis <- getBase(basename(dropniis), 1)
-
-      # if (length(dropniis) > 0){
-      #   dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
-      #   for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
-      # }
-
-      # save(outs, mis, file = infofile)
     # }
     }
   } ## end of if convert
 
-}
+# }
 
 
 #### skull stripping
@@ -221,26 +130,17 @@ if (!ROIformat){
     if (skullstrip){
 
       if (runall) {
-        cat("Skull Stripping\n")
-          # system.time(Skull_Strip(basedir, CTonly=TRUE, 
-          #   opts="-f 0.1 -b", 
-          #   verbose=verbose))
+        cat("Skull Stripping")
 
 
-          # system.time(Skull_Strip(basedir, CTonly=TRUE, 
-          #   opts="-f 0.01 -b", 
-          #   verbose=verbose))
-
-          # system.time(Skull_Strip(basedir, CTonly=TRUE, 
-          #   opts="-f 0.35 -b", 
-          #   verbose=verbose))
-
-        imgs = list.files(basedir, pattern = "\\.nii", recursive=FALSE,
+        imgs = list.files(basedir, pattern = "\\.nii", 
+          recursive=FALSE,
             full.names=TRUE)
         iimg = 1
-        
-        scen = expand.grid(int=c("0.01", "0.1", "0.35"),
-                           presmooth=c(TRUE, FALSE),
+        # int = c("0.01", "0.1", "0.35")
+        int = "0.01"
+        scen = expand.grid(int=int,
+                           presmooth=c(TRUE),
                            refill = c(FALSE))
         rownames(scen)= NULL
         w = !scen$presmooth & scen$refill
@@ -252,15 +152,15 @@ if (!ROIformat){
           file.path(d, folname, b)
         }
 
-        ssdir = file.path(basedir, "Skull_Stripped")
-        if (!file.exists(ssdir)){
-          dir.create(ssdir)
-        }
         for (iimg in seq_along(imgs)){
           
           img = imgs[iimg]
 
           ofile = nii.stub(img)
+          ssdir = file.path(dirname(img), "Skull_Stripped")
+          if (!file.exists(ssdir)){
+            dir.create(ssdir)
+          }
           ofile = mid.folder(ofile, "Skull_Stripped")
           ofile = paste0(ofile, "_SS")
           
@@ -291,24 +191,14 @@ if (!ROIformat){
                                presmooth=presmooth)   
             
 
-          } # scen
+          } # end iscen
+        } # end iimg
 
-        }
       } else {
 
         outdir <- file.path(basedir, "Skull_Stripped")
         niis <- dir(path=basedir, pattern=".nii.gz", 
           full.names=TRUE, recursive=FALSE)
-
-        # # for (inii in niis){
-        # inii = niis[1]
-        #   Skull_Strip_file(img=inii,  
-        #     outdir=outdir, opts="-f 0.1 -b", verbose=verbose)
-        #   Skull_Strip_file(img=inii,
-        #     outdir=outdir, opts="-f 0.01 -b", verbose=verbose)       
-        #   Skull_Strip_file(img=inii, 
-        #     outdir=outdir, opts="-f 0.35 -b", verbose=verbose)                  
-        # # }
 
       }
     }
@@ -322,7 +212,8 @@ if (!ROIformat){
       dir.create(odir, showWarnings=FALSE)
       ss.imgs = list.files(ssdir, pattern=".*\\.nii\\.gz", 
         full.names=TRUE)
-      imgs = gsub("_SS_(0\\.1|0\\.35|0\\.01)_Mask", "", ss.imgs, fixed=FALSE)
+      imgs = gsub("_SS_(0\\.1|0\\.35|0\\.01)_Mask", "", ss.imgs, 
+        fixed=FALSE)
       imgs = gsub("Skull_Stripped/", "", imgs)
 
       df = data.frame(img=imgs, img.mask =ss.imgs, 
@@ -379,6 +270,3 @@ if (!ROIformat){
     # mask.overlay(imgs[1], ss.imgs[1])
  
 }
-
-# grep Err RERUN.o1800157.* | sed 's/.*157.\([0-9]\{1,3\}\):.*/\1/'
-# grep Fail RERUN.o1800157.* | sed 's/.*157.\(.*\):\[.*/\1/'

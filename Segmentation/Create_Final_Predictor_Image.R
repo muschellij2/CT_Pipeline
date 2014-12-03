@@ -24,13 +24,13 @@ tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
-correct = "Rigid_sinc"
+correct = "Rigid"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
 # options = c("none", "N3_SS", "N4_SS",
 # 	"Rigid",  "Rigid_sinc")
-options = "Rigid_sinc"
+options = "Rigid"
 
 my.tab <- function(
   x, 
@@ -104,7 +104,7 @@ keep.obj = ls()
 	cns = colnames(res)
 
 	get.pred <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-	if (is.na(get.pred)) get.pred = 71
+	if (is.na(get.pred)) get.pred = 16
 	runpreds = seq(nrow(fdf))
 
 	mycols = c("dice", "jaccard", "sens", "spec", "accur", 
@@ -158,6 +158,15 @@ for (get.pred in runpreds){
 	load(file=scut.filename)
 
 	names(all.scuts) = cns
+
+	# id.outdir = x$outdir
+	# predname = nii.stub(basename(x$img))
+	# predname = file.path(id.outdir, 
+	# 	paste0(predname, "_predictors", adder, ".Rda"))
+	# load(predname)
+	# df = img.pred$df
+	# rm(list="img.pred")
+
 	# for (ipred in seq(ncol(preds))){
 	cn = "mod_agg"
 
@@ -169,7 +178,6 @@ for (get.pred in runpreds){
 		smimg = paste0(smimg, "_smoothed", adder)
 		sm.img = readNIfTI(fname = smimg, reorient=FALSE)
 		sm.img = niftiarr(sm.img, sm.img > all.scuts[cn])
-
 		outimg = nii.stub(fdf$img[get.pred], bn=TRUE)
 		outimg = file.path(id.outdir, 
 			paste0(outimg, "_", cn, adder, "_prediction"))
@@ -190,10 +198,11 @@ for (get.pred in runpreds){
 	print(get.pred)
 }
 
-outfile = file.path(outdir, 
-	paste0("Overlap_Measures", adder, cn, ".Rda"))
-
 sim.res = cbind(fdf[runpreds,], sim.res)
+
+outfile = file.path(outdir, 
+	paste0("Overlap_Measures", adder, "_", cn, ".Rda"))
+
 save(sim.res, file=outfile)
 
 # }

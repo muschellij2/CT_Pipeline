@@ -29,6 +29,12 @@ if nargin < 1
 else 
     DIRlist = varargin{1};
 end
+
+if nargin > 1
+    check_series = varargin{2};
+else 
+    check_series = 0;
+end
 % clc
 % show(DIRlist);
 
@@ -71,12 +77,15 @@ for d = 1 : length(DIRlist)
         % end
 
         info(q,1) = dinfo;
-        if strcmp(info(q,1).SeriesInstanceUID, info(q,1).SeriesInstanceUID) == false
-            DIRlist(d,1).status = 'ERROR: Files from different series';
-%             DIRlist(d,1).skip = true;
-%             show(DIRlist);
-            break;
-        elseif strcmp(info(q,1).Modality, 'CT') == false
+        if check_series > 0
+            if strcmp(info(q,1).SeriesInstanceUID, info(q,1).SeriesInstanceUID) == false
+                DIRlist(d,1).status = 'ERROR: Files from different series';
+    %             DIRlist(d,1).skip = true;
+    %             show(DIRlist);
+                break;
+            end
+        end
+        if strcmp(info(q,1).Modality, 'CT') == false
             DIRlist(d,1).status = 'ERROR: Non CT files or mixed modalities!';
 %             DIRlist(d,1).skip = true;
 %             show(DIRlist);

@@ -26,7 +26,7 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "none"
+correct = "Rigid"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
@@ -274,10 +274,15 @@ correct = options[icorr]
     ##############################
     # GAM PREDs
     ##############################
-    test.gam.pred = predict(gam.mod, test, type="response")
-    cat("GAM Prediciton \n")
+    test.gam.pred = rep(0, length=nrow(test))
+    test.gam.pred[test$multiplier] = as.numeric(
+        predict(gam.mod, test[test$multiplier,], type="response")
+    )
+
+    cat("GAM Prediction \n")
     
     test.gam.pred = as.numeric(test.gam.pred)
+    test.gam.pred[ test.gam.pred > 1] = 1
     test.gam.pred = test.gam.pred * test$multiplier
 
     gam.pred <- prediction( test.gam.pred, test$Y)

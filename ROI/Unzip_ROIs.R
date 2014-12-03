@@ -57,7 +57,7 @@ setup <- function(id){
 #### loop through IDS and convert them to nii, gantry tilted
 ### 301-520 needs to use Study Date/Time instead of Series Date/Time
 # for (iid in 1:length(ids)){
-rerunroi = TRUE
+rerunroi = FALSE
 
 setup("Long_ROIS")
 # setup("ROIS")
@@ -76,7 +76,11 @@ setup("Long_ROIS")
 
     id.dirs = file.path(homedir, ids)
 
-    l_ply(id.dirs, dir.create, showWarnings=FALSE)
+    l_ply(unique(id.dirs), function(x){
+      if (!file.exists(x)){
+        dir.create(x, showWarnings=FALSE)
+      }
+    })
 
     new.names = file.path(id.dirs, new.names)
     df = data.frame(filename = all.files, 
@@ -85,8 +89,9 @@ setup("Long_ROIS")
 
     # df = df[ grepl("100-365", df$filename), ]
 
-    m_ply(function(filename, new.name){
-      file.rename(filename, new.name)
-      return(NULL)
-    }, .data=df, .progress = "text")
+    file.rename(df$filename, df$new.name)
+    # m_ply(function(filename, new.name){
+    #   file.rename(filename, new.name)
+    #   return(NULL)
+    # }, .data=df, .progress = "text")
 

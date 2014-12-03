@@ -38,7 +38,7 @@ regs = "Rigid"
 scen = expand.grid(ttype = regs,
     interpolator = c("Linear", "LanczosWindowedSinc"),
     stringsAsFactors = FALSE)
-iscen = 4
+iscen = 1
 scen = scen[2,, drop=FALSE]
 addons = paste0(scen$ttype, "_", scen$interpolator) 
 
@@ -86,7 +86,7 @@ for (iscen in seq(nrow(scen))){
     ####################################
 
     x = fdf[iimg,]
-
+    x$preddir = x$outdir
     x$outdir = file.path(x$iddir, outputdir)
     if (!file.exists(x$outdir)){
         dir.create(x$outdir, showWarnings =FALSE)
@@ -94,11 +94,17 @@ for (iscen in seq(nrow(scen))){
 
     ofile = stubfile(x$ss, d = x$outdir, ext = img_ext)
     # outprefix = stubfile(x$ss, d = x$outdir)
+    zfile = file.path( x$preddir, 
+        paste0(nii.stub(x$ss, bn=TRUE), 
+            "_template_zscore.nii.gz" ))
+    zofile = stubfile(zfile, d = x$outdir, ext = img_ext)
+
     outprefix = ofile
 
     roi.ofile = paste0(ofile, "_ROI.nii.gz")
     mask.ofile = paste0(ofile, "_Mask.nii.gz")
     ofile = paste0(ofile, ".nii.gz")
+    zofile = paste0(zofile, ".nii.gz")
     print(ofile)
     binary = c(roi.ofile, mask.ofile)
     files = c(ofile, binary)
@@ -106,8 +112,8 @@ for (iscen in seq(nrow(scen))){
     # if (!ex){
         ss.res = ants_regwrite(filename = x$ss, 
             n3correct = FALSE, 
-            other.files = c(x$roi, x$mask), 
-            other.outfiles = c(roi.ofile, mask.ofile),
+            other.files = c(x$roi, x$mask, zfile), 
+            other.outfiles = c(roi.ofile, mask.ofile, zofile),
             outfile = ofile, retimg = TRUE, 
             typeofTransform = ttype,
             template.file = ss.tempfile, 

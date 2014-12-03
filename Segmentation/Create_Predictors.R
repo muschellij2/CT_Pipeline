@@ -25,6 +25,7 @@ tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
+
 spec = matrix(c(
 	'correct', 'c', 1, "character",
 	'rerun'   , 'r', 1, "logical",
@@ -36,6 +37,12 @@ correct = opt$correct
 rerun = opt$rerun
 overwrite = opt$overwrite
 
+if (is.null(rerun)){
+	rerun = FALSE
+}
+if (is.null(overwrite)){
+	overwrite = FALSE
+}
 print(opt)
 # args<-commandArgs(trailingOnly = TRUE)
 # print(args)
@@ -73,7 +80,7 @@ load(file = outfile)
 # correct = scenarios$correct[iscen]
 
 iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(iimg)) iimg = 3
+if (is.na(iimg)) iimg = 99
 
 runx = x = fdf[iimg,]
 
@@ -120,7 +127,6 @@ remove_gamparts = function(mod){
     mod$model = mod$model[1,]
     mod
 }
-
 
 
 # for (correct in options){
@@ -202,5 +208,35 @@ remove_gamparts = function(mod){
 		save(img.pred, file=outfile, compress = TRUE)
 	} 
 
+	load(file=outfile)
+	cn = colnames(img.pred$df)
+	if (!"zscore_template" %in% cn){
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			ofile = file.path( x$outdir, 
+			paste0(nii.stub(x$ss, bn=TRUE), 
+				"_template_zscore.nii.gz" ))
+		}
+		if (correct %in% c("Rigid", "Rigid_sinc")) {
+		    outputdir = paste0("Rigid_Registered")
+		    outputdir = file.path(x$iddir, outputdir)
+		    ofile = file.path( outputdir, 
+		        paste0(nii.stub(x$ss, bn=TRUE), 
+		            "_template_zscore_", correct ))
+		}
+		img = readNIfTI(ofile, reorient = FALSE)
+		img.pred$df$zscore_template = c(img)
+		save(img.pred, file=outfile, compress = TRUE)
+	}
+	cut = c(-5, 5)
+	img.pred$df$zscore_template[
+		img.pred$df$zscore_template >= cut[2]
+		] = cut[2]
+	img.pred$df$zscore_template[
+		img.pred$df$zscore_template <= cut[1]
+		] = cut[1]
+	img.pred$df$Y = (img.pred$df$Y > 0.5)*1
+	save(img.pred, file=outfile, compress = TRUE)
+
+	stopifnot(all(img.pred$df$Y %in% c(0, 1)))
 # }
 	

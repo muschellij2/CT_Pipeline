@@ -25,13 +25,13 @@ tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
-correct = "Rigid"
+correct = "none"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
-# options = c("none", "N3_SS", "N4_SS", 
-# 		"Rigid", "Rigid_sinc")
-options = c("Rigid", "Rigid_sinc")
+options = c("none", "N3_SS", "N4_SS", 
+		"Rigid", "Rigid_sinc")
+# options = c("Rigid", "Rigid_sinc")
 
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
@@ -51,7 +51,7 @@ load(file = outfile)
 # correct = scenarios$correct[iscen]
 
 iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(iimg)) iimg = 1
+if (is.na(iimg)) iimg = 11
 
 runx = x = fdf[iimg,]
 
@@ -181,6 +181,7 @@ for (correct in options){
 	## Overlaid densities of ROIs
 	# Rerun localization 
 	df = img.pred$df
+	# df$zscore_template = NULL
 	df$mask = df$mask > 0
 	stopifnot(all(df$Y %in% c(0, 1)))
 
@@ -190,11 +191,56 @@ for (correct in options){
 	miss.roi = img.pred$miss.roi
 	rm(list="img.pred")
 
+    keep.colnames = colnames(df)
+
+	###########################################
+	# Get cutoffs and make multiplier
+	###########################################
+	fname = file.path(outdir, 
+        paste0("Aggregate_data_cutoffs", adder, ".Rda"))
+
+    load(file = fname)
+    
+    keepnames = colnames(est.cutoffs)
+    include = rep(TRUE, length=nrow(df))
+    for (icut in keepnames){
+        qcuts = est.cutoffs[, icut]
+        colname = paste0(icut, ".cutoff")
+        df[, colname] = df[, icut] >= qcuts[1] & 
+            df[, icut] <= qcuts[2]
+        include = include & df[, colname]
+        print(icut)
+    }
+
+
+
+    sum(df$Y[!include])/ sum(df$Y)
+    sum(include)/ length(include)
+    df$include.all = include
+
+    df$include = df$value >= 30 & df$value <= 100
+
+
+    df$zval = df[, "zscore3.cutoff"] & df$include &
+        df$pct_thresh.cutoff
+    df$zval2 = df[, "zscore2.cutoff"] & df$zval
+    df$zval_all = df[, "zscore_template.cutoff"] & 
+        df$zval2
+
+    df$multiplier = df$zval2
+
 	#############################################
 	# Case-Control Sampling
 	#############################################
-	ich = which(df$Y == 1)
-	noich = which(df$Y != 1)
+    seed = 20141022
+    set.seed(seed)
+    ich = which(df$Y == 1 & df$multiplier) 
+    noich = which(df$Y != 1 & df$multiplier)
+
+    mult.df = df[, !colnames(df) %in% keep.colnames]
+    df = df[, colnames(df) %in% keep.colnames]
+	# ich = which(df$Y == 1)
+	# noich = which(df$Y != 1)
 
 	size = 1e4
 	prop = .25
@@ -208,6 +254,9 @@ for (correct in options){
 	samps = seq(nrow(df)) %in% samp.ind
 	train = df[samps,]
 	test = df[!samps,]
+
+	mult.test = mult.df[!samps,]
+	mult.train = mult.df[samps,]
 
 	pval = function(mod){
 		cc =coef(summary(mod))[, 4]
@@ -232,10 +281,11 @@ for (correct in options){
 
 	test.pred = predict(mod, newdata=test, type="response")
 
+	test.pred = test.pred * mult.test$multiplier
 	smod = summary(mod)
 	smod$deviance.resid = NULL
 	smod$residuals = NULL
-	mod = remove_lmparts(mod)	
+	mod = remove_lmparts(mod)
 
 	# train.pred = predict(mod, newdata=train, type="response")
 	opt.cut = function(perf, pred){
@@ -274,6 +324,8 @@ for (correct in options){
 	test.preds = sapply(take.mods, predict,
 		newdata=test, type="response")
 	iipred = 1
+
+	test.preds = test.preds * mult.test$multiplier
 	lpred = length(take.mods)
 	paucs.cut = matrix(NA, nrow=lpred, ncol=3)
 	colnames(paucs.cut) = colnames(pauc.cut)
@@ -310,8 +362,10 @@ for (correct in options){
 
 		setTxtProgressBar(pb, iipred)	
 	}
-	close(pb)	
+	close(pb)
 
+	rownames(accs)= takeout
+	names(paucs) = takeout
 	print(paucs)
 
 	# Ys = matrix(test$Y, ncol=ncol(test.preds), 

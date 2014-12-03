@@ -28,7 +28,7 @@ iddirs = file.path(basedir, ids)
 ssdirs = file.path(iddirs, "Skull_Stripped")
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(iid)) iid = 5
+if (is.na(iid)) iid = 90
 
 # for (iid in seq_along(ids)){
 	id = ids[iid]
@@ -38,33 +38,51 @@ if (is.na(iid)) iid = 5
 	if (!file.exists(outdir)){
 		dir.create(outdir)
 	}
-	outfile = file.path(outdir, "Skull_Strip_Volumes.Rda")
+	# adder = ""
+	adder = "_nopresmooth"
+	outfile = file.path(outdir, 
+		paste0("Skull_Strip_Volumes", adder, ".Rda")
+		)
 	if (!file.exists(outfile) | rerun){
 		masks = list.files(ssdir, pattern = "_Mask.nii.gz")
-		masks = masks[!grepl("nopresmooth|refill", masks)]
-		int = gsub(".*SS_(.*)_Mask.*", "\\1", masks)
-		stub = gsub("(.*)_SS_(.*)_Mask.*", "\\1", masks)
-		hdr = file.path(iddir, "Sorted", 
-			paste0(stub, "_Header_Info.Rda"))
-		stopifnot(all(file.exists(hdr)))
-
-		df = data.frame(matrix(NA, nrow=length(masks), 
-			ncol= 6))
-		colnames(df) = c("fname", "hdr", "truevol", "thickvol", 
-			"zvol", "varslice")
-		df$fname = file.path(ssdir, masks)
-		df$hdr = hdr
-		iimg =1 
-		for (iimg in seq(nrow(df))){
-			load(df$hdr[iimg])
-			img = readNIfTI(df$fname[iimg], reorient = FALSE)
-			res = get_roi_vol(img = img, dcmtables= dcmtables)
-			df[iimg, "truevol"] = res$truevol
-			df[iimg, "thickvol"] = res$thickvol
-			df[iimg, "zvol"] = res$zvol
-			df[iimg, "varslice"] = res$varslice
-			print(iimg)
+		# masks = masks[!grepl("nopresmooth|refill", masks)]
+		if (adder == "") {
+			masks = masks[!grepl("nopresmooth|refill", masks)]
 		}
-		save(df, file=outfile)
+		if (adder != ""){
+			x = gsub("_", "", adder)
+			masks = masks[ grepl(x, masks)]			
+		}
+		if (length(masks) > 0){
+			# masks = masks[!grepl("refill", masks)]
+			stubs = gsub("nopresmooth|refill", "", masks)
+			int = gsub(".*SS_(.*)_Mask.*", "\\1", stubs)
+			int = gsub("_", "", int)
+			stub = gsub("(.*)_SS_(.*)_Mask.*", "\\1", stubs)
+			hdr = file.path(iddir, "Sorted", 
+				paste0(stub, "_Header_Info.Rda"))
+			stopifnot(all(file.exists(hdr)))
+
+			df = data.frame(matrix(NA, nrow=length(masks), 
+				ncol= 6))
+			colnames(df) = c("fname", "hdr", "truevol", "thickvol", 
+				"zvol", "varslice")
+			df$fname = file.path(ssdir, masks)
+			df$hdr = hdr
+			iimg =1 
+			for (iimg in seq(nrow(df))){
+				load(df$hdr[iimg])
+				img = readNIfTI(df$fname[iimg], reorient = FALSE)
+				res = get_roi_vol(img = img, dcmtables= dcmtables)
+				df[iimg, "truevol"] = res$truevol
+				df[iimg, "thickvol"] = res$thickvol
+				df[iimg, "zvol"] = res$zvol
+				df[iimg, "varslice"] = res$varslice
+				print(iimg)
+			}
+			save(df, file=outfile)
+		} else {
+			stop("No data")
+		}
 	}
 # }

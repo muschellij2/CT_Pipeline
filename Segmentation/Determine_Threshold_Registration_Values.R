@@ -10,6 +10,7 @@ library(plyr)
 library(ggplot2)
 library(matrixStats)
 library(reshape2)
+library(fslr)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
