@@ -2,3 +2,7 @@
 *.nii.gz
 *.stl
 gh-pages/*
+.Rproj.user
+.Rhistory
+Segmentation/.Rhistory
+scratch/*
