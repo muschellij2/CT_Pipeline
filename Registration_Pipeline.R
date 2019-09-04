@@ -3,7 +3,7 @@ library(cttools)
 library(fslr)
 library(plyr)
 library(methods)
-options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
+options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
 
 setup <- function(id, study = "Registration"){
   username <- Sys.info()["user"][[1]]
@@ -45,7 +45,7 @@ setup <- function(id, study = "Registration"){
 
 #### setting up if things are on the cluster or not
 ## ROIformat after 134-327.zip
-ROIformat = TRUE
+ROIformat = FALSE
 study = "Registration"
 if (ROIformat) {
   study = "ROI_data"
@@ -62,9 +62,9 @@ ids = grep("\\d\\d\\d-(\\d|)\\d\\d\\d", ids, value=TRUE)
 length(ids)
 
 
-runonlybad = FALSE
+# runonlybad = FALSE
 
-if (runonlybad) ids = ids[bad.ids]
+# if (runonlybad) ids = ids[bad.ids]
 
 verbose =TRUE
 untar = FALSE
@@ -88,7 +88,7 @@ iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
 # iid = 100 needs ss
 
-if (is.na(iid)) iid <- 33
+if (is.na(iid)) iid <- 51
 
 id <- ids[iid]
 setup(id, study = study)
@@ -138,13 +138,13 @@ if (regantry){
     gantniis <- file.path(dirname(dirname(files)), gantniis)
 } 
 
-#### loop through IDS and convert them to nii, gantry tilted
-### 301-520 needs to use Study Date/Time instead of Series Date/Time
+## loop through IDS and convert them to nii, gantry tilted
+## 301-520 needs to use Study Date/Time instead of Series Date/Time
 # for (iid in 1:length(ids)){
 
 setup(id, study=study)
 
-for (iid in 34:55){
+# for (iid in 60:70){
 
   id <- ids[iid]
   print(id)
@@ -182,7 +182,8 @@ for (iid in 34:55){
                               dcm2niicmd = dcm2niicmd, 
                               useStudyDate = useStudyDate, 
                               check_series = FALSE,
-                              useNA='ifany'))
+                              useNA='ifany', 
+                              add.img.dir = TRUE))
 
       # contime <- system.time(convert_DICOM(basedir, progdir, 
       #                         verbose=verbose, untar=untar, 
@@ -194,7 +195,8 @@ for (iid in 34:55){
       print(contime)
 
       ## dropout the niis that are not needed
-      # lis <- includeMatrix(basedir, dropstring="ungantry", error=TRUE)
+      # lis <- includeMatrix(basedir, dropstring="ungantry", 
+      # error=TRUE)
       # outs <- lis$outs
       # mis <- lis$mis
 
@@ -202,8 +204,8 @@ for (iid in 34:55){
       # dropniis <- getBase(basename(dropniis), 1)
 
       # if (length(dropniis) > 0){
-      #   dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
-      #   for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
+      #  dropniis <- file.path(basedir, paste0(dropniis, ".nii.gz"))
+      #  for (ifile in dropniis) system(sprintf('rm "%s"', ifile))
       # }
 
       # save(outs, mis, file = infofile)
@@ -211,7 +213,7 @@ for (iid in 34:55){
     }
   } ## end of if convert
 
-}
+# }
 
 
 #### skull stripping
@@ -221,6 +223,7 @@ if (!ROIformat){
     if (skullstrip){
 
       if (runall) {
+        
         cat("Skull Stripping\n")
           # system.time(Skull_Strip(basedir, CTonly=TRUE, 
           #   opts="-f 0.1 -b", 
@@ -235,8 +238,9 @@ if (!ROIformat){
           #   opts="-f 0.35 -b", 
           #   verbose=verbose))
 
-        imgs = list.files(basedir, pattern = "\\.nii", recursive=FALSE,
-            full.names=TRUE)
+        imgs = list.files(basedir, pattern = "\\.nii", 
+          recursive=FALSE,
+          full.names=TRUE)
         iimg = 1
         
         scen = expand.grid(int=c("0.01", "0.1", "0.35"),
@@ -307,7 +311,7 @@ if (!ROIformat){
         #   Skull_Strip_file(img=inii,
         #     outdir=outdir, opts="-f 0.01 -b", verbose=verbose)       
         #   Skull_Strip_file(img=inii, 
-        #     outdir=outdir, opts="-f 0.35 -b", verbose=verbose)                  
+        #     outdir=outdir, opts="-f 0.35 -b", verbose=verbose)  
         # # }
 
       }
@@ -322,7 +326,8 @@ if (!ROIformat){
       dir.create(odir, showWarnings=FALSE)
       ss.imgs = list.files(ssdir, pattern=".*\\.nii\\.gz", 
         full.names=TRUE)
-      imgs = gsub("_SS_(0\\.1|0\\.35|0\\.01)_Mask", "", ss.imgs, fixed=FALSE)
+      imgs = gsub("_SS_(0\\.1|0\\.35|0\\.01)_Mask", "", ss.imgs, 
+        fixed=FALSE)
       imgs = gsub("Skull_Stripped/", "", imgs)
 
       df = data.frame(img=imgs, img.mask =ss.imgs, 

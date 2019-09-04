@@ -2,7 +2,7 @@ rm(list=ls())
 library(cttools)
 library(fslr)
 library(plyr)
-options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
+options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
 
 setup <- function(id, study = "Registration"){
   username <- Sys.info()["user"][[1]]
@@ -48,7 +48,7 @@ length(ids)
 verbose =TRUE
 untar = FALSE
 convert <- TRUE
-skullstrip <- FALSE
+skullstrip <- TRUE
 plotss = FALSE
 regantry <- FALSE
 untgantry <- FALSE
@@ -58,14 +58,14 @@ useRdcm2nii= FALSE
 removeDups = TRUE
 isSorted = NULL
 if (ROIformat) isSorted = FALSE
-dcm2niicmd = "dcm2nii_2009"
+dcm2niicmd = "dcm2niix"
 
 ### initial setup
 # iid <- length(ids)
 
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 2
+if (is.na(iid)) iid <- 13
 
 id <- ids[iid]
 setup(id, study = study)
@@ -109,8 +109,10 @@ setup(id, study=study)
                               removeDups=removeDups,
                               dcmsortopt=dcmsortopt, 
                               ROIformat = ROIformat,
-                              dcm2niicmd=dcm2niicmd, 
-                              useStudyDate = useStudyDate))
+                              dcm2niicmd=dcm2niicmd,
+                              gt_correct = FALSE, 
+                              useStudyDate = useStudyDate,
+                              change_transfer_syntax = TRUE))
 
  
       print(contime)
@@ -139,18 +141,15 @@ if (!ROIformat){
         iimg = 1
         # int = c("0.01", "0.1", "0.35")
         int = "0.01"
-        scen = expand.grid(int=int,
-                           presmooth=c(TRUE),
-                           refill = c(FALSE))
-        rownames(scen)= NULL
-        w = !scen$presmooth & scen$refill
-        scen = scen[!w, ]
 
         mid.folder = function(x, folname = ""){
           d = dirname(x)
           b = basename(x)
           file.path(d, folname, b)
         }
+
+        presmooth=c(TRUE)
+        refill = c(FALSE)
 
         for (iimg in seq_along(imgs)){
           
@@ -163,35 +162,28 @@ if (!ROIformat){
           }
           ofile = mid.folder(ofile, "Skull_Stripped")
           ofile = paste0(ofile, "_SS")
-          
-          iscen = 1
-          
-          for (iscen in seq(nrow(scen))){
-            
-            int = scen$int[iscen]
-            presmooth = scen$presmooth[iscen]
-            refill = scen$refill[iscen]
-            
-            app = "_nopresmooth"
-            if (presmooth) app = ""
+                      
+          app = "_nopresmooth"
+          if (presmooth) app = ""
 
 
-            re_app = ""
-            if (refill) re_app = "_refill"
+          re_app = ""
+          if (refill) re_app = "_refill"
 
             
             outfile = paste0(ofile, "_", int, app, re_app)
-            x = CT_Skull_Strip(img = img, 
-                               outfile = outfile, 
-                               retimg=FALSE, verbose=TRUE, 
-                               opts=paste0("-f ", int, " -v"),
-                               inskull_mesh = FALSE,
-                               refill = refill,
-                               refill.thresh = .75,
-                               presmooth=presmooth)   
-            
+            ext = get.imgext()
+            if (!file.exists(paste0(outfile, ext))){
+              x = CT_Skull_Strip(img = img, 
+                                 outfile = outfile, 
+                                 retimg=FALSE, verbose=TRUE, 
+                                  # -w 2
+                                 opts=paste0("-f ", int, " -v"),
+                                 inskull_mesh = FALSE,
+                                 refill = refill,
+                                 presmooth=presmooth)
+            } # file exists
 
-          } # end iscen
         } # end iimg
 
       } else {
@@ -231,6 +223,7 @@ if (!ROIformat){
         x = gsub("\\.nii$", "", x)
         x
       }
+      
       m_ply(function(img, img.mask){
         fname = no.gz(basename(img.mask))
         ifname = no.gz(basename(img))

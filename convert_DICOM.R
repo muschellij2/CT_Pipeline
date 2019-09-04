@@ -2,7 +2,7 @@ require(stringr)
 require(plyr)
 require(oro.nifti)
 require(oro.dicom)
-options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
+options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
 
 
 #### wrapper to convert an entire directory to sort/move/nifti

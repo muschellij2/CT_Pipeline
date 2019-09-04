@@ -2,6 +2,7 @@ rm(list=ls())
 library(cttools)
 library(fslr)
 library(plyr)
+library(methods)
 options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
 
 setup <- function(id, study = "Registration"){
@@ -15,7 +16,7 @@ setup <- function(id, study = "Registration"){
     rootdir <- "/dexter/disk2/smart/stroke_ct/ident"
     cluster =TRUE;
   }
-    rootdir <- path.expand(rootdir)
+  rootdir <- path.expand(rootdir)
 
   # ss <- as.numeric(strsplit(id, "-")[[1]][2])
   # if (ss > 4000){
@@ -41,9 +42,18 @@ setup <- function(id, study = "Registration"){
 
 }
 
+
+#### setting up if things are on the cluster or not
+## ROIformat after 134-327.zip
+ROIformat = TRUE
 study = "Registration"
+if (ROIformat) {
+  study = "ROI_data"
+}
 
 setup(study, study=study)
+
+if (ROIformat) setup("Long_ROIS", study=study)
 
 
 ids = list.dirs(homedir, recursive=FALSE, full.names=FALSE)
@@ -52,34 +62,35 @@ ids = grep("\\d\\d\\d-(\\d|)\\d\\d\\d", ids, value=TRUE)
 length(ids)
 
 
+
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
-if (is.na(iid)) iid <- 121
+# iid = 100 needs ss
 
-id <- ids[iid]
-setup(id, study = study)
+if (is.na(iid)) iid <- 118
 
 
+all.df = NULL
 # for (iid in seq_along(ids)){
-
+for (iid in seq_along(ids)){
+  
   id <- ids[iid]
   print(id)
   setup(id, study = study)
   # source(file.path(progdir, "file_functions.R"))
-  imgs = list.files(path=basedir, pattern = ".nii.gz", 
-  	recursive = FALSE,
-  	full.names=TRUE)
 
-  imgs = imgs[!is.na(imgs)]
-  print(length(imgs))
-  for (iimg in seq_along(imgs)){
-  	img = readNIfTI(imgs[iimg], reorient=FALSE)
-  	cat(paste0(imgs[iimg], "\n"))
-  	print(iimg)
-  	ortho2(img)
-  	# image(img, plot.type="single", plane = "sagittal", z = 200)
-  	imgs[iimg] = NA
-  	# Sys.sleep(2)
-  }
 
-  dev.off()
+  iddir = file.path(rootdir, "Registration", id)
+  ssdir = file.path(iddir, "Skull_Stripped")
+
+  imgs = list.files(iddir, pattern=".nii.gz", recursive=FALSE)
+
+  ssimgs = file.path(ssdir, gsub("[.]nii", "_SS_0.01_Mask.nii", imgs))
+
+  df = data.frame
+
+  df = data.frame(img=imgs, ssimg = ssimgs, stringsAsFactors=FALSE)
+  all.df = rbind(all.df, df)  
+}
+
+all.df = all.df[ !file.exists(all.df$ssimg),]

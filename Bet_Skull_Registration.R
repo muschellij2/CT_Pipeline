@@ -1,7 +1,7 @@
 rm(list=ls())
 library(cttools)
 library(fslr)
-options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
+options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
 
 setup <- function(id, study = "Registration"){
   username <- Sys.info()["user"][[1]]
