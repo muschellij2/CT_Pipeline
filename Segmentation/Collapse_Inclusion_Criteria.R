@@ -67,8 +67,8 @@ for (icorr in seq_along(options)){
 	load(file = predname)
 
 	cmeans = colMeans(ffdf[, cn])
-	cmaxs = colMaxs(ffdf[, cn])
-	cmins = colMins(ffdf[, cn])
+	cmaxs = colMaxs(as.matrix(ffdf[, cn]))
+	cmins = colMins(as.matrix(ffdf[, cn]))
 
 	x = data.frame(mean=t(t(cmeans)), max=t(t(cmaxs)), 
 		min = t(t(cmins)))
@@ -80,14 +80,39 @@ for (icorr in seq_along(options)){
 	x$var = NULL
 	res = reshape(x, direction = "wide", idvar = c("cut"), 
 		timevar = "type")
-
+	res$correct = correct
 	l[[icorr]] = list(res=res, ffdf = ffdf)
 	# l[[icorr]] = list(ffdf = ffdf)
 }
 
-x = l[[1]]$res
+names(l) = options
+res = lapply(l, `[[`, "res")
+res = do.call("rbind", res)
+res = res[res$cut %in% c("zval2", "include.all", 
+	"zval", "zval2_medztemp"),]
+
+g = ggplot(res, aes(x = min.reduced, y=max.out, colour= cut)) + 
+	geom_point() + 
+	facet_wrap(~ correct)
+g
+
+
+
+g = ggplot(res, aes(x = mean.reduced, y=max.out, colour= cut)) + 
+	geom_point() + 
+	facet_wrap(~ correct)
+g
+
+g = ggplot(res, aes(x = mean.reduced, y=mean.out, colour= cut)) + 
+	geom_point() + 
+	facet_wrap(~ correct)
+g
+
+
+
+x = l[[5]]$res
 plot( max.out ~ min.reduced, data=x)
-text(x= x$min.reduced, y = x$max.out, labels = x$cut)
+text(x= x$min.reduced, y = x$max.out - 0.005, labels = x$cut)
 
 plot( mean.out ~ mean.reduced, data=x)
 text(x= x$mean.reduced, y = x$mean.out, labels = x$cut)

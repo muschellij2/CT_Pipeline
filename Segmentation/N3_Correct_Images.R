@@ -130,8 +130,3 @@ if (is.na(irow)) irow = 111
     print(irow)
 # }
 
-# N4BiasFieldCorrection(list("image-dimensionality" = antimg@dimension, 
-#                            "input-image" = antimg, 
-#                            "mask-image" = maskimg,                        
-#                            "output" = imgn4, 
-#                            "shrink-factor" = 4))

@@ -1,10 +1,10 @@
-###################################################################
+###########################################################
 ## This code is for collapsing predictor models
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-###################################################################
-###################################################################
+###########################################################
+###########################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
@@ -24,15 +24,16 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
-correct = "none"
+correct = "Rigid"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "SyN", "SyN_sinc", "Rigid", "Affine", 
+# "Rigid_sinc", 
 #         "Affine_sinc")
 options = c("none", "N3_SS", "N4_SS", 
 	"Rigid", "Rigid_sinc")
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 5
+if (is.na(icorr)) icorr = 1
 correct = options[icorr]
 
 
@@ -54,7 +55,7 @@ correct = options[icorr]
 
     filename = file.path(outdir, 
         paste0("Result_Formats", adder, ".Rda"))
-    load(filename)
+    xxx = load(filename)
 
 
 	all.dat = llply(seq(lmod), function(imod){
@@ -73,11 +74,15 @@ correct = options[icorr]
 			}			
 			cutoff = acc[, 'cutoff']
 			pauc.cutoff = pauc.cut[, "cutoff"]
+			sens.cutoff = sens.cut[, "cutoff"]
+			dice.cutoff = dice.coef[, "cutoff"]
 			# gam.cutoff = gam.acc[, "cutoff"]
 			# gam.pauc.cutoff = gam.pauc.cut[, "cutoff"]
 
 			l = list(mod= mod, cutoff= cutoff, 
-				pauc.cutoff = pauc.cutoff
+				pauc.cutoff = pauc.cutoff,
+				sens.cutoff = sens.cutoff,
+				dice.cutoff = dice.cutoff
 				# gam.cutoff = gam.cutoff,
 				# gam.pauc.cutoff = gam.pauc.cutoff,
 				# gam.mod = gam.mod
@@ -105,20 +110,36 @@ correct = options[icorr]
 
 	all.cutoffs = laply(all.dat, `[[`, "cutoff")
 	all.pauc.cutoffs = laply(all.dat, `[[`, "pauc.cutoff")
+	all.sens.cutoffs = laply(all.dat, `[[`, "sens.cutoff")
+	all.dice.cutoffs = laply(all.dat, `[[`, "dice.cutoff")
 
-	names(all.mods) = names(all.cutoffs) = names(all.pauc.cutoffs) = 
+	names(all.mods) = names(all.cutoffs) = 
+	names(all.pauc.cutoffs) = names(all.sens.cutoffs) = 
 		colnames(res)[seq(lmod)]
+	names(all.dice.cutoffs) = names(all.sens.cutoffs) 
 	#########
 	# need to get cutoffs too
 	##########
+
 
 	filename = file.path(outdir, 
 		paste0("Collapsed_Models", adder, ".Rda"))
 	save(all.mods, res, vol.data, vol.sdata, sres, fdf.run,
 		runpreds, run.ind,
-		all.cutoffs, all.pauc.cutoffs,
-		gam.mod, gam.acc,  gam.pauc, 
+		all.cutoffs, 
+		all.pauc.cutoffs,
+		all.dice.cutoffs, 
+		all.sens.cutoffs,
+		gam.mod, 
+		gam.acc,  
+		gam.pauc, 
+        gam.sens.cut,
+        gam.dice.coef,	
         gam.pauc.cut,
+        rf.sens.cut, 
+        rf.dice.coef,
+        rf.mod, rf.acc, rf.pauc, 
+        rf.pauc.cut,        
 		lmod, non.aggmods, file=filename)
 	print(correct)
 # }

@@ -23,6 +23,8 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
+segdir = file.path(progdir, "Segmentation")
+source(file.path(segdir, "performance_functions.R"))
 
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
@@ -42,35 +44,6 @@ fdf$mask = file.path(fdf$iddir,
 	gsub("ROI\\.nii", "_SS_Mask_0.01.nii", fnames))
 irow = 2
 x = fdf[irow,]
-
-
-remove_lmparts = function(mod){
-	keep = c("coefficients", "xlevels", 
-		"contrasts", "family", "terms")
-	mn = names(mod)
-	mn = mn[ !( mn %in% keep)]
-	for (iname in mn){
-		mod[[iname]] = NULL
-	}
-	mod
-}
-
-sub_samp = function(x, pct = .1, maxcut = 5e3){
-	rr = range(x)
-	breaks = seq(rr[1], rr[2], length.out = 10)
-	cuts = cut(x, breaks= breaks, include.lowest=TRUE)
-	levs = levels(cuts)
-	l = lapply(levs, function(ilev){
-		which(cuts == ilev)
-	})
-	n.inlev = sapply(l, length)
-	n.inlev = ceiling(n.inlev*pct)
-	n.inlev = pmin(n.inlev, maxcut)
-	ind = sort(unlist(mapply(function(ind, n){
-		sample(ind, size = n)
-	}, l, n.inlev)))
-	return(ind)
-}
 
 
 
@@ -117,7 +90,7 @@ run_model = function(x, fpr.stop = .1){
 
 	pred <- prediction( test.pred, test$Y)
 	# perf <- performance(pred,"tpr","fpr")
-	# xind = perf@x.values[[1]] <= fdr.stop
+	# xind = perf@x.values[[1]] <= fpr.stop
 	# perf@x.values[[1]] = perf@x.values[[1]][xind]
 	# perf@y.values[[1]] = perf@y.values[[1]][xind]
 

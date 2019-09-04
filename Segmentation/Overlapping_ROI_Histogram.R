@@ -81,7 +81,7 @@ for (correct in options){
 	mod.filename = file.path(outdir, 
 		paste0("Collapsed_Models", adder, ".Rda"))
 	load(mod.filename)
-	nopred = seq(non.aggmods)
+	nopred = run.ind
 	
 	fdf.run = fdf[-nopred,]
 	nr = nrow(fdf)

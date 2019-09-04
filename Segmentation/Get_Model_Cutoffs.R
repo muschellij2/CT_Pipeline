@@ -1,6 +1,5 @@
 ###################################################################
-## This code is for aggregate prediction of Image Segmentation of 
-## CT
+## This code is for unsmoothed cutoffs for models
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
@@ -13,6 +12,8 @@ library(fslr)
 library(ROCR)
 library(matrixStats)
 library(mgcv)
+library(extrantsr)
+library(randomForest)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -26,6 +27,9 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
+segdir = file.path(progdir, "Segmentation")
+source(file.path(segdir, "performance_functions.R"))
+
 correct = "Rigid_sinc"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
@@ -33,46 +37,16 @@ correct = "Rigid_sinc"
 options = c("none",  "N3_SS", "N4_SS",
     "Rigid", "Rigid_sinc")
 
-short_predict = function(object, newdata, 
-    lthresh=  .Machine$double.eps^0.5){
-    tt <- terms(object)
-    Terms <- delete.response(tt)
-    m <- model.frame(Terms, newdata, 
-        na.action = na.pass, 
-        xlev = object$xlevels)
-    if (is.null(cl <- attr(Terms, "dataClasses"))) 
-            stop("no dataclasses")
-    X <- model.matrix(Terms, m, contrasts.arg = object$contrasts)
-    # p <- object$rank
-    beta <- object$coefficients
-    beta = beta[ !is.na(beta) ]
-    predictor = drop(X[, names(beta), drop=FALSE ] %*% beta)
-   
-    predictor <- family(object)$linkinv(predictor)
-    predictor[ predictor < lthresh] = 0
-    predictor
-}
-
-opt.cut = function(perf, pred){
-    cut.ind = mapply(FUN=function(x, y, p){
-        d = (x - 0)^2 + (y-1)^2
-        ind = which(d == min(d))
-        c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
-            cutoff = p[[ind]])
-    }, perf@x.values, perf@y.values, pred@cutoffs)
-}
-
-
 
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
 
-outfile = file.path(outdir, "111_Filenames.Rda")
+outfile = file.path(outdir, "111_Filenames_with_volumes_stats.Rda")
 load(file = outfile)
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 5
+if (is.na(icorr)) icorr = 1
 correct = options[icorr]
 
 # for (correct in options){
@@ -94,17 +68,6 @@ correct = options[icorr]
         "Rigid_sinc" = "_Rigid_sinc",
         "Affine_sinc" = "_Affine_sinc")
 
-    filename = file.path(outdir, 
-        paste0("Collapsed_Models", adder, ".Rda"))
-    load(filename)
-
-    makedir = sapply( fdf$outdir, function(x) {
-    	if (!file.exists(x)){
-    		dir.create(x, showWarnings =FALSE)
-    	}
-    })
-    irow = 1
-    x = fdf[irow,]
 
     ##############################
     # Keeping files where predictors exist
@@ -118,8 +81,6 @@ correct = options[icorr]
     ##############################
     # Run lmod number of models - not all the models - leave out
     ##############################
-
-
 	mod.filename = file.path(outdir, 
 		paste0("Collapsed_Models", adder, ".Rda"))
 	x= load(mod.filename)
@@ -133,84 +94,92 @@ correct = options[icorr]
 
 
     fname = file.path(outdir, 
-        paste0("Aggregate_data", adder, ".Rda"))
+        paste0("Candidate_Aggregate_data", adder, ".Rda"))
     load(fname)
 
+    test$mode = fdf$mode[ match(test.img, fdf$img)]
 
-    # train = all.df[samps,]
-	# test$include = test$value >= 30 & test$value <= 100
-    all.df$mask = all.df$mask > 0 
-    
-    test = all.df[!samps,]
-    test$multiplier = mult.df[!samps, "multiplier"]
-
-	preds = t(laply(all.mods, short_predict, newdata= test, 
-                  .progress = "text"))
+	preds = t(laply(all.mods, short_predict, 
+        newdata= test,
+        .progress = "text"))
 
     rowMean = rowMeans(preds)
     rowMed = rowMedians(preds)
     rowMax = rowMaxs(preds)
     rowMin = rowMins(preds)
     rowProd = exp(rowSums(log(preds)))
-    rowGeom = exp(rowMeans(log(preds)))
+    nr = nrow(preds)
+    rowGeom = rowProd ^ (1/nr) 
+    # rowGeom = exp(rowMeans(log(preds)))
+    rf = predict(rf.mod, 
+        newdata = test, 
+        type="prob")[, "1"]
 
-    preds = cbind(rowMean, rowMed, rowMax, rowMin,
-        rowProd, rowGeom)
+    preds = cbind(rowMean, rowMed, 
+        rowMax, rowMin,
+        rowProd, rowGeom, rf)
     rownames(preds) = NULL
 
 
 	#### only values 0 to 100 are likely to be ROI
 	# preds = preds * df$in0100
-	preds = preds * test$multiplier
+	preds = preds * test.mult.df$multiplier
 	fpr.stop = 0.01
 
-	opt.cut = function(perf, pred){
-		cut.ind = mapply(FUN=function(x, y, p){
-  			d = (x - 0)^2 + (y-1)^2
-  			ind = which(d == min(d))
-  			c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
-  				cutoff = p[[ind]])
-		}, perf@x.values, perf@y.values, pred@cutoffs)
-	}
-
-
 	r.res = alply(preds, 2, function(nd){
-		pred <- prediction( nd, test$Y)				
-		acc = performance(pred, "acc")
-		ind = which.max(acc@y.values[[1]])
-		cutoff = acc@x.values[[1]][ind]
-		acc = acc@y.values[[1]][ind]
-		acc = c(accuracy=acc, cutoff= cutoff)
+		pred <- prediction( nd, test$Y)
 
-		pauc = performance(pred, "auc", fpr.stop= fpr.stop)
-		pauc = pauc@y.values[[1]] / fpr.stop
-		
+        N = nrow(test)
+        sens.cut = get_senscut(pred, fpr.stop=fpr.stop) 
+            # N = N,
+            # predictions=nd, Y = test$Y)
+        pauc = get_pauc(pred, fpr.stop=fpr.stop)
+        dice.coef = get_max_dice(pred)
+        acc = get_acc(pred)
+
 		perf <- performance(pred, "tpr", "fpr")
 		pauc.cut = t(opt.cut(perf, pred))
 
-		list(acc = acc, pauc = pauc, pauc.cut = pauc.cut)
+		list(acc = acc, pauc = pauc, pauc.cut = pauc.cut,
+            sens.cut = sens.cut, 
+            dice.coef = dice.coef)
 	}, .progress = "text")
 
 	accs = sapply(r.res, `[[`, "acc")
 	paucs = sapply(r.res, `[[`, "pauc")
 	pauc.cuts = sapply(r.res, `[[`, "pauc.cut")[3,]
+    sens.cuts = sapply(r.res, `[[`, "sens.cut")[4,]
+    dice.cuts = sapply(r.res, `[[`, "dice.coef")[2,]
 
 	colnames(accs) = names(paucs) = names(pauc.cuts) = 
-		colnames(preds)
+    names(dice.cuts) = names(sens.cuts) = colnames(preds)
 
-	cuts = accs["cutoff", ]
+	cuts = accs[1, ]
 	all.cuts = c(all.cutoffs, cuts, gam=gam.acc[, "cutoff"])
 	all.pauc.cuts = c(all.pauc.cutoffs, pauc.cuts, 
         gam=gam.pauc.cut[, "cutoff"])
+    all.pauc.cuts = c(all.pauc.cutoffs, pauc.cuts, 
+        gam=gam.pauc.cut[, "cutoff"])   
+    all.sens.cuts = c(all.sens.cutoffs, sens.cuts, 
+        gam=gam.sens.cut[, "cutoff"])            
+    all.dice.cuts = c(all.dice.cutoffs, dice.cuts, 
+        gam=gam.dice.coef[, "cutoff"])                
     names(all.pauc.cuts)[length(all.pauc.cuts)] = "gam"
+    names(all.sens.cuts)[length(all.sens.cuts)] = "gam"
+    names(all.dice.cuts)[length(all.dice.cuts)] = "gam"
     names(all.cuts)[length(all.cuts)] = "gam"
 
     all.cuts[is.infinite(all.cuts)] = 1
     all.pauc.cuts[is.infinite(all.pauc.cuts)] = 1
+    all.sens.cuts[is.infinite(all.sens.cuts)] = 1
+    all.dice.cuts[is.infinite(all.dice.cuts)] = 1
 
 	mod.filename = file.path(outdir, 
 		paste0("Model_Cutoffs", adder, ".Rda"))
 
-	save(all.cuts, all.pauc.cuts, file=mod.filename)
+	save(all.cuts, all.pauc.cuts, 
+        all.sens.cuts,
+        all.dice.cuts, 
+        file=mod.filename)
 
 # }

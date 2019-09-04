@@ -79,13 +79,14 @@ correct = options[icorr]
     outfiles = nii.stub(basename(fdf$img))
     outfiles = paste0(outfiles, "_predictors", adder, ".Rda")
     outfiles = file.path(fdf$outdir, outfiles)
-    fdf = fdf[file.exists(outfiles), ]
+    stopifnot(all(file.exists(outfiles)))
+    # fdf = fdf[, ]
 
     # load(file = file.path(outdir, "Segmentation_Models.Rda"))
     ##############################
     # Run lmod number of models - not all the models - leave out
     ##############################
-    fdf.run = fdf[run.ind, ]
+    fdf.run = fdf[ fdf$group == "Train", ]
 
     moddname = nii.stub(basename(fdf.run$img))
     moddname = file.path(fdf.run$outdir, 
@@ -94,6 +95,8 @@ correct = options[icorr]
     all.df = NULL
     L = nrow(fdf.run)
     l.keep.ind = vector(mode="list", length = L)
+    imod = 1
+
     for (imod in seq(L)){
         load(moddname[imod])
 
@@ -101,6 +104,11 @@ correct = options[icorr]
         keep.ind = img.pred$keep.ind
         nim = img.pred$nim
         df = df[ keep.ind, ]
+        med.ztemp = median(df$zscore_template)
+
+        #df$zval2_medz3 = df$zval2 & (df$zscore3 > med.z3) 
+        df$gr_medztemp = (df$zscore_template > med.ztemp) 
+
         l.keep.ind[[imod]] = keep.ind
 
         df$img = fdf.run$img[imod]
@@ -110,6 +118,9 @@ correct = options[icorr]
     }
 
     keep.colnames = colnames(all.df)
+    keep.colnames = keep.colnames[ 
+        !keep.colnames %in% "gr_medztemp"
+        ]
 
     stopifnot(all(all.df$Y %in% c(0, 1)))
     names(l.keep.ind) = fdf.run$img
@@ -121,8 +132,9 @@ correct = options[icorr]
         c("mask", "Y", "img", nosmooth))]
 
 
-    quants = dlply(all.df[, c(runnames, "Y")], .(Y), function(x) {
-        r=t(colQuantiles(x[, runnames], 
+    quants = dlply(all.df[, c(runnames, "Y")], .(Y), 
+        function(x) {
+        r=t(colQuantiles(as.matrix(x[, runnames]), 
             probs = c(0, 0.001, 0.005, 0.01, 
                 0.99, 0.995, 0.999, 1)))
         colnames(r) = runnames
@@ -161,11 +173,15 @@ correct = options[icorr]
     all.df$zval2 = all.df[, "zscore2.cutoff"] & all.df$zval
     all.df$zval_all = all.df[, "zscore_template.cutoff"] & 
         all.df$zval2
+    all.df$zval2_medztemp = all.df$zval2 & all.df$gr_medztemp 
+
 
     sum(all.df$Y[! all.df$zval2]) / sum(all.df$Y)
     sum(1-all.df$Y[! all.df$zval2]) / sum(1-all.df$Y)
 
-    all.df$multiplier = all.df$zval2
+    all.df$multiplier = all.df$zval2_medztemp
+
+    all.df$candidate = all.df$multiplier | all.df$Y == 1
 
     seed = 20141022
     set.seed(seed)
@@ -188,7 +204,7 @@ correct = options[icorr]
 
 
     img = all.df$img
-    all.df$img = NULL    
+    all.df$img = NULL
 
     # train = all.df[samps,]
     # test = all.df[!samps,]
@@ -201,13 +217,26 @@ correct = options[icorr]
         fdf.run, seed, l.keep.ind,
         file = fname)
 
+    train.img = img[samps]
     train = all.df[samps,]
     # tr.img = img[samps,]
-    tr.mult.df = mult.df[samps,]
-    fname = file.path(outdir, 
-        paste0("Sample_Aggregate_data", adder, ".Rda"))
+    train.mult.df = mult.df[samps,]
 
-    save(tr.mult.df, train, 
+    test.img = img[!samps]
+    test = all.df[!samps,]
+    test.mult.df = mult.df[!samps, ]
+    
+    test = test[ test.mult.df$candidate, ]
+    test.img = test.img[test.mult.df$candidate]
+    
+    test.mult.df = test.mult.df[ test.mult.df$candidate, ]
+    
+    fname = file.path(outdir, 
+        paste0("Candidate_Aggregate_data", adder, ".Rda"))
+
+    save(train.mult.df, train, 
+        test, test.mult.df,
+        train.img, test.img,
         # tr.img,
         file = fname)    
 

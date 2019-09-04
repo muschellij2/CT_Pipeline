@@ -1,10 +1,10 @@
-###################################################################
+###########################################################
 ## This code is for Creating Predictors for each individual
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-###################################################################
-###################################################################
+############################################################
+############################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
@@ -13,6 +13,8 @@ library(ROCR)
 library(fslr)
 library(mgcv)
 library(getopt)
+library(psych)
+library(methods)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -25,23 +27,42 @@ tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
 
+template.file = file.path(tempdir, "scct_unsmooth.nii.gz")
+ss.tempfile = file.path(tempdir, "Skull_Stripped",
+    "scct_unsmooth_SS_First_Pass_0.1.nii.gz")
+
+
+mean.file = file.path(tempdir, "Mean_Image.nii.gz")
+sd.file = file.path(tempdir, "SD_Image.nii.gz")
+
+# mean.img = readNIfTI(mean.file)
+# sd.img = readNIfTI(sd.file)
+
+
+segdir = file.path(progdir, "Segmentation")
+source(file.path(segdir, "performance_functions.R"))
 
 spec = matrix(c(
 	'correct', 'c', 1, "character",
 	'rerun'   , 'r', 1, "logical",
-	'overwrite'  , 'o', 1, "logical"
+	'overwrite'  , 'o', 1, "logical",
+	'interpolator'  , 'i', 1, "character"
 ), byrow=TRUE, ncol=4);
 opt = getopt(spec);
 
 correct = opt$correct
 rerun = opt$rerun
 overwrite = opt$overwrite
+interpolator = opt$interpolator
 
 if (is.null(rerun)){
 	rerun = FALSE
 }
 if (is.null(overwrite)){
-	overwrite = FALSE
+	overwrite = TRUE
+}
+if (is.null(interpolator)){
+	interpolator = "Linear"
 }
 print(opt)
 # args<-commandArgs(trailingOnly = TRUE)
@@ -54,7 +75,8 @@ print(opt)
 
 # correct = "Rigid_sinc"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "SyN", "SyN_sinc", "Rigid", 
+# "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS", 
 # 		"Rigid", "Rigid_sinc")
@@ -80,53 +102,9 @@ load(file = outfile)
 # correct = scenarios$correct[iscen]
 
 iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(iimg)) iimg = 99
+if (is.na(iimg)) iimg = 17
 
 runx = x = fdf[iimg,]
-
-remove_lmparts = function(mod){
-	keep = c("coefficients", "xlevels", 
-		"contrasts", "family", "terms")
-	mn = names(mod)
-	mn = mn[ !( mn %in% keep)]
-	for (iname in mn){
-		mod[[iname]] = NULL
-	}
-	mod
-}
-
-sub_samp = function(x, pct = .1, maxcut = 5e3){
-	rr = range(x)
-	breaks = seq(rr[1], rr[2], length.out = 10)
-	cuts = cut(x, breaks= breaks, include.lowest=TRUE)
-	levs = levels(cuts)
-	l = lapply(levs, function(ilev){
-		which(cuts == ilev)
-	})
-	n.inlev = sapply(l, length)
-	n.inlev = ceiling(n.inlev*pct)
-	n.inlev = pmin(n.inlev, maxcut)
-	ind = sort(unlist(mapply(function(ind, n){
-		sample(ind, size = n)
-	}, l, n.inlev)))
-	return(ind)
-}
-
-
-remove_gamparts = function(mod){
-    keep = c("assign", "cmX", "coefficients", "contrasts", 
-        "family", 
-        "formula", "model", "na.action", "nsdf", "pred.formula", 
-        "pterms", "smooth",  "Xcentre", "xlevels", "terms")
-    # "Vp",
-    mn = names(mod)
-    mn = mn[ !( mn %in% keep)]
-    for (iname in mn){
-        mod[[iname]] = NULL
-    }
-    mod$model = mod$model[1,]
-    mod
-}
 
 
 # for (correct in options){
@@ -196,12 +174,15 @@ remove_gamparts = function(mod){
 	  	system.time({
 	  		img.pred = make_predictors(
 	  		img= fname, 
+	  		stub = nii.stub(fname, bn = TRUE),
 	  		mask = mask.fname, 
 	  		roi = roi.fname,
 	  		nvoxels = 1, 
 	  		moments = 1:4, lthresh = 40, uthresh = 80,
 	  		save_imgs = TRUE, 
 	  		outdir = x$outdir,
+	  		template.file = ss.tempfile,
+	  		interpolator = "Linear",
 	  		overwrite = overwrite, 
 	  		verbose= TRUE)
 	  	})
@@ -227,16 +208,44 @@ remove_gamparts = function(mod){
 		img.pred$df$zscore_template = c(img)
 		save(img.pred, file=outfile, compress = TRUE)
 	}
-	cut = c(-5, 5)
-	img.pred$df$zscore_template[
-		img.pred$df$zscore_template >= cut[2]
-		] = cut[2]
-	img.pred$df$zscore_template[
-		img.pred$df$zscore_template <= cut[1]
-		] = cut[1]
-	img.pred$df$Y = (img.pred$df$Y > 0.5)*1
-	save(img.pred, file=outfile, compress = TRUE)
 
-	stopifnot(all(img.pred$df$Y %in% c(0, 1)))
+	cn = colnames(img.pred$df)
+	if (!"flipped_value" %in% cn){
+		if (correct %in% c("none", "N3_SS", "N4_SS")) {
+			ofile = file.path( x$outdir, 
+			paste0(nii.stub(x$ssimg, bn=TRUE), 
+				"_Flipped_Difference.nii.gz" ))
+		}
+		if (correct %in% c("Rigid", "Rigid_sinc")) {
+		    # outputdir = paste0("Rigid_Registered")
+		    # outputdir = file.path(x$iddir, outputdir)
+		    fname = switch(correct,
+				"Rigid_sinc" = x$sinc_rig_ssimg,
+				"Rigid" = x$rig_ssimg	
+			)
+		    ofile = file.path( x$outdir, 
+		        paste0(nii.stub(fname, bn=TRUE), 
+		            "_Flipped_Difference.nii.gz" ))
+		}
+		img = readNIfTI(ofile, reorient = FALSE)
+		img.pred$df$flipped_value = c(img)
+		save(img.pred, file=outfile, compress = TRUE)
+	}	
+
+	if (!all(img.pred$df$Y %in% c(0, 1))){
+		img.pred$df$Y = as.numeric(img.pred$df$Y > 0.5)
+		save(img.pred, file=outfile, compress = TRUE)
+	}
+	# cut = c(-10, 10)
+	# img.pred$df$zscore_template[
+	# 	img.pred$df$zscore_template >= cut[2]
+	# 	] = cut[2]
+	# img.pred$df$zscore_template[
+	# 	img.pred$df$zscore_template <= cut[1]
+	# 	] = cut[1]
+	# img.pred$df$Y = (img.pred$df$Y > 0.5)*1
+	# save(img.pred, file=outfile, compress = TRUE)
+
+	# stopifnot(all(img.pred$df$Y %in% c(0, 1)))
 # }
 	

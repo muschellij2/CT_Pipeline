@@ -1,10 +1,11 @@
-###################################################################
-## This code is for prediction of Image Segmentation of CT
+##########################################################
+## This code is for final prediction volumes of 
+# Image Segmentation of CT
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-###################################################################
-###################################################################
+##########################################################
+##########################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
@@ -24,163 +25,195 @@ tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
-correct = "Rigid"
-# options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
-#         "Affine_sinc")
-# options = c("none", "N3_SS", "N4_SS",
-# 	"Rigid",  "Rigid_sinc")
-options = "Rigid"
 
-my.tab <- function(
-  x, 
-  y, 
-  dnames=c("x", "y")) {
-  x = as.numeric(x)
-  y = as.numeric(y)
-  stopifnot(all(unique(c(x,y)) %in% c(0, 1, NA)))
-  tt = sum(x * y)
-  t1=sum(x)
-  t2=sum(y)
-  tab = matrix(c(length(x)-t1-t2+tt,  t1-tt, t2-tt, tt), 2, 2)
-  n = list(c("FALSE", "TRUE"), c("FALSE", "TRUE"))
-  names(n) = dnames
-  dimnames(tab) = n
-  tab = as.table(tab)
-  return(tab) 
-}
 
-types = c("_zval2")
-# , "_zval2"
+###########################
+# Varying all the parameters
+###########################
+# types = c("_zval2", '_zval2_medztemp')
+types = "_zval2"
 # "_include_all", 
 type = types[1]
+		
+###########################
+# Varying the cutoff values
+###########################
+cutter = c("", "_dice")
+icut = cutter[1]
+
+###########################
+# Varying the models
+###########################
+cns = c("mod_agg", "gam", "rf")
+# cns = "gam"
+cn = cns[1]
+
+###########################
+# making scenarios
+###########################
+options = c("Rigid", "none")
+
+scenarios = expand.grid(icut = cutter, 
+	type = types,
+	cn = cns, 
+	correct = options, 
+	stringsAsFactors = FALSE)
+
+scenarios = scenarios[ scenarios$type == "_zval2", ]
+
+# 
+
+iscen <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+if (is.na(iscen)) iscen = 1
+
+cn = scenarios$cn[iscen]
+type = scenarios$type[iscen]
+icut = scenarios$icut[iscen]
+correct = scenarios$correct[iscen]
+
+# scenarios$insuf = paste0("_", scenarios$cn, adder, 
+# 						"_smoothed", adder, scenarios$type)
+# scenarios$outsuf = paste0("_", scenarios$cn, adder, 
+# 	scenarios$type, 
+# 	scenarios$icut, "_prediction")
+
+
+
+
+correct = match.arg(correct, options)
+adder = switch(correct, 
+	"none"= "",
+	"N3"="_N3",
+	"N4" = "_N4",
+	"N3_SS" = "_N3_SS",
+	"N4_SS" = "_N4_SS", 
+	"SyN" = "_SyN",
+	"SyN_sinc" = "_SyN_sinc",
+	"Rigid" = "_Rigid",
+	"Affine" = "_Affine",
+	"Rigid_sinc" = "_Rigid_sinc",
+	"Affine_sinc" = "_Affine_sinc")
+
+
 
 
 keep.obj = ls()
 
+mod.filename = file.path(outdir, 
+	paste0("Collapsed_Models", adder, ".Rda"))
+load(mod.filename)
+cns = colnames(res)
 
 	
-	all.obj = ls()
-	rm.obj = all.obj[!(all.obj %in% c(keep.obj, "keep.obj"))]
-	rm(list=rm.obj)
-    for (i in 1:3) gc()
-    correct = match.arg(correct, options)
-	adder = switch(correct, 
-		"none"= "",
-		"N3"="_N3",
-		"N4" = "_N4",
-		"N3_SS" = "_N3_SS",
-		"N4_SS" = "_N4_SS", 
-		"SyN" = "_SyN",
-		"SyN_sinc" = "_SyN_sinc",
-		"Rigid" = "_Rigid",
-		"Affine" = "_Affine",
-		"Rigid_sinc" = "_Rigid_sinc",
-		"Affine_sinc" = "_Affine_sinc")
+cut.filename = file.path(outdir, 
+paste0("Model_Cutoffs", adder, ".Rda"))
+
+load(file=cut.filename)
+
+scut.filename = file.path(outdir, 
+paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
+
+load(file=scut.filename)
+names(all.sdice.cuts) = names(all.scuts) = cns
+
+#### load voxel data
+outfile = file.path(outdir, "Voxel_Info.Rda")
+load(file=outfile )
+
+outfile = file.path(outdir, "111_Filenames_with_volumes.Rda")
+load(file = outfile)
+
+##############################
+# Keeping files where predictors exist
+##############################
+outfiles = nii.stub(basename(fdf$img))
+outfiles = paste0(outfiles, "_predictors", adder, ".Rda")
+outfiles = file.path(fdf$outdir, outfiles)
+stopifnot(file.exists(outfiles))
+
+# for (iscen in seq(nrow(scenarios))){
 
 
-	#### load voxel data
-	outfile = file.path(outdir, "Voxel_Info.Rda")
-	load(file=outfile )
-
-	outfile = file.path(outdir, "111_Filenames_with_volumes.Rda")
-	load(file = outfile)
-
-	##############################
-	# Keeping files where predictors exist
-	##############################
-	outfiles = nii.stub(basename(fdf$img))
-	outfiles = paste0(outfiles, "_predictors", adder, ".Rda")
-	outfiles = file.path(fdf$outdir, outfiles)
-	stopifnot(file.exists(outfiles))
-
-	# load(file = file.path(outdir, "Segmentation_Models.Rda"))
-	##############################
-	# Run lmod number of models - not all the models - leave out
-	##############################
-	mod.filename = file.path(outdir, 
-		paste0("Collapsed_Models", adder, ".Rda"))
-	load(mod.filename)
-	cns = colnames(res)
-
-	get.pred <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-	if (is.na(get.pred)) get.pred = 16
+	get.pred = 38
 	runpreds = seq(nrow(fdf))
 
 	mycols = c("dice", "jaccard", "sens", "spec", "accur", 
 		"truevol", "estvol")
-	sim.res = matrix(NA, nrow=nrow(fdf), ncol = length(mycols))
+	sim.res = matrix(NA, nrow=nrow(fdf), 
+		ncol = length(mycols))
 	colnames(sim.res) = mycols
 
-for (get.pred in runpreds){
 
-	x = fdf[get.pred,]
-	roi.fname = switch(correct,
-		"none" = x$roi,
-		"N3" = x$roi,
-		"N4" = x$roi,
-		"N3_SS" = x$roi,
-		"N4_SS" = x$roi,
-		"SyN" = x$synssroi,
-		"SyN_sinc" = x$sinc_synssroi,
-		"Rigid" = x$rig_ssroi,
-		"Affine" = x$aff_ssroi,
-		"Rigid_sinc" = x$sinc_rig_ssroi,
-		"Affine_sinc" = x$sinc_aff_ssroi
-		)		
-	# print(get.pred)
-	fname = switch(correct,
-		"none" = x$img,
-		"N3" = x$n3img,
-		"N4" = x$n4img,
-		"N3_SS" = x$n3ssimg,
-		"N4_SS" = x$n4ssimg,
-		"SyN" = x$synssimg,
-		"SyN_sinc" = x$sinc_synssimg,
-		"Rigid" = x$rig_ssimg,
-		"Affine" = x$aff_ssimg,
-		"Rigid_sinc" = x$sinc_rig_ssimg,
-		"Affine_sinc" = x$sinc_aff_ssimg		
-		)
+	for (get.pred in runpreds){
+
+		x = fdf[get.pred,]
+		roi.fname = switch(correct,
+			"none" = x$roi,
+			"N3" = x$roi,
+			"N4" = x$roi,
+			"N3_SS" = x$roi,
+			"N4_SS" = x$roi,
+			"SyN" = x$synssroi,
+			"SyN_sinc" = x$sinc_synssroi,
+			"Rigid" = x$rig_ssroi,
+			"Affine" = x$aff_ssroi,
+			"Rigid_sinc" = x$sinc_rig_ssroi,
+			"Affine_sinc" = x$sinc_aff_ssroi
+			)		
+		# print(get.pred)
+		fname = switch(correct,
+			"none" = x$img,
+			"N3" = x$n3img,
+			"N4" = x$n4img,
+			"N3_SS" = x$n3ssimg,
+			"N4_SS" = x$n4ssimg,
+			"SyN" = x$synssimg,
+			"SyN_sinc" = x$sinc_synssimg,
+			"Rigid" = x$rig_ssimg,
+			"Affine" = x$aff_ssimg,
+			"Rigid_sinc" = x$sinc_rig_ssimg,
+			"Affine_sinc" = x$sinc_aff_ssimg		
+			)
 
 
-	iddir = fdf$iddir[get.pred]
-	id.outdir = fdf$outdir[get.pred]
-	
-	cut.filename = file.path(outdir, 
-	paste0("Model_Cutoffs", adder, ".Rda"))
+		iddir = fdf$iddir[get.pred]
+		id.outdir = fdf$outdir[get.pred]
 
-	load(file=cut.filename)
 
-	scut.filename = file.path(outdir, 
-	paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
+		if (icut == ""){
+			cutvec = all.scuts
+		}
+		if (icut == "_dice"){
+			cutvec = all.sdice.cuts
+		}
 
-	load(file=scut.filename)
+		# for (ipred in seq(ncol(preds))){
 
-	names(all.scuts) = cns
-
-	# id.outdir = x$outdir
-	# predname = nii.stub(basename(x$img))
-	# predname = file.path(id.outdir, 
-	# 	paste0(predname, "_predictors", adder, ".Rda"))
-	# load(predname)
-	# df = img.pred$df
-	# rm(list="img.pred")
-
-	# for (ipred in seq(ncol(preds))){
-	cn = "mod_agg"
+		####################################
+		# Need to read in training results for best.mat 
+		# and 
+		# get a predictor for each to calculate volumes
+		####################################
 
 		roi = readNIfTI(roi.fname, reorient=FALSE)
-		img = readNIfTI(fname, reorient=FALSE)
-		smimg = nii.stub(fdf$img[get.pred], bn=TRUE)
+		roi = cal_img(roi > 0.5)
+
+
+		# img = readNIfTI(fname, reorient=FALSE)
+		smimg = nii.stub(fdf$img[get.pred], 
+			bn=TRUE)
 		smimg = file.path(id.outdir, 
-			paste0(smimg, "_", cn, adder))
-		smimg = paste0(smimg, "_smoothed", adder)
-		sm.img = readNIfTI(fname = smimg, reorient=FALSE)
-		sm.img = niftiarr(sm.img, sm.img > all.scuts[cn])
+			paste0(smimg, "_", cn, adder, 
+				"_smoothed", adder, type))
+		sm.img = readNIfTI(fname = smimg, 
+			reorient=FALSE)
+		sm.img = niftiarr(sm.img, 
+			sm.img > cutvec[cn])
+
 		outimg = nii.stub(fdf$img[get.pred], bn=TRUE)
 		outimg = file.path(id.outdir, 
-			paste0(outimg, "_", cn, adder, "_prediction"))
+			paste0(outimg, "_", cn, adder, type, icut, 
+				"_prediction"))
 		# outimg = paste0(outimg, ".nii.gz")
 		if (file.exists(paste0(outimg, ".nii.gz.nii.gz"))){
 			file.remove(paste0(outimg, ".nii.gz.nii.gz"))
@@ -193,17 +226,17 @@ for (get.pred in runpreds){
 			dim.dauto = dim(sm.img))
 		myres = unlist(myres)
 		sim.res[get.pred, mycols] = myres[mycols]
-
+		print(get.pred)
+	}
 	# }
-	print(get.pred)
-}
+	sim.res = cbind(fdf[runpreds,], sim.res)
 
-sim.res = cbind(fdf[runpreds,], sim.res)
+	outfile = file.path(outdir, 
+		paste0("Overlap_Measures", adder, "_", cn, 
+			type, icut,
+			".Rda"))
 
-outfile = file.path(outdir, 
-	paste0("Overlap_Measures", adder, "_", cn, ".Rda"))
-
-save(sim.res, file=outfile)
+	save(sim.res, file=outfile)
 
 # }
 # }

@@ -1,11 +1,10 @@
-###################################################################
-## This code is for aggregate prediction of Image Segmentation of 
-## CT
+#########################################################
+## This code is for smoothed cutoffs for models
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
-###################################################################
-###################################################################
+#########################################################
+#########################################################
 rm(list=ls())
 library(plyr)
 library(cttools)
@@ -13,6 +12,8 @@ library(fslr)
 library(ROCR)
 library(matrixStats)
 library(mgcv)
+library(extrantsr)
+library(randomForest)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -24,55 +25,30 @@ basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 
+segdir = file.path(progdir, "Segmentation")
+source(file.path(segdir, "performance_functions.R"))
+
 outdir = file.path(basedir, "results")
 
-correct = "Rigid_sinc"
+correct = "Rigid"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
-#         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
+#         "SyN", "SyN_sinc", "Rigid", "Affine", 
+# "Rigid_sinc", 
 #         "Affine_sinc")
 options = c("none", "N3_SS", "N4_SS", 
       "Rigid", "Rigid_sinc")
-
-short_predict = function(object, newdata, 
-    lthresh=  .Machine$double.eps^0.5){
-    tt <- terms(object)
-    Terms <- delete.response(tt)
-    m <- model.frame(Terms, newdata, 
-        na.action = na.pass, 
-        xlev = object$xlevels)
-    if (is.null(cl <- attr(Terms, "dataClasses"))) 
-            stop("no dataclasses")
-    X <- model.matrix(Terms, m, contrasts.arg = object$contrasts)
-    # p <- object$rank
-    beta <- object$coefficients
-    beta = beta[ !is.na(beta) ]
-    predictor = drop(X[, names(beta), drop=FALSE ] %*% beta)
-   
-    predictor <- family(object)$linkinv(predictor)
-    predictor[ predictor < lthresh] = 0
-    predictor
-}
-
-opt.cut = function(perf, pred){
-    cut.ind = mapply(FUN=function(x, y, p){
-        d = (x - 0)^2 + (y-1)^2
-        ind = which(d == min(d))
-        c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
-            cutoff = p[[ind]])
-    }, perf@x.values, perf@y.values, pred@cutoffs)
-}
-
 
 
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
 
-outfile = file.path(outdir, "111_Filenames.Rda")
+outfile = file.path(outdir, 
+    "111_Filenames_with_volumes_stats.Rda")
 load(file = outfile)
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
-if (is.na(icorr)) icorr = 5
+if (is.na(icorr)) icorr = 1
 correct = options[icorr]
 
 # for (correct in options){
@@ -94,32 +70,21 @@ correct = options[icorr]
         "Rigid_sinc" = "_Rigid_sinc",
         "Affine_sinc" = "_Affine_sinc")
 
-    filename = file.path(outdir, 
-        paste0("Collapsed_Models", adder, ".Rda"))
-    load(filename)
-
-    makedir = sapply( fdf$outdir, function(x) {
-    	if (!file.exists(x)){
-    		dir.create(x, showWarnings =FALSE)
-    	}
-    })
-    irow = 1
-    x = fdf[irow,]
-
     ##############################
     # Keeping files where predictors exist
     ##############################
     outfiles = nii.stub(basename(fdf$img))
-    outfiles = paste0(outfiles, "_predictors", adder, ".Rda")
+    outfiles = paste0(outfiles, "_predictors", 
+        adder, ".Rda")
     outfiles = file.path(fdf$outdir, outfiles)
     fdf = fdf[file.exists(outfiles), ]
 
-    # load(file = file.path(outdir, "Segmentation_Models.Rda"))
+    # load(file = file.path(outdir, 
+        # "Segmentation_Models.Rda"))
     ##############################
-    # Run lmod number of models - not all the models - leave out
+    # Run lmod number of models - 
+    # not all the models - leave out
     ##############################
-
-
 	mod.filename = file.path(outdir, 
 		paste0("Collapsed_Models", adder, ".Rda"))
 	x= load(mod.filename)
@@ -139,12 +104,14 @@ correct = options[icorr]
         paste0("Aggregate_data", adder, ".Rda"))
     load(fname)
 
+    all.df$mode = fdf$mode[match(img, fdf$img)]
     all.df$mask = all.df$mask > 0
     all.df$multiplier = mult.df$multiplier
 
     all.ind = which(all.df$multiplier)
 
-    all.preds = matrix(0, nrow=nrow(all.df), ncol= length(all.mods))
+    all.preds = matrix(0, nrow=nrow(all.df), 
+        ncol= length(all.mods))
     for (imod in seq_along(all.mods)){
         x = short_predict(
             object = all.mods[[imod]],
@@ -154,37 +121,48 @@ correct = options[icorr]
     }
 
     colnames(all.preds) = names(all.mods)
-    # all.preds = t(laply(all.mods, short_predict, newdata= all.df, 
+    # all.preds = t(laply(all.mods, short_predict, 
+        # newdata= all.df, 
     #               .progress = "text"))
-    add.preds = matrix(0, nrow=nrow(all.df), ncol= 7)
+    add.preds = matrix(0, nrow=nrow(all.df), ncol= 8)
     colnames(add.preds) = c("rowMean", "rowMed", "rowMax", 
-        "rowMin", "rowProd", "rowGeom", "gam")
+        "rowMin", "rowProd", "rowGeom", "rf", "gam")
+
+    L = nrow(fdf.run)
+    coll.mods = seq(L)
 
     add.preds[ all.ind, "rowMean"] = 
-        rowMeans(all.preds[  all.ind, ])
+        rowMeans(all.preds[  all.ind, coll.mods])
     add.preds[ all.ind, "rowMed"] = 
-        rowMedians(all.preds[  all.ind, ])    
+        rowMedians(all.preds[  all.ind, coll.mods])    
     add.preds[ all.ind, c("rowMin", "rowMax")] = 
-        rowRanges(all.preds[  all.ind, ]) 
+        rowRanges(all.preds[  all.ind, coll.mods]) 
 
     nr = nrow(all.preds)
     add.preds[ all.ind, c("rowProd")] = 
-        exp(rowSums(log(all.preds[all.ind, ])))
+        exp(rowSums(log(all.preds[all.ind, coll.mods])))
     add.preds[ all.ind, c("rowGeom")] = 
        add.preds[ all.ind, c("rowProd")] ^ (1/nr)
 
+    cat("# randomForest Prediction \n")
+    rf.pred = predict(rf.mod,
+        newdata= all.df[all.ind,],
+        type = "prob")[, "1"]
+    add.preds[all.ind, "rf"] = rf.pred
 
+    cat("# Starting GAM Prediction \n")
     gam.pred = predict(gam.mod, 
         all.df[all.ind,], 
         newdata.guaranteed = TRUE,
         type="response", block.size=5e5)
-    cat("GAM Prediction \n")
     
     gam.pred = as.numeric(gam.pred)
+    gam.pred[gam.pred > 1] = 1
 
     add.preds[all.ind, "gam"] = gam.pred
 
     all.preds = cbind(all.preds, add.preds)
+    cn = colnames(all.preds)
     rm(list="add.preds")
 
     rownames(all.preds) = NULL
@@ -194,7 +172,6 @@ correct = options[icorr]
     # train = all.df[samps,]
     # test$include = test$value >= 30 & test$value <= 100
 
-    L = nrow(fdf.run)
     all.spreds = array(NA, dim = dim(all.preds))
     imod = 1
     
@@ -219,10 +196,12 @@ correct = options[icorr]
 
             #### smooth the results
             sm.img  = mean_image(orig.img, nvoxels = 1)
-            # sm.img = local_moment(img, nvoxels = 1, moment =1,
+            # sm.img = local_moment(img, nvoxels = 1, 
+                # moment =1,
             #   center = FALSE)[[1]]
             sm.img = sm.img[keep.ind]
-            sm.img[abs(sm.img) <  .Machine$double.eps^0.5 ] = 0
+            sm.img[abs(sm.img) <  
+                .Machine$double.eps^0.5 ] = 0
             all.spreds[ind, ipred] = sm.img
             # all.spreds[roi.not.in, ipred] = 0
             print(ipred)
@@ -230,57 +209,67 @@ correct = options[icorr]
         print(imod)
     }
 
+    rm(list="all.preds")
+    test = all.df[!samps,]
+    test.mult.df = mult.df[!samps, ]
+    preds = all.spreds[ !samps, ]
+
+    test = test[ test.mult.df$candidate, ]
+    preds = preds[ test.mult.df$candidate, ]
+    test.mult.df = test.mult.df[ 
+        test.mult.df$candidate, ]
+
+    fpr.stop = 0.01
+    r.sres = alply(preds, 2, function(nd){
+        pred <- prediction( nd, test$Y)
+
+        N = nrow(test)
+        sens.cut = get_senscut(pred, fpr.stop=fpr.stop)
+            # N = N,
+            # predictions=nd, Y = test$Y)
+        pauc = get_pauc(pred, fpr.stop=fpr.stop)
+        dice.coef = get_max_dice(pred)
+        acc = get_acc(pred)
+
+        perf <- performance(pred, "tpr", "fpr")
+        pauc.cut = t(opt.cut(perf, pred))
+
+        list(acc = acc, pauc = pauc, pauc.cut = pauc.cut,
+            sens.cut = sens.cut, 
+            dice.coef = dice.coef)
+    }, .progress = "text")
 
 
-	#### only values 30 to 100 are likely to be ROI
-	fpr.stop = 0.01
-
-	opt.cut = function(perf, pred){
-		cut.ind = mapply(FUN=function(x, y, p){
-  			d = (x - 0)^2 + (y-1)^2
-  			ind = which(d == min(d))
-  			c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
-  				cutoff = p[[ind]])
-		}, perf@x.values, perf@y.values, pred@cutoffs)
-	}
-
-    cn = colnames(all.spreds)
-
-	r.sres = alply(all.spreds, 2, function(nd){
-		pred <- prediction( nd, all.df$Y)				
-		acc = performance(pred, "acc")
-		ind = which.max(acc@y.values[[1]])
-		cutoff = acc@x.values[[1]][ind]
-		acc = acc@y.values[[1]][ind]
-		acc = c(accuracy=acc, cutoff= cutoff)
-
-		pauc = performance(pred, "auc", fpr.stop= fpr.stop)
-		pauc = pauc@y.values[[1]] / fpr.stop
-		
-		perf <- performance(pred, "tpr", "fpr")
-		pauc.cut = t(opt.cut(perf, pred))
-
-		list(acc = acc, pauc = pauc, pauc.cut = pauc.cut)
-	}, .progress = "text")
-
-	saccs = sapply(r.sres, `[[`, "acc")
-	spaucs = sapply(r.sres, `[[`, "pauc")
-	spauc.cuts = sapply(r.sres, `[[`, "pauc.cut")[3,]
+	#### Extracting cutoffs
+    saccs = sapply(r.sres, `[[`, "acc")
+    spaucs = sapply(r.sres, `[[`, "pauc")
+    spauc.cuts = sapply(r.sres, `[[`, "pauc.cut")[3,]
+    ssens.cuts = sapply(r.sres, `[[`, "sens.cut")[4,]
+    sdice.cuts = sapply(r.sres, `[[`, "dice.coef")[2,]
 
 	colnames(saccs) = names(spaucs) = names(spauc.cuts) = 
-		colnames(all.spreds)
+        names(sdice.cuts) = names(ssens.cuts) = 
+        colnames(all.spreds)
 
-	all.scuts = saccs["cutoff", ]
+	all.scuts = saccs[2, ]
 	all.spauc.cuts = spauc.cuts
+    all.ssens.cuts = ssens.cuts
+    all.sdice.cuts = sdice.cuts
 
-    names(all.spauc.cuts) = names(all.scuts) = cn
+    names(all.spauc.cuts) = names(all.ssens.cuts) =
+        names(all.sdice.cuts) = names(all.scuts) = cn
 
     all.scuts[is.infinite(all.scuts)] = 1
     all.spauc.cuts[is.infinite(all.spauc.cuts)] = 1
+    all.ssens.cuts[is.infinite(all.ssens.cuts)] = 1
+    all.sdice.cuts[is.infinite(all.sdice.cuts)] = 1
 
 	mod.filename = file.path(outdir, 
 		paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
 
-	save(all.scuts, all.spauc.cuts, file=mod.filename)
+	save(all.scuts, all.spauc.cuts, 
+        all.ssens.cuts,
+        all.sdice.cuts,
+        file=mod.filename)
 
 # }
