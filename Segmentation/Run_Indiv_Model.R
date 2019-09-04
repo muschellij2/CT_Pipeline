@@ -170,6 +170,7 @@ runx = x = fdf[iimg,]
 
     load(file = fname)
     
+
     df$gr_medztemp = TRUE
     keepnames = colnames(est.cutoffs)
     include = rep(TRUE, length=nrow(df))
@@ -196,6 +197,7 @@ runx = x = fdf[iimg,]
     df$zval2 = df[, "zscore2.cutoff"] & df$zval
     df$zval_all = df[, "zscore_template.cutoff"] & 
         df$zval2
+
 
     ### Adding subject level above median
 	med.ztemp = median(df$zscore_template)
@@ -224,6 +226,7 @@ runx = x = fdf[iimg,]
     # df$multiplier = df$zval2
     df$multiplier = df$zval2_medztemp
     df$candidate = df$multiplier | (df$Y == 1)
+
 	#############################################
 	# Case-Control Sampling
 	#############################################
@@ -249,6 +252,7 @@ runx = x = fdf[iimg,]
 	samps = seq(nrow(df)) %in% samp.ind
 	train = df[samps,]
 
+
 	fname= nii.stub(basename(x$img))
 	fname = paste0(fname, "_predictors", adder, "_training.Rda")
 	outfile = file.path(x$outdir, fname)
@@ -260,6 +264,7 @@ runx = x = fdf[iimg,]
 	test = df[!samps,]
 
 	mult.test = mult.df[!samps,]
+
 
 	pval = function(mod){
 		cc =coef(summary(mod))[, 4]
@@ -292,6 +297,7 @@ runx = x = fdf[iimg,]
 
 
 
+
 	######################################
 	# Get all performance measures
 	######################################
@@ -315,6 +321,7 @@ runx = x = fdf[iimg,]
 	############################################
 	# Prediction with taking out each individual model predictor
 	############################################
+
 	test.preds = sapply(take.mods, predict,
 		newdata=test, type="response")
 	iipred = 1
@@ -339,6 +346,7 @@ runx = x = fdf[iimg,]
 	colnames(sens.cuts) = colnames(sens.cut)
 
 	paucs = rep(NA, length=lpred)
+
 
 	pb = txtProgressBar(max=lpred, style=3)
 	for (iipred in seq_along(take.mods)){
@@ -365,6 +373,7 @@ runx = x = fdf[iimg,]
 
 	rownames(dice.coefs) = rownames(accs)= takeout
 	rownames(sens.cuts) = rownames(dice.coefs)
+
 	names(paucs) = takeout
 	print(paucs)
 
@@ -458,7 +467,6 @@ runx = x = fdf[iimg,]
 	# for (i in 1:3) gc()
 
 # }
-
 # plot(perf)
 
 

@@ -12,8 +12,8 @@ library(fslr)
 library(ROCR)
 library(matrixStats)
 library(mgcv)
+
 library(extrantsr)
-library(randomForest)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
 if (Sys.info()[["user"]] %in% "jmuschel") {
@@ -24,6 +24,7 @@ progdir = file.path(rootdir, "programs")
 basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
+
 
 segdir = file.path(progdir, "Segmentation")
 source(file.path(segdir, "performance_functions.R"))
@@ -39,9 +40,12 @@ options = c("none", "N3_SS", "N4_SS",
       "Rigid", "Rigid_sinc")
 
 
+
+
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
+
 
 outfile = file.path(outdir, 
     "111_Filenames_with_volumes_stats.Rda")
@@ -49,6 +53,7 @@ load(file = outfile)
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 if (is.na(icorr)) icorr = 1
+
 correct = options[icorr]
 
 # for (correct in options){
@@ -70,10 +75,13 @@ correct = options[icorr]
         "Rigid_sinc" = "_Rigid_sinc",
         "Affine_sinc" = "_Affine_sinc")
 
+
+
     ##############################
     # Keeping files where predictors exist
     ##############################
     outfiles = nii.stub(basename(fdf$img))
+
     outfiles = paste0(outfiles, "_predictors", 
         adder, ".Rda")
     outfiles = file.path(fdf$outdir, outfiles)
@@ -85,6 +93,7 @@ correct = options[icorr]
     # Run lmod number of models - 
     # not all the models - leave out
     ##############################
+
 	mod.filename = file.path(outdir, 
 		paste0("Collapsed_Models", adder, ".Rda"))
 	x= load(mod.filename)
@@ -104,11 +113,13 @@ correct = options[icorr]
         paste0("Aggregate_data", adder, ".Rda"))
     load(fname)
 
+
     all.df$mode = fdf$mode[match(img, fdf$img)]
     all.df$mask = all.df$mask > 0
     all.df$multiplier = mult.df$multiplier
 
     all.ind = which(all.df$multiplier)
+
 
     all.preds = matrix(0, nrow=nrow(all.df), 
         ncol= length(all.mods))
@@ -121,6 +132,7 @@ correct = options[icorr]
     }
 
     colnames(all.preds) = names(all.mods)
+
     # all.preds = t(laply(all.mods, short_predict, 
         # newdata= all.df, 
     #               .progress = "text"))
@@ -155,6 +167,7 @@ correct = options[icorr]
         all.df[all.ind,], 
         newdata.guaranteed = TRUE,
         type="response", block.size=5e5)
+
     
     gam.pred = as.numeric(gam.pred)
     gam.pred[gam.pred > 1] = 1
@@ -162,6 +175,7 @@ correct = options[icorr]
     add.preds[all.ind, "gam"] = gam.pred
 
     all.preds = cbind(all.preds, add.preds)
+
     cn = colnames(all.preds)
     rm(list="add.preds")
 
@@ -171,6 +185,8 @@ correct = options[icorr]
 
     # train = all.df[samps,]
     # test$include = test$value >= 30 & test$value <= 100
+
+
 
     all.spreds = array(NA, dim = dim(all.preds))
     imod = 1
@@ -196,6 +212,7 @@ correct = options[icorr]
 
             #### smooth the results
             sm.img  = mean_image(orig.img, nvoxels = 1)
+
             # sm.img = local_moment(img, nvoxels = 1, 
                 # moment =1,
             #   center = FALSE)[[1]]
@@ -208,6 +225,7 @@ correct = options[icorr]
         }
         print(imod)
     }
+
 
     rm(list="all.preds")
     test = all.df[!samps,]
@@ -266,6 +284,7 @@ correct = options[icorr]
 
 	mod.filename = file.path(outdir, 
 		paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
+
 
 	save(all.scuts, all.spauc.cuts, 
         all.ssens.cuts,

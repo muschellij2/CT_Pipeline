@@ -27,6 +27,7 @@ basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 
+
 segdir = file.path(progdir, "Segmentation")
 source(file.path(segdir, "performance_functions.R"))
 
@@ -35,6 +36,7 @@ correct = "Rigid"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
+
 # options = c("none", "N3_SS", "N4_SS", 
 # 		"Rigid", "Rigid_sinc")
 options = c("none", "Rigid")
@@ -42,10 +44,13 @@ options = c("none", "Rigid")
 # types = c("", "_include", "_zval", "_zval2")
 # types = c("_zval2", "_zval_all", '_zval2_medztemp')
 types = "_zval2"
+
 # types = "_zval2"
 # "_include_all", 
 # types = "_include_all"
 type = types[1]
+
+
 
 for (correct in options){
 
@@ -64,12 +69,16 @@ for (correct in options){
 		"Rigid_sinc" = "_Rigid_sinc",
 		"Affine_sinc" = "_Affine_sinc")
 
+
+
 	#### load voxel data
 	outfile = file.path(outdir, "Voxel_Info.Rda")
 	load(file=outfile )
 
+
 	outfile = file.path(outdir, 
 		"111_Filenames_with_volumes_stats.Rda")
+
 	load(file = outfile)
 
 
@@ -92,17 +101,20 @@ for (correct in options){
 		cut.vol.tsdatas = cut.vol.sdatas
 
 		pauc.cut.vol.datas = pauc.cut.vol.sdatas = cut.vol.datas
+
 		sens.cut.vol.datas = sens.cut.vol.sdatas = cut.vol.datas
 		dice.cut.vol.datas = dice.cut.vol.sdatas = cut.vol.datas
 		# pauc.cut.vol.tsdatas = pauc.cut.vol.sdatas
 
 		benches = vector(length= length(runpreds))
 		all.saccs = all.accs = reses
+
 		all.dices = all.sdices = reses
 		mod.saccs = mod.accs = reses
 		mod.ssens = mod.sens = reses
 		mod.sspec = mod.spec = reses
 		mod.sdice = mod.dice = reses
+
 
 		pauc.mod.saccs = pauc.mod.accs = reses
 		pauc.mod.ssens = pauc.mod.sens = reses
@@ -121,6 +133,7 @@ for (correct in options){
 		dice.mod.sspec = dice.mod.spec = reses
 		dice.mod.sdice = dice.mod.dice = reses
 
+
 		for (get.pred in 1:nrow(fdf)){
 			
 			# if (get.pred == 111) next;
@@ -131,6 +144,7 @@ for (correct in options){
 					".Rda"))
 			if (file.exists(predname)){
 				x = load(file = predname)
+
 				stopifnot(colnames(reses) == colnames(res))
 				stopifnot(colnames(sreses) == colnames(sres))
 				reses[get.pred, ] = res[get.pred,]
@@ -261,6 +275,7 @@ for (correct in options){
 		res = reses
 		sres = sreses
 
+
 		nopred = which(fdf$group == "Train")
 		ffdf = fdf[-nopred, ]
 		nr = nrow(ffdf)
@@ -270,18 +285,20 @@ for (correct in options){
 		group = "Test"
 		subset.ind = which(ffdf$group == group)
 
+
 		varslice = ffdf$varslice[subset.ind]
 		subset.ids = ffdf$id[subset.ind]
 		all.truevol =  ffdf$truevol
 		truevol = ffdf$truevol[subset.ind]
-		full.subset.ind = match(subset.ids, fdf$id)
 
+		full.subset.ind = match(subset.ids, fdf$id)
 		outfile = file.path(outdir, 
 			paste0("Model_performance_results", adder, type, 
 				".Rda")
 			)
 
 		save(sres, res, valid.ind, test.ind,
+
 			vol.datas, vol.sdatas,
 			cut.vol.datas, cut.vol.sdatas,
 			cut.vol.tsdatas,
@@ -317,6 +334,7 @@ for (correct in options){
 			all.dices, all.sdices, 
 
 			benches,
+
 			valid.ind, test.ind, nopred, 
 			file = outfile)
 
@@ -338,6 +356,7 @@ for (correct in options){
 		######################################
 		# Taking volume differences from truth and subsetting
 		######################################
+
 		####Accuracy cutoffs
 
 		cut.diff = cut.vol.datas[-nopred, 
@@ -353,6 +372,7 @@ for (correct in options){
 		cut.tsdiff = cut.vol.tsdatas[-nopred, 
 				!colnames(cut.vol.sdatas) %in% "truth"] -
 			all.truevol
+
 		cut.tsadiff = abs(cut.tsdiff)	
 
 		####Sensitivity cutoffs
@@ -395,8 +415,10 @@ for (correct in options){
 		test.svol = svoldiff[test.ind,]
 
 		######################################
+
 		# The ones with a's are absolute, 
 		# should just do in plot code
+
 		######################################
 		valid.vol = voldiff[valid.ind,]
 		test.vol = voldiff[valid.ind,]
@@ -443,6 +465,7 @@ for (correct in options){
 		all.accs = all.accs[-nopred, ]
 		all.saccs = all.saccs[-nopred, ]
 
+
 		all.dices = all.dices[-nopred, ]
 		all.sdices = all.sdices[-nopred, ]
 
@@ -455,8 +478,10 @@ for (correct in options){
 		cut.all.accs = mod.accs[-nopred, ]
 		cut.all.saccs = mod.saccs[-nopred, ]
 
+
 		cut.all.dices = mod.dice[-nopred, ]
 		cut.all.sdices = mod.sdice[-nopred, ]		
+
 
 		cut.valid.acc = cut.all.accs[valid.ind,]
 		cut.valid.sacc = cut.all.saccs[valid.ind,]
@@ -494,6 +519,7 @@ for (correct in options){
 		# vol = valid.vol
 		# svol = valid.svol
 		# sres = valid.sres
+
 
 		cutoffs = c("", "sens.", "dice.", "pauc.")
 		measures = c("accs", "sens", "dice", "spec")
@@ -601,6 +627,7 @@ for (correct in options){
 			forcex=FALSE, xlimits=c(0, 1), 
 			forcey = FALSE, ylimits = c(0, 13),
 			tsize = 2, 
+
 			tsize_all = 16,
 			ylab="Frequency",
 			loc.mult = 0.5,
@@ -620,6 +647,7 @@ for (correct in options){
 				})	
 			maxes = ddply(long, .(model), function(x) {
 					c(ind.max=round(max(x$value), 3))
+
 				})		
 			mins = ddply(long, .(model), function(x) {
 					c(ind.min=round(min(x$value), 3))
@@ -645,6 +673,7 @@ for (correct in options){
 			means$height = height
 			medians$height = height
 			maxes$height = height
+
 			mins$height = height
 
 			means$loc.mult = medians$loc.mult = 
@@ -657,13 +686,16 @@ for (correct in options){
 			g2 = g + facet_wrap(~varslice)
 			g = ggplot(data=long, aes(x=value)) + 
 			geom_histogram() + 
+
 				facet_wrap(~ model, nrow=nrow, ncol= ncol) 
 			g2 = g + aes(fill=varslice)
 			g = g + geom_vline(data=means, aes(xintercept=mean),
 				colour="red") + 
 				facet_wrap(~ model, nrow=nrow, ncol= ncol)
+
 			g = g + geom_vline(data=medians, 
 				aes(xintercept=median),
+
 				colour="green") + 
 				facet_wrap(~ model, nrow=nrow, ncol= ncol)
 			g = g + geom_text(data=medians, 
@@ -672,6 +704,7 @@ for (correct in options){
 				label=paste0("Med: ", median)), size=tsize)
 			g = g + geom_text(data=means, 
 				aes(x = (max + min) * loc.mult, 
+
 				y=height*.75, 
 				label=paste0("Mean: ", mean)), size=tsize)
 			g = g + geom_text(data=maxes, 
@@ -686,6 +719,7 @@ for (correct in options){
 			g = g + ylab(ylab)
 			g = g + xlab(xlab)
 			g = g + theme(text = element_text(size = tsize_all))
+
 			if (forcex) g= g + xlim(xlimits)
 			if (forcey) g= g + ylim(ylimits)
 			print(g)
@@ -718,6 +752,7 @@ for (correct in options){
 
 			return(invisible())
 		}
+
 
 		ssens = mod.ssens[subset.ind, ]
 		sspec = mod.sspec[subset.ind, ]
@@ -793,6 +828,7 @@ for (correct in options){
 		if ("mydf" %in% ls()){
 			rm(list="mydf")
 		}
+
 		# L = list()
 		for (icut in c("cut", "")){
 			for (rundiff in c("Smoothed", "Unsmoothed")){
@@ -834,6 +870,7 @@ for (correct in options){
 					ggtitle(paste0(rundiff, " ", icut))
 				print(p)
 				print(p %+% long[ long$variable %in% 
+
 					c("mod_agg", "min", "gam", "rf"), ])
 				rm(list="mydf")
 			}
@@ -869,6 +906,7 @@ for (correct in options){
 		###########################################
 		plotter(voldiff[subset.ind, top5], 
 			varslice =fdf$varslice[subset.ind],
+
 		title=
 		"Difference in Predicted vs. True Volume, Unsmoothed")
 
@@ -888,6 +926,7 @@ for (correct in options){
 		ba.plotter(svoldiff[subset.ind, stop5], truth = truevol,
 		title=
 			"Difference in Predicted vs. True Volume, Smoothed")
+
 
 
 		###########################################
@@ -913,6 +952,7 @@ for (correct in options){
 		  ncol= 1, nrow=nkeep)	
 
 
+
 	# volres = plotter(cut.adiff[subset.ind, ], 
 	#   title= 
 	# "Difference in Predicted vs. True Volume, Unsmoothed, Cut")
@@ -933,6 +973,7 @@ for (correct in options){
 	# volsres = plotter(sadiff[subset.ind, top5], 
 	#title= "Difference in Predicted vs. True Volume, Smoothed")
 
+
 		add_params = function(g, type = "", params){
 			plots = g$plots
 			plots = unlist(plots)
@@ -951,8 +992,10 @@ for (correct in options){
 			plots = g$plots
 			plots = unlist(plots)
 			for (iplot in seq_along(plots)){
+
 				char = gsub(findtext, subber, 
 					g$plots[[iplot]], ...)
+
 				g$plots[[iplot]] = char
 			}
 			return(g)
@@ -988,6 +1031,7 @@ for (correct in options){
 			diag= list(continuous = "density")
 			, axisLabels='show')
 
+
 	# g = add_params(g, type="smooth", params = "col='blue'")
 	# g2 = add_params(g, type="smooth", params = "colour='blue'")
 	# g2 = subtext(g2, 
@@ -996,6 +1040,7 @@ for (correct in options){
 	# g2
 
 	# g3 = add_params(g, type="smooth", params = "colour='blue'")
+
 		g3 = subtext(g, 
 			findtext = "ggally_smooth", 
 			subber = "ggally_abline")
@@ -1038,12 +1083,14 @@ for (correct in options){
 			title= paste0("Partial AUC (under ", fpr.stop, 
 			" FDR) Distribution"),
 			ncol= 1, nrow=nkeep*2, forcex = TRUE,
+
 			forcey = TRUE, ylimits = c(0, 20))
 		dev.off()
 		
 
 		message("After modeling_auc\n")
 		mydf = cut.all.saccs
+
 		##################
 		# Model aggregate plots
 		###################
@@ -1090,6 +1137,7 @@ for (correct in options){
 		plotter(run.vd, 
 			title= "Difference in Predicted vs. True Volume")
 		dev.off()
+
 
 
 		pickmod = "mod_agg"

@@ -72,8 +72,6 @@ make.pvalimg = function(pvalimg, runlist = NULL){
 
 
 atfile = file.path(atlasdir, "All_FSL_Atlas_Labels.Rda")
-# atfile = file.path(atlasdir, "All_FSL_Atlas_Labels_Filled.Rda")
-
 
 x = load(file=atfile)
 

@@ -3,6 +3,7 @@
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
+
 #########################################################
 #########################################################
 rm(list=ls())
@@ -29,6 +30,7 @@ outdir = file.path(basedir, "results")
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
+
 
 iddirs = list.dirs(basedir, recursive=FALSE)
 iddirs = iddirs[ grep("^\\d", basename(iddirs))]
@@ -65,8 +67,10 @@ fdf$mask = file.path(fdf$iddir,
 	gsub("ROI\\.nii", "_SS_0.01_Mask.nii", fnames))
 
 
+
 fdf$ssimg = gsub("_Mask[.]nii[.]gz", ".nii.gz", 
   fdf$mask)
+
 fdf$n3dir = file.path(fdf$iddir, "N3Correct")
 
 fdf$n3ssimg = gsub("[.]nii[.]gz", "_N3Correct.nii.gz", 
@@ -76,6 +80,7 @@ fdf$n3ssimg = file.path(fdf$n3dir, fdf$n3ssimg)
 fdf$n3img = gsub("[.]nii[.]gz", "_N3Correct.nii.gz", 
     basename(fdf$img))
 fdf$n3img = file.path(fdf$n3dir, fdf$n3img)
+
 
 fdf$n3bias_field = gsub("_N3Correct", "_BiasField", 
   fdf$n3img)
@@ -101,6 +106,7 @@ fdf$synssimg = gsub("[.]nii[.]gz", "_SyN.nii.gz",
 fdf$synssimg = file.path(fdf$syndir, fdf$synssimg)
 fdf$synssroi = gsub("_SyN[.]nii[.]gz", "_SyN_ROI.nii.gz", 
   fdf$synssimg)
+
 fdf$synssmask = gsub("_SyN[.]nii[.]gz", 
   "_SyN_Mask.nii.gz", 
   fdf$synssimg)
@@ -117,6 +123,7 @@ fdf$sinc_synssmask = gsub("_SyN[.]nii[.]gz",
 
 
 fdf$aff_dir = file.path(fdf$iddir, "Affine_Registered")
+
 fdf$aff_ssimg = gsub("_SyN[.]nii[.]gz", 
   "_Affine.nii.gz", 
   basename(fdf$synssimg))
@@ -131,6 +138,7 @@ fdf$aff_ssmask = gsub("_Affine[.]nii[.]gz",
 fdf$sinc_aff_ssimg = gsub("_SyN[.]nii[.]gz", 
   "_Affine_sinc.nii.gz", 
   basename(fdf$synssimg))
+
 fdf$sinc_aff_ssimg = file.path(fdf$aff_dir, 
   fdf$sinc_aff_ssimg)
 fdf$sinc_aff_ssroi = gsub("_Affine[.]nii[.]gz", 
@@ -146,6 +154,7 @@ fdf$rig_ssimg = gsub("_SyN[.]nii[.]gz", "_Rigid.nii.gz",
   basename(fdf$synssimg))
 fdf$rig_ssimg = file.path(fdf$rig_dir, fdf$rig_ssimg)
 
+
 fdf$rig_ssroi = gsub("_Rigid[.]nii[.]gz", 
   "_Rigid_ROI.nii.gz", 
   fdf$rig_ssimg)
@@ -156,6 +165,7 @@ fdf$rig_ssmask = gsub("_Rigid[.]nii[.]gz",
 fdf$sinc_rig_ssimg = gsub("_SyN[.]nii[.]gz", 
   "_Rigid_sinc.nii.gz", 
   basename(fdf$synssimg))
+
 fdf$sinc_rig_ssimg = file.path(fdf$rig_dir, 
   fdf$sinc_rig_ssimg)
 
@@ -173,6 +183,7 @@ fdf$sinc_rig_ssmask = gsub("_Rigid_sinc[.]nii[.]gz",
 fdf = ddply(fdf, .(id), function(x){
   x[1,]
 })
+
 
 ids = c("100-318", "100-362", "100-365", "101-306", 
   "101-307", "101-308", 

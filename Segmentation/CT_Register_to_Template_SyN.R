@@ -33,12 +33,14 @@ load(file=outfile )
 outfile = file.path(outdir, "111_Filenames_with_volumes.Rda")
 load(file = outfile)
 
+
 # regs = c("Affine", "Rigid", "SyN")
 regs = "Rigid"
 scen = expand.grid(ttype = regs,
     interpolator = c("Linear", "LanczosWindowedSinc"),
     stringsAsFactors = FALSE)
 iscen = 1
+
 # scen = scen[2,, drop=FALSE]
 addons = paste0(scen$ttype, "_", scen$interpolator) 
 
@@ -111,6 +113,7 @@ for (iscen in seq(nrow(scen))){
     ex = all(file.exists(files))
     # if (!ex){
         ss.res = ants_regwrite(filename = x$ss, 
+
             correct = FALSE, 
             other.files = c(x$roi, x$mask, zfile), 
             other.outfiles = c(roi.ofile, mask.ofile, zofile),

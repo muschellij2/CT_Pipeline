@@ -2,7 +2,8 @@ rm(list=ls())
 library(cttools)
 library(fslr)
 library(plyr)
-options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
+options(matlab.path='/Applications/MATLAB_R2016a.app/bin')
+
 
 setup <- function(id, study = "Registration"){
   username <- Sys.info()["user"][[1]]
@@ -66,7 +67,6 @@ dcm2niicmd = "dcm2niix"
 iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 
 if (is.na(iid)) iid <- 13
-
 id <- ids[iid]
 setup(id, study = study)
 
@@ -162,6 +162,7 @@ if (!ROIformat){
           }
           ofile = mid.folder(ofile, "Skull_Stripped")
           ofile = paste0(ofile, "_SS")
+
                       
           app = "_nopresmooth"
           if (presmooth) app = ""
@@ -183,6 +184,7 @@ if (!ROIformat){
                                  refill = refill,
                                  presmooth=presmooth)
             } # file exists
+
 
         } # end iimg
 
@@ -223,7 +225,7 @@ if (!ROIformat){
         x = gsub("\\.nii$", "", x)
         x
       }
-      
+
       m_ply(function(img, img.mask){
         fname = no.gz(basename(img.mask))
         ifname = no.gz(basename(img))

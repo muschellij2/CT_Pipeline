@@ -1,3 +1,4 @@
+
 ##########################################################
 ## This code is for final prediction volumes of 
 # Image Segmentation of CT
@@ -25,6 +26,7 @@ tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
+
 
 
 ###########################
@@ -99,6 +101,7 @@ adder = switch(correct,
 
 keep.obj = ls()
 
+
 mod.filename = file.path(outdir, 
 	paste0("Collapsed_Models", adder, ".Rda"))
 load(mod.filename)
@@ -139,6 +142,7 @@ stopifnot(file.exists(outfiles))
 
 	mycols = c("dice", "jaccard", "sens", "spec", "accur", 
 		"truevol", "estvol")
+
 	sim.res = matrix(NA, nrow=nrow(fdf), 
 		ncol = length(mycols))
 	colnames(sim.res) = mycols
@@ -214,6 +218,7 @@ stopifnot(file.exists(outfiles))
 		outimg = file.path(id.outdir, 
 			paste0(outimg, "_", cn, adder, type, icut, 
 				"_prediction"))
+
 		# outimg = paste0(outimg, ".nii.gz")
 		if (file.exists(paste0(outimg, ".nii.gz.nii.gz"))){
 			file.remove(paste0(outimg, ".nii.gz.nii.gz"))
@@ -226,6 +231,7 @@ stopifnot(file.exists(outfiles))
 			dim.dauto = dim(sm.img))
 		myres = unlist(myres)
 		sim.res[get.pred, mycols] = myres[mycols]
+
 		print(get.pred)
 	}
 	# }

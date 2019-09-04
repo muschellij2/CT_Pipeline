@@ -1,8 +1,10 @@
 ###########################################################
+
 ## This code is for Creating Predictors for each individual
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
+
 ############################################################
 ############################################################
 rm(list=ls())
@@ -13,6 +15,7 @@ library(ROCR)
 library(fslr)
 library(mgcv)
 library(getopt)
+
 library(psych)
 library(methods)
 homedir = "/Applications"
@@ -26,6 +29,7 @@ basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
 outdir = file.path(basedir, "results")
+
 
 template.file = file.path(tempdir, "scct_unsmooth.nii.gz")
 ss.tempfile = file.path(tempdir, "Skull_Stripped",
@@ -45,6 +49,7 @@ source(file.path(segdir, "performance_functions.R"))
 spec = matrix(c(
 	'correct', 'c', 1, "character",
 	'rerun'   , 'r', 1, "logical",
+
 	'overwrite'  , 'o', 1, "logical",
 	'interpolator'  , 'i', 1, "character"
 ), byrow=TRUE, ncol=4);
@@ -53,16 +58,19 @@ opt = getopt(spec);
 correct = opt$correct
 rerun = opt$rerun
 overwrite = opt$overwrite
+
 interpolator = opt$interpolator
 
 if (is.null(rerun)){
 	rerun = FALSE
 }
 if (is.null(overwrite)){
+
 	overwrite = TRUE
 }
 if (is.null(interpolator)){
 	interpolator = "Linear"
+
 }
 print(opt)
 # args<-commandArgs(trailingOnly = TRUE)
@@ -75,6 +83,7 @@ print(opt)
 
 # correct = "Rigid_sinc"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
+
 #         "SyN", "SyN_sinc", "Rigid", 
 # "Affine", "Rigid_sinc", 
 #         "Affine_sinc")
@@ -102,10 +111,10 @@ load(file = outfile)
 # correct = scenarios$correct[iscen]
 
 iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+
 if (is.na(iimg)) iimg = 17
 
 runx = x = fdf[iimg,]
-
 
 # for (correct in options){
     
@@ -174,6 +183,7 @@ runx = x = fdf[iimg,]
 	  	system.time({
 	  		img.pred = make_predictors(
 	  		img= fname, 
+
 	  		stub = nii.stub(fname, bn = TRUE),
 	  		mask = mask.fname, 
 	  		roi = roi.fname,
@@ -181,6 +191,7 @@ runx = x = fdf[iimg,]
 	  		moments = 1:4, lthresh = 40, uthresh = 80,
 	  		save_imgs = TRUE, 
 	  		outdir = x$outdir,
+
 	  		template.file = ss.tempfile,
 	  		interpolator = "Linear",
 	  		overwrite = overwrite, 
@@ -208,6 +219,7 @@ runx = x = fdf[iimg,]
 		img.pred$df$zscore_template = c(img)
 		save(img.pred, file=outfile, compress = TRUE)
 	}
+
 
 	cn = colnames(img.pred$df)
 	if (!"flipped_value" %in% cn){

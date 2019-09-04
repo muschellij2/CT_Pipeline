@@ -35,7 +35,9 @@ options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 nopts = length(options)
 
 
+
 types = c("", "_include", "_zval", "_zval2", "_zval2_medztemp")
+
 type = types[1]
 
 #### load voxel data
@@ -50,7 +52,9 @@ mod.filename = file.path(outdir,
 x = load(mod.filename)	
 cn = colnames(res)
 
+
 nopred = run.ind
+
 vd = vol.data
 vd = vd[-nopred,]
 nr = nrow(vd)

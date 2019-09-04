@@ -79,6 +79,7 @@ correct = options[icorr]
     outfiles = nii.stub(basename(fdf$img))
     outfiles = paste0(outfiles, "_predictors", adder, ".Rda")
     outfiles = file.path(fdf$outdir, outfiles)
+
     stopifnot(all(file.exists(outfiles)))
     # fdf = fdf[, ]
 
@@ -86,6 +87,7 @@ correct = options[icorr]
     ##############################
     # Run lmod number of models - not all the models - leave out
     ##############################
+
     fdf.run = fdf[ fdf$group == "Train", ]
 
     moddname = nii.stub(basename(fdf.run$img))
@@ -95,6 +97,7 @@ correct = options[icorr]
     all.df = NULL
     L = nrow(fdf.run)
     l.keep.ind = vector(mode="list", length = L)
+
     imod = 1
 
     for (imod in seq(L)){
@@ -104,6 +107,7 @@ correct = options[icorr]
         keep.ind = img.pred$keep.ind
         nim = img.pred$nim
         df = df[ keep.ind, ]
+
         med.ztemp = median(df$zscore_template)
 
         #df$zval2_medz3 = df$zval2 & (df$zscore3 > med.z3) 
@@ -118,6 +122,7 @@ correct = options[icorr]
     }
 
     keep.colnames = colnames(all.df)
+
     keep.colnames = keep.colnames[ 
         !keep.colnames %in% "gr_medztemp"
         ]
@@ -130,6 +135,7 @@ correct = options[icorr]
             "thresh", "pct_zero_neighbor")
     runnames = runnames[ !(runnames %in% 
         c("mask", "Y", "img", nosmooth))]
+
 
 
     quants = dlply(all.df[, c(runnames, "Y")], .(Y), 
@@ -173,11 +179,13 @@ correct = options[icorr]
     all.df$zval2 = all.df[, "zscore2.cutoff"] & all.df$zval
     all.df$zval_all = all.df[, "zscore_template.cutoff"] & 
         all.df$zval2
+
     all.df$zval2_medztemp = all.df$zval2 & all.df$gr_medztemp 
 
 
     sum(all.df$Y[! all.df$zval2]) / sum(all.df$Y)
     sum(1-all.df$Y[! all.df$zval2]) / sum(1-all.df$Y)
+
 
     all.df$multiplier = all.df$zval2_medztemp
 
@@ -204,6 +212,7 @@ correct = options[icorr]
 
 
     img = all.df$img
+
     all.df$img = NULL
 
     # train = all.df[samps,]
@@ -216,6 +225,7 @@ correct = options[icorr]
         size, prop, n.ich, n.noich, 
         fdf.run, seed, l.keep.ind,
         file = fname)
+
 
     train.img = img[samps]
     train = all.df[samps,]

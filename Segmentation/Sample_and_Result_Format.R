@@ -1,4 +1,4 @@
-#########################################################
+# 
 ## This code is for collapsing predictor models
 ##
 ## Author: John Muschelli

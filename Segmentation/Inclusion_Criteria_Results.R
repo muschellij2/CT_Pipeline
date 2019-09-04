@@ -92,6 +92,7 @@ keepnames = keepnames[!( keepnames %in%
 
 mod.filename = file.path(outdir, 
 		paste0("Result_Formats", adder, ".Rda"))
+
 load(mod.filename)
 
 nopred = run.ind
@@ -106,6 +107,7 @@ allnames = c(paste0(keepnames, ".cutoff"),
 		'zval2_medztemp',		
 		"zval_all", "zval2_medztemp_kurt", 
 		"zval2_medztemp_skew")
+
 cn = c(outer(allnames, c(".out", ".reduced"), paste0))
 ffdf[, cn] = NA
 ffdf$nroi = NA
@@ -126,9 +128,11 @@ for (get.pred in seq(nrow(ffdf))){
     for (i in 1:3) gc()	
 	df$include = df$value >= 30 & df$value <= 100
 
+
     ### Adding subject level above median
 	med.ztemp = median(df$zscore_template[ keep.ind ])
 	df$gr_medztemp = (df$zscore_template > med.ztemp)
+
 
 
     include = rep(TRUE, length=nrow(df))
@@ -144,9 +148,11 @@ for (get.pred in seq(nrow(ffdf))){
     	df$pct_thresh.cutoff
     df$zval2 = df[, "zscore2.cutoff"] & df$zval
     df$zval_all = df[, "zscore_template.cutoff"] & df$zval2
+
 	df$zval2_medztemp = df$zval2 &  df$gr_medztemp
 	df$zval2_medztemp_kurt = df$zval2_medztemp & df$kurtosis.cutoff
 	df$zval2_medztemp_skew = df$zval2_medztemp & df$skew.cutoff
+
 
     # pdfname = file.path(outdir, 
     #     paste0("Aggregate_Data_Plots", adder, ".pdf"))
@@ -200,11 +206,13 @@ for (get.pred in seq(nrow(ffdf))){
 
 	df = df[keep.ind,]
 
+
 	# med.ztemp = median(df$zscore_template)
 	# med.z3 = median(df$zscore3)
 
 	# #df$zval2_medz3 = df$zval2 & (df$zscore3 > med.z3) 
 	# df$zval2_medztemp = df$zval2 & (df$zscore_template > med.ztemp) 
+
 
 
 	nroi = sum(df$Y == 1)
@@ -258,8 +266,10 @@ for (get.pred in seq(nrow(ffdf))){
 predname = file.path(outdir, 
 	paste0("Aggregate_cutoff_results", adder, ".Rda"))
 cmeans = colMeans(ffdf[, cn])
+
 cmaxs = colMaxs(as.matrix(ffdf[, cn]))
 cmins = colMins(as.matrix(ffdf[, cn]))
+
 
 x = data.frame(mean=t(t(cmeans)), max=t(t(cmaxs)), 
 	min = t(t(cmins)))

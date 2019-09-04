@@ -67,6 +67,7 @@ for (icorr in seq_along(options)){
 	load(file = predname)
 
 	cmeans = colMeans(ffdf[, cn])
+
 	cmaxs = colMaxs(as.matrix(ffdf[, cn]))
 	cmins = colMins(as.matrix(ffdf[, cn]))
 
@@ -80,10 +81,12 @@ for (icorr in seq_along(options)){
 	x$var = NULL
 	res = reshape(x, direction = "wide", idvar = c("cut"), 
 		timevar = "type")
+
 	res$correct = correct
 	l[[icorr]] = list(res=res, ffdf = ffdf)
 	# l[[icorr]] = list(ffdf = ffdf)
 }
+
 
 names(l) = options
 res = lapply(l, `[[`, "res")

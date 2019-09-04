@@ -1,5 +1,5 @@
 ###################################################################
-## This code is for images z-scored comapred to a templat
+## This code is for images z-scored compared to a template
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
@@ -117,3 +117,4 @@ znative = cal_img(znative)
 znative = robust_window(znative)
 writeNIfTI(znative, filename = nii.stub(ofile))
 ss = readNIfTI(x$ss, reorient=FALSE)
+

@@ -69,7 +69,7 @@ my.tab <- function(
 
 types = c("_zval2", "_zval_all", 
 	"_zval2_medztemp")
-# , "_zval2"ls
+# , "_zval2",
 # "_include_all", 
 type = types[1]
 
@@ -81,6 +81,7 @@ keep.obj = ls()
 	all.obj = ls()
 	rm.obj = all.obj[!(all.obj %in% 
 		c(keep.obj, "keep.obj"))]
+
 	rm(list=rm.obj)
     for (i in 1:3) gc()
     correct = match.arg(correct, options)
@@ -168,12 +169,14 @@ keep.obj = ls()
 	rm(list="img.pred")
     for (i in 1:3) gc()	
 	df$include = df$value >= 30 & df$value <= 100
+
 	
 	df$mode = fdf$mode[get.pred]
 
     fname = file.path(outdir, 
         paste0("Aggregate_data_cutoffs", 
         	adder, ".Rda"))
+
 
     load(file = fname)
     keepnames = colnames(est.cutoffs)
@@ -186,6 +189,7 @@ keep.obj = ls()
 
 	df$skew[is.nan(df$skew)] = 0
 	df$kurtosis[is.nan(df$kurtosis)] = 0
+
 
     include = rep(TRUE, length=nrow(df))
     for (icut in keepnames){
@@ -249,6 +253,7 @@ keep.obj = ls()
 	}
 
 
+
 	######################################
 	# Keep all ROI = 1, even if not inmask
 	######################################	
@@ -259,6 +264,7 @@ keep.obj = ls()
 
 	#### need this because the length of df has changed
 	roi.not.in = which(keep.ind %in% roi.not.in)
+
 
 	df$subset[ roi.not.in ] = FALSE
 
@@ -291,6 +297,7 @@ keep.obj = ls()
  #    gam.pred = as.numeric(gam.pred)
  #    gam.pred[gam.pred > 1] = 1
 	# test.gam.pred[ df$subset ] = gam.pred
+
 
 
 
@@ -369,6 +376,7 @@ keep.obj = ls()
 	)
 
 	preds = preds[, colnames(res)]
+
 	#### if the mask did not contain these voxels, 
 	#### then they are 0
 	preds[roi.not.in, ] = 0
@@ -377,6 +385,7 @@ keep.obj = ls()
 	paste0("Model_Cutoffs", adder, ".Rda"))
 
 	x = load(file=cut.filename)
+
 
 	scut.filename = file.path(outdir, 
 	paste0("Smooth_Model_Cutoffs", adder, ".Rda"))
@@ -400,6 +409,7 @@ keep.obj = ls()
 	all.scuts = all.scuts[colnames(preds)]
 	all.pauc.cuts = all.pauc.cuts[colnames(preds)]
 	all.spauc.cuts = all.spauc.cuts[colnames(preds)]
+
 
 	stopifnot(all(names(all.cuts) == colnames(preds)))
 	stopifnot(all(names(all.pauc.cuts) == colnames(preds)))
@@ -431,6 +441,7 @@ keep.obj = ls()
 		if (type == "_zval2_medztemp"){
 		  df$multiplier = df$zval2_medztemp
 		}				    
+
 		preds = xpreds
 		#### only values 0 to 100 are likely to be ROI
 		# preds = preds * df$in0100
@@ -674,7 +685,6 @@ keep.obj = ls()
 		dice.cut.stabs = runtabs(spreds, all.sdice.cuts)
 		dice.cut.tabs.smooth = runtabs(spreds, all.dice.cuts)
 
-		
 
 		# print(vol.roi)
 		# print(vol.pred)		
@@ -739,7 +749,6 @@ keep.obj = ls()
 		saccs = sapply(s.res, `[[`, "acc")
 		spaucs = sapply(s.res, `[[`, "pauc")
 		sdices = sapply(s.res, `[[`, "dice")
-
 		sres[get.pred, ] = spaucs
 		# print(get.pred)
 		predname = nii.stub(basename(fdf$img[get.pred]))

@@ -1,4 +1,5 @@
 ###################################################################
+
 ## This code is for unsmoothed cutoffs for models
 ##
 ## Author: John Muschelli
@@ -12,6 +13,7 @@ library(fslr)
 library(ROCR)
 library(matrixStats)
 library(mgcv)
+
 library(extrantsr)
 library(randomForest)
 homedir = "/Applications"
@@ -27,6 +29,7 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
+
 segdir = file.path(progdir, "Segmentation")
 source(file.path(segdir, "performance_functions.R"))
 
@@ -38,9 +41,11 @@ options = c("none",  "N3_SS", "N4_SS",
     "Rigid", "Rigid_sinc")
 
 
+
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
+
 
 outfile = file.path(outdir, "111_Filenames_with_volumes_stats.Rda")
 load(file = outfile)
@@ -69,6 +74,7 @@ correct = options[icorr]
         "Affine_sinc" = "_Affine_sinc")
 
 
+
     ##############################
     # Keeping files where predictors exist
     ##############################
@@ -81,6 +87,7 @@ correct = options[icorr]
     ##############################
     # Run lmod number of models - not all the models - leave out
     ##############################
+
 	mod.filename = file.path(outdir, 
 		paste0("Collapsed_Models", adder, ".Rda"))
 	x= load(mod.filename)
@@ -94,6 +101,7 @@ correct = options[icorr]
 
 
     fname = file.path(outdir, 
+
         paste0("Candidate_Aggregate_data", adder, ".Rda"))
     load(fname)
 
@@ -108,6 +116,7 @@ correct = options[icorr]
     rowMax = rowMaxs(preds)
     rowMin = rowMins(preds)
     rowProd = exp(rowSums(log(preds)))
+
     nr = nrow(preds)
     rowGeom = rowProd ^ (1/nr) 
     # rowGeom = exp(rowMeans(log(preds)))
@@ -123,6 +132,7 @@ correct = options[icorr]
 
 	#### only values 0 to 100 are likely to be ROI
 	# preds = preds * df$in0100
+
 	preds = preds * test.mult.df$multiplier
 	fpr.stop = 0.01
 
@@ -148,6 +158,7 @@ correct = options[icorr]
 	accs = sapply(r.res, `[[`, "acc")
 	paucs = sapply(r.res, `[[`, "pauc")
 	pauc.cuts = sapply(r.res, `[[`, "pauc.cut")[3,]
+
     sens.cuts = sapply(r.res, `[[`, "sens.cut")[4,]
     dice.cuts = sapply(r.res, `[[`, "dice.coef")[2,]
 
@@ -171,15 +182,19 @@ correct = options[icorr]
 
     all.cuts[is.infinite(all.cuts)] = 1
     all.pauc.cuts[is.infinite(all.pauc.cuts)] = 1
+
     all.sens.cuts[is.infinite(all.sens.cuts)] = 1
     all.dice.cuts[is.infinite(all.dice.cuts)] = 1
 
+
 	mod.filename = file.path(outdir, 
 		paste0("Model_Cutoffs", adder, ".Rda"))
+
 
 	save(all.cuts, all.pauc.cuts, 
         all.sens.cuts,
         all.dice.cuts, 
         file=mod.filename)
+
 
 # }

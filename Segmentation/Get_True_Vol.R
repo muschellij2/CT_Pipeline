@@ -1,9 +1,11 @@
+
 #####################################################
 ## This code is for Image Segmentation of CT
 ## The code is R but calls out FSL
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
+
 #####################################################
 #####################################################
 rm(list=ls())
@@ -11,6 +13,7 @@ library(plyr)
 library(cttools)
 library(fslr)
 library(mgcv)
+
 library(methods)
 homedir = "/Applications"
 rootdir = "/Volumes/DATA_LOCAL/Image_Processing"
@@ -33,6 +36,7 @@ load(file=outfile )
 outfile = file.path(outdir, "111_Filenames.Rda")
 xxx = load(file = outfile)
 
+
 iimg <- suppressWarnings({
 	as.numeric(Sys.getenv("SGE_TASK_ID"))
 	})
@@ -45,6 +49,7 @@ if (is.na(iimg)) iimg = 34
 ## 71 has no position data
 ## 13,71,101 has spacing
 
+
 fdf$median = fdf$mode = fdf$mean = NA
 
 fdf$thickvol = fdf$zvol = fdf$varslice = 
@@ -54,6 +59,7 @@ fdf$gantry = fdf$truevol = NA
 	#85, 86, 87, 99),]
 # dcmtables[, '0018-1152-Exposure']
 
+
 for (iimg in seq(nrow(fdf))){
 	
 	runx = x = fdf[iimg,]
@@ -61,8 +67,10 @@ for (iimg in seq(nrow(fdf))){
 
 	# run_model = function(x, fpr.stop = .1){
 	fname = xfname = nii.stub(x$img, bn=TRUE)
+
 	rda = file.path(sortdir, paste0(fname, 
 		"_Header_Info.Rda"))
+
 	xrda = load(rda)
 	# print(grep("pac", colnames(dcmtables), value=TRUE))
 	# print(iimg)
@@ -76,9 +84,11 @@ for (iimg in seq(nrow(fdf))){
 		dcmtables[, "0018-1120-GantryDetectorTilt"]))
 	stopifnot(length(gant) == 1)
 
+
 	cn = c("0020-0032-ImagePositionPatient")	
 	dcmnames = colnames(dcmtables)
 	print(unique(grep("xposure", dcmnames, value=TRUE)))
+
 
 	stopifnot(cn %in% dcmnames)
 	pos = dcmtables[, cn]
@@ -86,6 +96,8 @@ for (iimg in seq(nrow(fdf))){
 		cat(paste0(x$id, " has no position data\n"))
 	}
 	pos[ pos == ""] = "NA NA NA"
+
+
 
 	#########################
 	# 102-391 is all messed up
@@ -100,12 +112,14 @@ for (iimg in seq(nrow(fdf))){
 	# pz = pz[ord]
 	# imgpos = imgpos[ord, ]
 	####################
+
 	# Must use pythag theorem for oblique acquisition 
 	# not just diff
 	### but should use diff if orthogonal - for example #
 	# if negative
 	# z direction means overlapping slice - 
 	# shouldnt' count twice
+
 	####################
 	posdiff = sqrt(rowSums(dimgpos^2))
 	tester = c(dimgpos[,1:2])
@@ -119,8 +133,10 @@ for (iimg in seq(nrow(fdf))){
 	# print(posdiff )
 	add.posdiff = c(posdiff, posdiff[length(posdiff)])
 
+
 	orient = dcmtables[, 
 	"0020-0037-ImageOrientationPatient"]
+
 
 
 	tt = thicks = dcmtables[, "0018-0050-SliceThickness"]
@@ -136,8 +152,10 @@ for (iimg in seq(nrow(fdf))){
 	thick.diff= which(abs(thicks - add.posdiff) > 1)
 	ind = sort(unique(c(ind, thick.diff)))
 	if (length(ind) > 0 ){
+
 		ind = c(max(1, ind-1), ind, min(ind+1, 
 			length(thicks)))
+
 		print(cbind(thicks, add.posdiff)[ind,])
 		print(orient[1])
 		print(iimg)
@@ -187,8 +205,10 @@ for (iimg in seq(nrow(fdf))){
 	vols$avg = vols$avg * vdim 
 	vols$tavg = vols$avg * vols$sthick
 	vols$pavg = vols$avg * vols$pos
+
 	ovols = colSums(vols[, c("tavg", "pavg")], 
 		na.rm=TRUE)/1000
+
 
 	df$Y = df$Y * vdim
 	
@@ -226,6 +246,8 @@ for (iimg in seq(nrow(fdf))){
 	# print(warnings())
 }
 
+
 outfile = file.path(outdir, 
 	"111_Filenames_with_volumes.Rda")
+
 save(fdf, file = outfile)

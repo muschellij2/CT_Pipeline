@@ -13,6 +13,7 @@ library(fslr)
 library(ROCR)
 library(matrixStats)
 library(mgcv)
+
 library(extrantsr)
 library(randomForest)
 library(methods)
@@ -28,6 +29,7 @@ progdir = file.path(rootdir, "programs")
 basedir = file.path(rootdir, "Registration")
 tempdir = file.path(rootdir, "Template")
 atlasdir = file.path(tempdir, "atlases")
+
 outdir = file.path(basedir, "results")
 
 segdir = file.path(progdir, "Segmentation")
@@ -39,12 +41,14 @@ correct = "Rigid"
 #         "Affine_sinc")
 options = c("none", "N3_SS", "N4_SS", 
       "Rigid", "Rigid_sinc")
+
 # options = c("none", "Rigid")
 
 
 #### load voxel data
 outfile = file.path(outdir, "Voxel_Info.Rda")
 load(file=outfile )
+
 
 outfile = file.path(outdir, 
     "111_Filenames_with_volumes_stats.Rda")
@@ -99,6 +103,7 @@ correct = options[icorr]
     # Run lmod number of models - not all the models - leave out
     ##############################
 
+
     # moddname = nii.stub(basename(fdf.run$img))
     # moddname = file.path(fdf.run$outdir, 
     #     paste0(moddname, "_predictors", adder, ".Rda"))
@@ -119,6 +124,7 @@ correct = options[icorr]
     # }
 
     fname = file.path(outdir, 
+
         paste0("Candidate_Aggregate_data", adder, ".Rda"))
     load(fname)
     
@@ -136,11 +142,13 @@ correct = options[icorr]
         c("mask", "Y", "img", nosmooth))]
 
 
+
     runmod = function(formstr){
         form = as.formula(formstr)
         mod = glm(formula=form, data=train, family=binomial())
         return(mod)
     }
+
     sds = colSds(as.matrix(train))
     names(sds) = colnames(sds)
     novar = sds == 0
@@ -159,6 +167,7 @@ correct = options[icorr]
     take.mods = llply( takeout , function(x) {
         runmod( formstr= paste0(formstr, " - ", x))
         }, .progress = "text")
+
 
     test$multiplier = test.mult.df[, "multiplier"]
 
@@ -274,25 +283,27 @@ correct = options[icorr]
         gam.mod = bam(Y ~ 
         s(moment1) + 
         s(moment2) + 
+
         s(skew) + 
         s(kurtosis) + 
         s(value) + 
         thresh +
         s(zscore1) + 
         s(zscore2) + 
+
         s(zscore3) + 
         s(pct_thresh) + 
         pct_zero_neighbor + 
         any_zero_neighbor +
         s(dist_centroid) +
         s(smooth10) +
+
         s(smooth20) 
         , data=train, family= binomial(), 
         method = "fREML")
     })
     # + mode
     gam.time
-
 
     ##############################
     # GAM PREDs
@@ -309,6 +320,7 @@ correct = options[icorr]
     test.gam.pred = test.gam.pred * test$multiplier
 
     gam.pred <- prediction( test.gam.pred, test$Y)
+
     perf <- performance(gam.pred,"tpr","fpr")
     gam.pauc.cut = t(opt.cut(perf, gam.pred))
 
@@ -378,6 +390,7 @@ correct = options[icorr]
 
     # rownames(df) = NULL
     mods = list(mod=mod, 
+
         pauc = pauc)
         # return(mods)
     # }
@@ -387,6 +400,7 @@ correct = options[icorr]
         paste0("Aggregate_models", adder, ".Rda"))
 
     save(mods, take.mods, paucs, pauc, fdf.run, 
+
         pauc.cut, pauc.cuts,
         sens.cut, sens.cuts,
         dice.coef, dice.coefs,

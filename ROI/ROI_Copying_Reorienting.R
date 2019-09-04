@@ -129,10 +129,10 @@ df = df[aexists, ]
 #### save names of .nii files
 xdf = df
 
-
 df$raw = file.path(df$copydir, basename(df$raw))
 df$ss = file.path(df$copydir, basename(df$ss))
 df$roi.nii = file.path(df$copydir, basename(df$roi.nii))
+
 
 df$raw = gsub("\\.gz$", "", df$raw)
 df$ss = gsub("\\.gz$", "", df$ss)

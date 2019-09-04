@@ -3,7 +3,8 @@ library(cttools)
 library(fslr)
 library(plyr)
 library(methods)
-options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
+options(matlab.path='/Applications/MATLAB_R2016a.app/bin')
+
 
 setup <- function(id, study = "Registration"){
   username <- Sys.info()["user"][[1]]
@@ -89,7 +90,6 @@ iid <- as.numeric(Sys.getenv("SGE_TASK_ID"))
 # iid = 100 needs ss
 
 if (is.na(iid)) iid <- 51
-
 id <- ids[iid]
 setup(id, study = study)
 
@@ -145,7 +145,6 @@ if (regantry){
 setup(id, study=study)
 
 # for (iid in 60:70){
-
   id <- ids[iid]
   print(id)
   setup(id, study = study)
@@ -185,6 +184,7 @@ setup(id, study=study)
                               useNA='ifany', 
                               add.img.dir = TRUE))
 
+
       # contime <- system.time(convert_DICOM(basedir, progdir, 
       #                         verbose=verbose, untar=untar, 
       #                         useRdcmsort= TRUE, 
@@ -215,7 +215,6 @@ setup(id, study=study)
 
 # }
 
-
 #### skull stripping
 if (!ROIformat){
     # id <- ids[iid]
@@ -223,7 +222,7 @@ if (!ROIformat){
     if (skullstrip){
 
       if (runall) {
-        
+
         cat("Skull Stripping\n")
           # system.time(Skull_Strip(basedir, CTonly=TRUE, 
           #   opts="-f 0.1 -b", 

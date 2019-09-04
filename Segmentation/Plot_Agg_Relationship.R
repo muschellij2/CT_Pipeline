@@ -34,10 +34,12 @@ options = c("none", "N3", "N4", "N3_SS", "N4_SS",
         "Affine_sinc")
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+
 if (is.na(icorr)) icorr = 8
 correct = options[icorr]
 
 # for (correct in options){
+
     
     correct = match.arg(correct, options)
     adder = switch(correct, 
@@ -79,8 +81,10 @@ correct = options[icorr]
     outfile = file.path(outdir, "Voxel_Info.Rda")
     load(file=outfile )
 
+
     outfile = file.path(outdir, 
         "111_Filenames_with_volumes_stats.Rda")
+
     load(file = outfile)
 
 
@@ -121,16 +125,20 @@ correct = options[icorr]
 
     load(fname) 
 
+
     all.df$mode = fdf$mode[match(img, fdf$img)]
 
     runnames = colnames(all.df)
     nosmooth = c("any_zero_neighbor",
             "thresh", "pct_zero_neighbor", "mode")
+
     runnames = runnames[ !(runnames %in% 
         c("mask", "Y", "img", nosmooth))]
 
     train = all.df[samps,]
     test = all.df[!samps,]
+
+
 
 
     qdat = melt(quants)
@@ -182,4 +190,6 @@ correct = options[icorr]
         extra.opts = "-quality 100 -limit thread 1",
         clean = TRUE)
 
+
 # }
+

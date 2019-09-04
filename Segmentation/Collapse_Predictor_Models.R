@@ -3,6 +3,7 @@
 ##
 ## Author: John Muschelli
 ## Last updated: May 20, 2014
+
 ###########################################################
 ###########################################################
 rm(list=ls())
@@ -24,6 +25,7 @@ atlasdir = file.path(tempdir, "atlases")
 
 outdir = file.path(basedir, "results")
 
+
 correct = "Rigid"
 # options = c("none", "N3", "N4", "N3_SS", "N4_SS",
 #         "SyN", "SyN_sinc", "Rigid", "Affine", 
@@ -33,6 +35,7 @@ options = c("none", "N3_SS", "N4_SS",
 	"Rigid", "Rigid_sinc")
 
 icorr <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+
 if (is.na(icorr)) icorr = 1
 correct = options[icorr]
 
@@ -55,6 +58,7 @@ correct = options[icorr]
 
     filename = file.path(outdir, 
         paste0("Result_Formats", adder, ".Rda"))
+
     xxx = load(filename)
 
 
@@ -74,15 +78,18 @@ correct = options[icorr]
 			}			
 			cutoff = acc[, 'cutoff']
 			pauc.cutoff = pauc.cut[, "cutoff"]
+
 			sens.cutoff = sens.cut[, "cutoff"]
 			dice.cutoff = dice.coef[, "cutoff"]
 			# gam.cutoff = gam.acc[, "cutoff"]
 			# gam.pauc.cutoff = gam.pauc.cut[, "cutoff"]
 
 			l = list(mod= mod, cutoff= cutoff, 
+
 				pauc.cutoff = pauc.cutoff,
 				sens.cutoff = sens.cutoff,
 				dice.cutoff = dice.cutoff
+
 				# gam.cutoff = gam.cutoff,
 				# gam.pauc.cutoff = gam.pauc.cutoff,
 				# gam.mod = gam.mod
@@ -110,6 +117,7 @@ correct = options[icorr]
 
 	all.cutoffs = laply(all.dat, `[[`, "cutoff")
 	all.pauc.cutoffs = laply(all.dat, `[[`, "pauc.cutoff")
+
 	all.sens.cutoffs = laply(all.dat, `[[`, "sens.cutoff")
 	all.dice.cutoffs = laply(all.dat, `[[`, "dice.cutoff")
 
@@ -122,10 +130,12 @@ correct = options[icorr]
 	##########
 
 
+
 	filename = file.path(outdir, 
 		paste0("Collapsed_Models", adder, ".Rda"))
 	save(all.mods, res, vol.data, vol.sdata, sres, fdf.run,
 		runpreds, run.ind,
+
 		all.cutoffs, 
 		all.pauc.cutoffs,
 		all.dice.cutoffs, 

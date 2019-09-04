@@ -2,7 +2,8 @@ rm(list=ls())
 library(cttools)
 library(fslr)
 library(plyr)
-options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
+options(matlab.path='/Applications/MATLAB_R2016a.app/bin')
+
 
 rootdir = "~/Dropbox/Temp_Lung/NIfTI"
 rootdir = path.expand(rootdir)
