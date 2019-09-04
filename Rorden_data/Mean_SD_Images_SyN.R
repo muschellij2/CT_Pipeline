@@ -8,7 +8,7 @@ homedir = "~/"
 rootdir = "~/CT_Registration/"
 if (Sys.info()[["user"]] %in% "jmuschel") {
   homedir = "~"
-  rootdir = "/dexter/disk2/smart/stroke_ct/ident"
+  rootdir = "/legacy/dexter/disk2/smart/stroke_ct/ident"
 }
 rootdir = path.expand(rootdir)
 homedir = file.path(rootdir, "Rorden_data")
@@ -27,10 +27,12 @@ template = file.path(tempdir, "scct_unsmooth.nii.gz")
 temp = readNIfTI(template)
 dtemp = dim(temp)
 
-ss_template = file.path(tempdir, "scct_unsmooth_SS_0.01.nii.gz")
+ss_template = file.path(tempdir, 
+    "scct_unsmooth_SS_0.01.nii.gz")
 sstemp = readNIfTI(template)
 
-ss_maskfile = file.path(tempdir, "scct_unsmooth_SS_0.01_Mask.nii.gz")
+ss_maskfile = file.path(tempdir, 
+    "scct_unsmooth_SS_0.01_Mask.nii.gz")
 ssmask = readNIfTI(ss_maskfile)
 
 ss_files = list.files(path=scandir, full.names=TRUE, 
@@ -51,7 +53,17 @@ for (ifile in seq_along(reg_files)){
 means = rowMeans(data)
 meanimg = niftiarr(ssmask, means)
 
-writeNIfTI(meanimg, filename = file.path(tempdir, "Mean_Image"))
+writeNIfTI(meanimg, 
+    filename = file.path(tempdir, "Mean_Image"))
+
+
+medians = rowMedians(data)
+medimg = niftiarr(ssmask, medians)
+
+writeNIfTI(medimg, 
+    filename = file.path(tempdir, "Median_Image"))
+
+
 sds = rowSds(data)
 sds[is.nan(sds)] = 0
 sdimg = niftiarr(ssmask, sds)

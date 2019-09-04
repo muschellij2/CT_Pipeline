@@ -6,3 +6,4 @@ gh-pages/*
 .Rhistory
 Segmentation/.Rhistory
 scratch/*
+*/.Rhistory
