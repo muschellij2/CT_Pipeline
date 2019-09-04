@@ -72,6 +72,8 @@ make.pvalimg = function(pvalimg, runlist = NULL){
 
 
 atfile = file.path(atlasdir, "All_FSL_Atlas_Labels.Rda")
+# atfile = file.path(atlasdir, "All_FSL_Atlas_Labels_Filled.Rda")
+
 
 x = load(file=atfile)
 
@@ -197,12 +199,80 @@ temp.t1 = readNIfTI(t.t1)
 #############################################
 # Overall desnity image
 ##############################################
-noivh = demog$IVH_Dx_10 == 0
+noivh = demog$IVH_Dx_10 == 0 & demog$patientName != 131316
 noivh.mat = mat[, which(noivh), drop=FALSE]
 
 ivhvox = colSums(noivh.mat[ind, ])
 
 rs = rowSums(noivh.mat)
+
+all.ind = col.lists[["EVE_1"]]
+all.ind = unlist(all.ind[ names(all.ind) != "Outside Brain Mask"])
+V.noivh = sum(noivh.mat[all.ind,])
+V = sum(all.mat[all.ind,])
+
+
+csf.ind = col.lists[["EVE_1"]][["Background"]]
+csfmask = array(0, dim = dtemp)
+csfmask[csf.ind] = 1
+csfmask = niftiarr(temp, csfmask)
+
+sum(all.mat[csf.ind,])/V
+sum(noivh.mat[csf.ind,])/V.noivh
+
+
+csf.true = colSums(mat[csf.ind, ])
+true = colSums(mat)
+rat = csf.true/true
+
+sum(noivh.mat[csf.ind, ])/sum(noivh.mat)
+sum(all.mat[csf.ind, ])/sum(all.mat)
+
+noivh.keep = which(rowSums(noivh.mat) > 0)
+mean(noivh.mat[csf.ind,][, ])
+#########################
+# Of those with any hemorrhage, which percent are csf?
+#########################
+any.hem = which(rowSums(all.mat) > 10)
+any.noivh.hem = which(rowSums(noivh.mat) > 6)
+
+mean(csf.ind %in% any.hem)
+mean(csf.ind %in% any.noivh.hem)
+
+
+
+###########################
+# Get mean prevalence for all non-zero CSF voxels
+###########################
+any.hem = rowSums(all.mat[csf.ind, ]) > 0
+any.noivh.hem = rowSums(noivh.mat[csf.ind,]) > 0
+
+
+
+
+mean(all.mat[csf.ind, ][any.hem,])
+mean(noivh.mat[csf.ind, ][any.noivh.hem,])
+mean(noivh.mat[csf.ind, ][any.hem,])
+
+mean(all.mat[csf.ind, ])
+
+mean(noivh.mat[csf.ind, ])
+m = rowMeans(noivh.mat[csf.ind, ])
+mean(m)
+sd(m)
+hist(colMeans(noivh.mat[csf.ind, ]))
+
+
+
+
+
+noivh.csf.true = colSums(noivh.mat[csf.ind, ])
+noivh.true = colSums(noivh.mat)
+noivh.rat = noivh.csf.true/noivh.true
+
+noivh.fac = factor(c("Has IVH", "No IVH")[noivh+1])
+plot(rat ~ noivh.fac )
+
 
 if (ncut < 1){
   ncut = floor(sum(noivh) * ncut)
@@ -258,7 +328,8 @@ dev.off()
 pimg = niftiarr(temp, runpct)
 dens.pct = area_pct(pimg, ind.list=lists[["EVE_1"]], 
                     keepall=TRUE)  
-col.dens.pct = area_pct(pimg, ind.list= col.lists[["EVE_1"]], keepall=TRUE)  
+col.dens.pct = area_pct(pimg, ind.list= col.lists[["EVE_1"]], 
+  keepall=TRUE)  
 
 col.dens.tab = make.pvalimg(pimg, col.lists)[["EVE_1"]]
 col.dens.tab = col.dens.tab[ order(col.dens.tab$nvox, 
@@ -276,8 +347,13 @@ save(dens.tab, dens.pct,
                       "Table_NoIVH_Density_Results.Rda"))
 
 
-rm(list=c("noivh", "noivh.mat", "ivhvox", "img"))
+rm(list=c("noivh", "noivh.mat", "ivhvox", "pimg"))
 
+
+ind = col.lists[["EVE_1"]][["Outside Brain Mask"]]
+ind.arr = array(0, dim=dtemp)
+ind.arr[ind] = 1
+ob = niftiarr(temp, ind.arr)
 
 for (outcome in c("GCS", "NIHSS")){
   for (ncut in c(0.1, 10)){
@@ -361,7 +437,8 @@ for (outcome in c("GCS", "NIHSS")){
       pimg = niftiarr(temp, runpct)
       dens.pct = area_pct(pimg, ind.list=lists[["EVE_1"]], 
                           keepall=TRUE)  
-      col.dens.pct = area_pct(pimg, ind.list= col.lists[["EVE_1"]], keepall=TRUE)  
+      col.dens.pct = area_pct(pimg, ind.list= col.lists[["EVE_1"]], 
+                              keepall=TRUE)  
       
       col.dens.tab = make.pvalimg(pimg, col.lists)[["EVE_1"]]
       col.dens.tab = col.dens.tab[ order(col.dens.tab$nvox, 
@@ -524,6 +601,7 @@ for (outcome in c("GCS", "NIHSS")){
       save(pvalimg.pct, pvalimg.tab, 
            col.pvalimg.pct, col.pvalimg.tab, 
            pvalimg.tab_symm, col.pvalimg.tab_symm, 
+           img,
            file = file.path(figdir, 
             paste0(outcome, "_NoIVH_", icut,  
              "_keep", ncut,"_Results.Rda")

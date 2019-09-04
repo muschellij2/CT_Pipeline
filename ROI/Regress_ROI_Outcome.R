@@ -72,7 +72,8 @@ if (outcome == "GCS") {
 
 
 demog$Clot_Location_RC = gsub("Palidus", "Pallidus", demog$Clot_Location_RC )
-demog$Clot_Location_RC = factor(demog$Clot_Location_RC, levels= c("Lobar", "Globus Pallidus", "Putamen", "Thalamus"))
+demog$Clot_Location_RC = factor(demog$Clot_Location_RC, 
+	levels= c("Lobar", "Globus Pallidus", "Putamen", "Thalamus"))
 demog$LOC = demog$Clot_Location_RC
 
 vox.nkeeps = rep(NA, length(nkeeps))
@@ -80,7 +81,8 @@ mods = list()
 # irun = ""
 meas = measures[1]
 all.res = vector(length=2, mode="list")
-runs = c("_Symmetrized", "")
+# runs = c("_Symmetrized", "")
+runs = ""
 irun = 1
 gruns = gsub("_", "", runs)
 names(all.res) = gruns
@@ -146,6 +148,7 @@ for (irun in seq_along(runs)) {
 				ylab(outcome)
 			print(g)
 
+			if (FALSE) {
 			if ( ((outcome == "GCS" & nkeep == 1000) |
 				(outcome == "NIHSS" & nkeep == 19047))
 				& meas == measures[1]
@@ -210,13 +213,19 @@ for (irun in seq_along(runs)) {
 					print(g)
 				dev.off()
 			}
+			}
 # 		dev.off()
 # 		}
 # 	}
 # }
 
+			nullmod = lm(Y ~ Age + Sex + 
+				Base_ICH_10, 
+				data=demog)
+
 			mod = lm(Y ~ Age + Sex + 
-				Base_ICH_10 + perc_ROI, data=demog)
+				Base_ICH_10 + perc_ROI, 
+				data=demog)
 			mods[[ikeep]] = mod
 			smod = summary(mod)
 			nmod = lm(Y ~ Age + Sex + 
@@ -226,6 +235,22 @@ for (irun in seq_along(runs)) {
 				Base_ICH_10 + LOC, data=demog)
 			scmod = summary(cmod)
 
+			both.mod = lm(Y ~ Age + Sex + 
+				Base_ICH_10 + LOC + perc_ROI, 
+				data=demog)
+			# test of location has info above, no
+			lrt.mod = lrtest(both.mod, mod) 
+			# test if percent has location above
+			lrt.cmod = lrtest(both.mod, cmod)
+			lrt.null = lrtest(nullmod, mod)
+			lrt.cnull = lrtest(nullmod, cmod)
+			print(run)
+			print(meas)
+			print(lrt.mod)
+			print(lrt.cmod)
+			print(lrt.null)
+			print(lrt.cnull)
+# }}}
 			ct = coxtest(mod, keep.cmod)
 			jt = jtest(mod, keep.cmod)
 			test = list(coxtest=ct, jtest = jt)

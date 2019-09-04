@@ -45,6 +45,7 @@ setup <- function(id, study="ROI_data"){
 
 }
 
+rerun = TRUE
 #### setting up if things are on the cluster or not
 verbose =TRUE
 untar = TRUE
@@ -107,7 +108,7 @@ copydir = file.path(iddir, "reoriented")
 make.dir = function(path){
   system(sprintf('mkdir -p "%s"', path))
 }
-l_ply(copydir, make.dir, .progress="text")
+l_ply(unique(copydir), make.dir, .progress="text")
 df = data.frame(roi.nii = niis, raw = raw.nii, copydir, pid, 
   id = id.vals, 
   iddir = iddir,
@@ -124,16 +125,6 @@ aexists = apply(exists, 1, all)
 df[which(!aexists),]
 df = df[aexists, ]
 
-ids.111 = read.csv(file.path(basedir, "111_patients.csv"), 
-  stringsAsFactors= FALSE)
-uid = ids.111$patientName
-all.ids = ids.111$id
-
-############################
-# Take out 111 already ran for paper - this is for testing
-df = df[ !df$id %in% all.ids, ]
-rownames(df) =  NULL
-############################
 
 #### save names of .nii files
 xdf = df
@@ -148,6 +139,21 @@ df$ss = gsub("\\.gz$", "", df$ss)
 df$roi.nii = gsub("\\.gz$", "", df$roi.nii)
 
 df$outfile = gsub("\\.nii", "_Masked.nii", df$raw)
+
+save(df, file=file.path(rootdir, "Registration", 
+  "All_Registration_Image_Names.Rda"))
+all.df = df
+
+ids.111 = read.csv(file.path(basedir, "111_patients.csv"), 
+  stringsAsFactors= FALSE)
+uid = ids.111$patientName
+all.ids = ids.111$id
+
+############################
+# Take out 111 already ran for paper - this is for testing
+df = df[ !df$id %in% all.ids, ]
+rownames(df) =  NULL
+############################
 
 save(df, file=file.path(rootdir, "Registration", 
   "Registration_Image_Names.Rda"))
@@ -176,7 +182,9 @@ m_ply(function(value, copydir) {
 ##########################################
 melted$image = file.path(melted$copydir, basename(melted$value))
 l_ply(.data=melted$image, .fun =function(x) {
-  system(sprintf('gunzip --force "%s"', x))
+  if (file.exists(x)){
+    system(sprintf('gunzip --force "%s"', x))
+  }
 }, .progress = "text")
 # }## end for loop
 
@@ -184,9 +192,11 @@ l_ply(.data=melted$image, .fun =function(x) {
 ## Making masked files
 ##########################################
 Sys.setenv(FSLOUTPUTTYPE = "NIFTI")
-m_ply(.data=df[, c("raw", "ss", "outfile")], 
+m_ply(.data=all.df[, c("raw", "ss", "outfile")], 
   .fun = function(raw, ss, outfile) {
-  fslmask(file=raw, mask=ss, outfile=outfile)
+    if (!file.exists(outfile) | rerun){
+      fslmask(file=raw, mask=ss, outfile=outfile)
+    }
 }, .progress = "text")
 
 

@@ -202,6 +202,14 @@ fail.rates = ddply(nocrani, .(int, smooth), function(x){
 		)
 })
 
+fail = nocrani[ nocrani$int == 0.01 & 
+	nocrani$smooth== TRUE & nocrani$Good < 1 &
+	nocrani$Gantry < 1,]
+fail = fail[, c("img", "fname", "Good")]
+colnames(fail)[2] = "ssimg"
+write.csv(fail, 
+	file = file.path(datadir, "Failed_SS_Scans.csv"),
+	row.names=FALSE)
 
 
 scan.fail.rates = ddply(nocrani, .(int, smooth, manu), function(x){
@@ -456,7 +464,8 @@ save(icc.vals, icc.mods, icc.cis, icc.smods,
 	all.manu.tab, manu.tab,
 	n.ctr.icc,
 	n.per.pt,
-	fail.rates,
+	fail.rates, scan.fail.rates, 
+	sfail_0.01,
 	file = file.path(resdir, 
 	paste0("ICC_Results.Rda"))
 	)

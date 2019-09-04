@@ -51,7 +51,7 @@ Sys.setenv(FSLOUTPUTTYPE = "NIFTI")
 # load(file.path(rootdir, "Registration", 
 #   "Registration_Image_Names.Rda"))
 load(file.path(rootdir, "Registration", 
-  "Registration_Image_Names.Rda"))  
+  "All_Registration_Image_Names.Rda"))  
 # df = df[grep("101-307|101-308|102-317|102-322", df$roi.nii), ]
 
 
@@ -62,14 +62,24 @@ all.ids = ids.111$id
 
 ############################
 # Take out 111 already ran for paper - this is for testing
-df = df[ df$id %in% all.ids, ]
-rownames(df) =  NULL
 ############################
 xdf = df
 reorient = TRUE
 normalize = TRUE
 subsamp = TRUE
 rerun = TRUE
+
+bad.imgs = c(233, 275, 293, 312, 345, 358, 359, 362, 365, 366, 367, 
+  370, 
+375, 388, 421, 424, 428, 431, 444, 595, 1055, 1148, 1149, 1150
+)
+
+# iimg <- as.numeric(Sys.getenv("SGE_TASK_ID"))
+# if (is.na(iimg)) iimg = 123
+iimg = bad.imgs
+df = df[iimg, , drop=FALSE]
+
+
 imgs = mlply(.fun = function(outfile, roi.nii, raw, ss){
   c(outfile, roi.nii, raw, ss)
 }, .data=df[, c("outfile", "roi.nii", "raw", "ss")])
@@ -109,9 +119,17 @@ x = imgs[[1]]
 if (normalize){
   ### matlab problems if I don't change directories
     # - because dicomread and spm_affreg in there
-  gwd = getwd()
+  # gwd = getwd()
   setwd("~/")
   ### delete previous iterations of normalization
+  dim.equal = laply(.data=imgs, .fun = function(x){
+      hd = fslhd(x['raw'])
+      dims = fslhd.parse(hd)[paste0("dim", 1:3),]
+      hd = fslhd(x['roi.nii'])
+      roi.dims = fslhd.parse(hd)[paste0("dim", 1:3),]      
+      all(dims == roi.dims)
+    }, .progress="text")
+
   rets = laply(.data=imgs, .fun = function(x){
       suppressWarnings(y <- 
         file.remove(x[c("out.raw", "out.roi.nii")])
@@ -121,7 +139,7 @@ if (normalize){
       return(r)
     }, .progress="text")
   ### after orientation
-  which(rets != 0)  
+  print(which(rets != 0))
   cat("Normalizing the SS data \n")
   rets = laply(.data=imgs, .fun = function(x){
       rfile = x["raw"]
@@ -130,50 +148,8 @@ if (normalize){
       sn_mat = file.path(fol, sn_mat)
       r2 = run_ctnorm_write(sn_mat=sn_mat, files= x["ss"])
   }, .progress = "text")
-  setwd(gwd)
+  # setwd(gwd)
 
-}
-
-
-
-
-##### subsampling to 2mm - for atlas overlap
-df = xdf[, c("roi.nii", "raw")]
-df$roi.nii = file.path(dirname(df$roi.nii), 
-  paste0("bws", basename(df$roi.nii)))
-df$raw = file.path(dirname(df$raw), 
-  paste0("w", basename(df$raw)))
-df$ss = file.path(dirname(df$ss), 
-  paste0("w", basename(df$ss)))
-
-exists = t(apply(df, 1, file.exists))
-aexists = apply(exists, 1, all)
-nonorm = xdf[which(!aexists),]
-nonorm = gsub(rootdir, "", nonorm$copydir)
-nonorm = gsub("reoriented", "", nonorm)
-
-sum(!aexists)
-df = df[aexists,]
-df$id = 1:nrow(df)
-melted = melt(df, id.vars="id")
-
-melted$outfile = file.path(dirname(melted$value), 
-  paste0("2mm_", basename(melted$value)))
-
-if (subsamp){
-
-    value = melted$value[1]
-    outfile = melted$outfile[1]
-    m_ply(melted[, c("value", "outfile")], 
-      .fun = function(value, outfile){
-        # outdir = dirname(outfile)
-        # niigz = list.files(outdir, full.names=TRUE, 
-        # pattern="*.nii.gz")
-        # file.remove(niigz)
-        if (file.exists(outfile)) file.remove(outfile)
-        fslsub2(value, outfile, unzip=TRUE)
-      }, 
-    .progress= "text")
 }
 
 

@@ -77,12 +77,10 @@ zform = ~ Age + Sex + Diagnostic_ICH
 # Z = model.matrix(object = zform, data = demog)
 # Z = model.matrix(object = zform, data = demog)
 
-# Load the large matrix
 outfile = file.path(outdir, "Voxel_Matrix.Rda")
 load( file=outfile )
 
 
-# Run B permutations
 B = 1000
 sumY = sum(demog$Y)
 Y = sapply(seq(B), function(x){
@@ -90,8 +88,7 @@ Y = sapply(seq(B), function(x){
 })
 
 
-#### keeping if over 10 people have ICH 
-# in that locaiton
+#### keeping if over 10 people have ICH in that locaiton
 ncut = 10
 all.nvox = sum(rs > 0)
 
@@ -99,15 +96,12 @@ dim(mat)
 sum(rs > ncut)
 runmat = mat[rs > ncut, ]
 
-# Transposingt he matrix for colSumming
-# X is n by V
 X = t(runmat[, cc, drop=FALSE])
 
-
+ 
 N = nrow(X)
 cs = colSums(X)
 
-# Make the falses to be NA for na.rm to work
 naX = X
 naX[!naX] = NA
 
@@ -374,36 +368,14 @@ for (irun in seq_along(all.run)){
       c("adj.r.squared" = "Adjusted R-squared",
         "r.squared" = "R-squared",
         "sigma" = "Standard Deviation"))
-    xlim = c(min(truth, perm), 
-      max(truth, perm))
-    
-    hist(perm, xlim = xlim, breaks=30, 
+    xlim = floor(c(min(truth, perm), max(truth, perm)))
+    hist(perm, xlim=xlim, breaks=30, 
       xlab=
       paste0("Permutation ", mm), 
       main=paste0("Permutation Distribution for ", mm, " on ",
       outcome, " using ", runmod, " HPR"))
-    abline(v= truth, col = "red")
-
-
-    # hist(perm, xlim = xlim, breaks=30, 
-    #   xlab=
-    #   expression(
-    #     paste("Permutation Adjusted ", R^2)),
-    #   main=expression(
-    #   paste("Permutation Distribution for", 
-    #     " Adjusted ", R^2, " on NIHSS ", 
-    #     "using 0.01 HPR")),
-    #   cex.axis = 2,
-    #   cex.lab = 2,
-    #   cex.main = 1.25)
-    # abline(v= truth, col = "red", lwd =2)   
-    #  legend("top", col = "red", 
-    #   lty = 1,
-    #   lwd = 2,
-    #   legend = expression(
-    #     paste("Observed Adjusted ", R^2)), 
-    #   bty = "n", cex = 2)
-    # abline(v=nox.truth, col="red")    
+    abline(v= truth)
+    abline(v=nox.truth, col="red")    
     
     if (measure %in% c("sigma", "AIC")) {
       pval[[measure]] = 2*mean(abs(perm) <= abs(truth))

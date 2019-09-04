@@ -6,7 +6,7 @@ library(cttools)
 library(fslr)
 library(plyr)
 library(R.utils)
-options(matlab.path='/Applications/MATLAB_R2013b.app/bin')
+options(matlab.path='/Applications/MATLAB_R2014b.app/bin')
 
 rootdir = "~/Lung/data"
 rootdir = path.expand(rootdir)
